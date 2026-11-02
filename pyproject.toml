@@ -2,7 +2,7 @@
 # Maximum allowed line length for code.
 line-length = 81
 # Target Python version for linting and autofixes.
-target-version = "py311"
+target-version = "py314"
 # Automatically apply fixes for linting issues when possible.
 fix = true
 # Exclude specific directories from linting and fixing.
@@ -32,8 +32,19 @@ ignore = [
   "UP031",
   # UP035: Import from `typing` is deprecated (repo style uses `typing`)
   "UP035",
+  # UP036: Version block is outdated (the dev container runs Python 3.12, which
+  # is older than `target-version`)
+  "UP036",
+  # UP037: Remove quotes from type annotation (only valid on Python 3.14, the
+  # quotes are needed in the dev container that runs Python 3.12)
+  "UP037",
+  # UP043: Unnecessary default type arguments (only valid on Python 3.13+, the
+  # arguments are needed in the dev container that runs Python 3.12)
+  "UP043",
   # UP045: Use `X | None` for type annotations (repo style uses `typing.Optional`)
   "UP045",
+  # UP047: Use type parameters for generic functions (repo style uses `TypeVar`)
+  "UP047",
 ]
 
 [tool.ruff.lint.per-file-ignores]
