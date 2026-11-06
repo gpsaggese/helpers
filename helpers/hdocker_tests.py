@@ -83,6 +83,45 @@ def run_docker_cmd(
     hsystem.system(cmd)
 
 
+def get_unit_tests_cmd(
+    docker_script_dir: str, test_file_names: List[str]
+) -> str:
+    """
+    Build the command that runs unit tests of a project inside its container.
+
+    The repo is mounted at `/git_root` inside the container, so the paths of the
+    test files are computed relative to the root of the repo.
+
+    :param docker_script_dir: project directory containing `docker_cmd.sh`
+    :param test_file_names: names of the test files in the `test/` dir of the
+        project
+        - E.g., `["test_utils.py"]`
+    :return: shell command to pass to `docker_cmd.sh`
+        - E.g., `cd /git_root && python -m pytest my_project/test/test_utils.py`
+    """
+    _LOG.debug(hprint.to_str("docker_script_dir test_file_names"))
+    hdbg.dassert_lt(0, len(test_file_names), "No test files to run")
+    # Compute the project dir relative to the repo root, which is `/git_root`
+    # inside the container.
+    git_root = hgit.find_git_root(docker_script_dir)
+    rel_dir = os.path.relpath(docker_script_dir, git_root)
+    # Check that each test file exists and compute its path in the container.
+    test_paths = []
+    for test_file_name in test_file_names:
+        test_path = os.path.join(docker_script_dir, "test", test_file_name)
+        hdbg.dassert_file_exists(test_path)
+        test_paths.append(os.path.join(rel_dir, "test", test_file_name))
+    # Build the command.
+    cmd_parts = [
+        "cd /git_root &&",
+        "python -m pytest",
+        *test_paths,
+    ]
+    cmd = " ".join(cmd_parts)
+    _LOG.debug("return=%s", cmd)
+    return cmd
+
+
 # TODO(gp): Consider making docker_cmd_script mandatory.
 def run_all_tests(
     test_dir: str, *, docker_cmd_script: str = "./docker_cmd.sh"
@@ -127,7 +166,8 @@ class DockerTestCase(hunitest.TestCase):
 
     Subclasses must set `_test_file = __file__` and may add notebook test methods
     that call `self.run_notebook()`, passing `use_docker_cmd` and `generate_html`
-    explicitly.
+    explicitly, and a test method that calls `self.run_unit_tests()` with the
+    test files of the project.
     """
 
     # Assigned by subclasses.
@@ -265,3 +305,18 @@ class DockerTestCase(hunitest.TestCase):
             cmd = " ".join(cmd_parts)
             # Show the output while the notebook runs since it can take minutes.
             hsystem.system(cmd, suppress_output=False)
+
+    def run_unit_tests(self, test_file_names: List[str]) -> None:
+        """
+        Run unit tests of the project inside Docker through `docker_cmd.sh`.
+
+        :param test_file_names: names of the test files in the `test/` dir of
+            the project
+            - E.g., `["test_utils.py"]`
+        """
+        _LOG.debug(hprint.to_str("test_file_names"))
+        # Prepare inputs.
+        docker_script_dir = self._get_docker_docker_script_dir()
+        shell_cmd = get_unit_tests_cmd(docker_script_dir, test_file_names)
+        # Run command.
+        run_docker_cmd(docker_script_dir, shell_cmd=shell_cmd)

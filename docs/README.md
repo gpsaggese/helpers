@@ -129,7 +129,7 @@ with active review tracking and executable documentation validation.
       management, and repo orchestration.
   - `docs/tools/docker/`
     - Docker usage guides for development workflows, including sibling
-      containers, DockerHub, and helper containers.
+      containers, DockerHub, helper containers, and testing a project in Docker.
   - `docs/tools/git/`
     - Git and GitHub usage and automation, including hooks, Gitleaks, repo
       integration, and the manual PR flow.
