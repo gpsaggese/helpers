@@ -123,14 +123,14 @@ copy-paste skeletons and worked examples, see `.claude/templates/tikz.template.m
 - Subtle fills only (e.g. `fill=blue!8`), never saturated default colors
 - No unnecessary background grid
 - No 3D/perspective effects unless functionally necessary
-- Tight cropping: compatible with `standalone` document class
+- **Tight cropping**: compatible with `standalone` document class
 - No filled background rectangle/`\pagecolor`: `standalone` is transparent by
   default, let the figure blend into the surrounding page (see
   `.claude/skills/figure.rules.md` "Geometry and Restraint")
-- Standardize line weights: `line width=0.4pt` default, `line width=0.8pt` for the
-  one or two emphasized/"so what" elements, no more than 2-3 distinct weights in one
-  figure
-- Standardize shape style: consistent corner rounding (e.g. `rounded corners=2pt`
+- **Standardize line weights**: `line width=0.4pt` default, `line width=0.8pt` for
+  the one or two emphasized/"so what" elements, no more than 2-3 distinct weights in
+  one figure
+- **Standardize shape style**: consistent corner rounding (e.g. `rounded corners=2pt`
   default, `4pt` for an emphasized node) and consistent arrowheads across all edges
 
 # Output

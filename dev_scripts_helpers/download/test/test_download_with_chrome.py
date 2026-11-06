@@ -1,7 +1,10 @@
+import http.server
+import json
 import logging
 import os
 import socket
-from typing import Any, List
+import threading
+from typing import Any, Dict, List, Tuple
 from unittest import mock
 
 import pytest
@@ -60,7 +63,7 @@ class Test__resolve_urls(hunitest.TestCase):
         referer = ""
         # Prepare outputs.
         expected_url = (
-            "https://papers.ssrn.com/sol3/Delivery.cfm/5277078.pdf"
+            "https://papers.ssrn.com/sol3/Delivery.cfm"
             "?abstractid=5277078&mirid=1"
         )
         expected_referer = (
@@ -247,6 +250,92 @@ class Test__is_cdp_ready(hunitest.TestCase):
         cdp_url = f"http://127.0.0.1:{port}"
         # Run test.
         actual = dshddwich._is_cdp_ready(cdp_url)
+        # Check outputs.
+        self.assertEqual(actual, False)
+
+
+# #############################################################################
+# Test__ensure_window
+# #############################################################################
+
+
+class Test__ensure_window(hunitest.TestCase):
+    """
+    Test `download_with_chrome._ensure_window()` with a fake Chrome that
+    answers the HTTP endpoints of the CDP.
+    """
+
+    def helper(
+        self, targets: List[Dict[str, str]], expected_requests: List[Tuple]
+    ) -> bool:
+        """
+        Test helper for `_ensure_window()`.
+
+        :param targets: targets that the fake Chrome lists
+        :param expected_requests: expected (method, path) of the requests
+        :return: result of `_ensure_window()`
+        """
+        # Prepare inputs.
+        requests: List[Tuple[str, str]] = []
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self, method: str, body: bytes) -> None:
+                requests.append((method, self.path))
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:
+                self._answer("GET", json.dumps(targets).encode())
+
+            def do_PUT(self) -> None:
+                self._answer("PUT", b"{}")
+
+            def log_message(self, *args: Any) -> None:
+                # Keep the test output clean.
+                pass
+
+        # Port 0 lets the OS pick a free port.
+        server = http.server.HTTPServer(("127.0.0.1", 0), _Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        cdp_url = f"http://127.0.0.1:{server.server_address[1]}"
+        # Run test.
+        actual = dshddwich._ensure_window(cdp_url)
+        server.shutdown()
+        server.server_close()
+        # Check outputs.
+        self.assertEqual(requests, expected_requests)
+        return actual
+
+    def test1(self) -> None:
+        """
+        Test a Chrome with only background targets gets a blank tab.
+        """
+        # Prepare inputs.
+        targets = [
+            {"type": "service_worker", "url": "chrome-extension://x/sw.js"},
+            {"type": "browser_ui", "url": "chrome://omnibox-popup.top-chrome/"},
+        ]
+        expected_requests = [
+            ("GET", "/json/list"),
+            ("PUT", "/json/new?about:blank"),
+        ]
+        # Run test.
+        actual = self.helper(targets, expected_requests)
+        # Check outputs.
+        self.assertEqual(actual, True)
+
+    def test2(self) -> None:
+        """
+        Test a Chrome that has a page is left as it is.
+        """
+        # Prepare inputs.
+        targets = [{"type": "page", "url": "about:blank"}]
+        expected_requests = [("GET", "/json/list")]
+        # Run test.
+        actual = self.helper(targets, expected_requests)
         # Check outputs.
         self.assertEqual(actual, False)
 

@@ -4,13 +4,10 @@ model: haiku
 ---
 
 # Goal
-- You are an expert at structuring self-contained, reproducible data-science
-  tutorials
-- I will pass you a directory `<TARGET>` that contains, or will contain, a
+- Expert in structuring self-contained, reproducible data-science tutorials
+- I will pass a directory `<TARGET>` that contains, or will contain, a
   "Learn XYZ in 60 Minutes" tutorial for the topic / package `<TOPIC>`
-
-- In the following the specific topic / package is referred to as `<TOPIC>`
-  - E.g., `Autogen`, `TensorFlow`
+  - `<TOPIC>` is the topic or package name, e.g., `Autogen`, `TensorFlow`
 
 # Workflow
 
@@ -28,10 +25,7 @@ model: haiku
 ## Improve Content of the Tutorial
 - Organize the content of the directory `tutorials/<TOPIC>` following the
   directions of `.claude/skills/tutorial_in_60_mins.rules.md`
-- Use as a reference of how a tutorial looks like
-  - `tutorials/AutoGen`
-  - `tutorials/BambooAI`
-  - `tutorials/TensorFlow`
+- Use the references above
 
 ## Improve Content of the README.md
 - Create or improve a file `tutorials/<TOPIC>/README.md`

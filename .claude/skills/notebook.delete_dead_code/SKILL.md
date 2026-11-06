@@ -4,8 +4,8 @@ model: haiku
 ---
 
 # Goal
-- Given a Jupyter notebook, remove the dead code from the notebook and the
-  paired utility file
+- Given a Jupyter notebook, remove its dead code and the dead code in the paired
+  utility file
 
 # Workflow
 
@@ -13,18 +13,17 @@ model: haiku
 - Read and follow `.claude/skills/notebook.rules.md`
 
 ## Find Unused Functions
-- Find the functions in the notebook and in the paired utility file
-  `*_utils.py` that are not used in the notebook
-- Print a summary of the found unused functions
+- Find the functions in the notebook and in the paired `*_utils.py` file that the
+  notebook does not use
+- Print a summary of the unused functions
 
 ## Remove Unused Code
-- Remove the code of the unused functions from the notebook and from the paired
-  utility file
-- Remove the unit tests associated to those unused functions, if any
+- Remove the unused functions from the notebook and from the paired utility file
+- Remove their unit tests, if any
 
 ## Sync with Jupytext
-- At the end, sync the paired `.py` file with Jupytext following the conventions
-  in `# Code Architecture and Responsibility` -> `## Utilities vs. Notebook
+- At the end, sync the paired `.py` file with Jupytext, following
+  `# Code Architecture and Responsibility` -> `## Utilities vs. Notebook
   Responsibilities` in `.claude/skills/notebook.rules.md`
 
 # Verification

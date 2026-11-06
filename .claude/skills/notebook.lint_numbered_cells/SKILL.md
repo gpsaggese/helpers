@@ -10,8 +10,8 @@ model: haiku
 # Workflow
 
 ## Identify Current Numbering
-- Read all existing cell headers and identify the current numbering
-- Make sure to follow the sections from `.claude/skills/notebook.rules.md`:
+- Read all cell headers and identify the current numbering
+- Follow these sections of `.claude/skills/notebook.rules.md`:
   - `# Notebook Structure and Headers` (Markdown Header Structure and Naming,
     Sequential Cell Numbering)
   - `# Code Architecture and Responsibility` (Sync Function Names with Cell

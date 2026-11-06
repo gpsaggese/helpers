@@ -4,8 +4,8 @@ model: haiku
 ---
 
 # Goal
-- Monitor GitHub CI checks for the current PR, fix any failures found, and report
-  status back on the PR
+- Monitor GitHub CI checks for the current PR, fix any failures, and report status
+  on the PR
 
 # Workflow
 
@@ -28,7 +28,7 @@ model: haiku
   > gh pr view $GH_PR_NUM
   ```
 
-- If the PR is a draft and not ready
+- If the PR is a draft and not ready, it looks like this
 
   ```bash
   > gh pr view $GH_PR_NUM
@@ -67,8 +67,7 @@ model: haiku
   ✓  CodeQL/Analyze (python) (dynamic)                                  1m0s     https://github.com/causify-ai/helpers/actions/runs/34052614245/job/101538799529
   ```
 
-- Monitor for any failures
-- Make sure that all the checks run and complete successfully
+- Monitor for any failures, and make sure all checks run and complete successfully
 
 ## Report Status on the PR
 - If GitHub CI is passing:
@@ -85,11 +84,11 @@ model: haiku
 - Commit and push the fix, then repeat "Run and Monitor GitHub CI" until it is green
 
 ## Loop
-- Keep repeating until all GitHub CI checks pass
+- Repeat until all GitHub CI checks pass
 
 # Constraints
-- This skill runs both when executed locally on a dev computer and remotely when
-  executed on cloud (e.g., on GitHub or Anthropic infrastructure)
+- This skill runs both locally on a dev computer and remotely on cloud (e.g., GitHub
+  or Anthropic infrastructure)
 
 # Verification
 

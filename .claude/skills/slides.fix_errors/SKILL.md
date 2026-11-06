@@ -4,15 +4,14 @@ model: haiku
 ---
 
 # Goal
-- Given a file with slides or user content, fix errors and imprecisions in the
-  slides without changing their structure
+- Given a file with slides or user content, fix errors and imprecisions without
+  changing the slide structure
 
 # Workflow
 
 ## Read the Rules
-- Read `.claude/skills/slides.rules.md` and follow strictly the conventions and
-  rules
-- A slide title is prepended with `*` and has hierarchical bullets
+- Read `.claude/skills/slides.rules.md` and follow its conventions strictly
+- A slide title is prefixed with `*` and has hierarchical bullets
   - E.g.,
     ```
     * How Can a Node Be Influenced by Its Children?
@@ -25,16 +24,16 @@ model: haiku
     ```
 
 ## Leave Structure Unchanged
-- Do not change the structure of the text (e.g., in terms of title, bullet structure,
-  div fenced blocks)
-- Maintain the content of the existing text
-- Do not introduce new formatting violations while fixing grammar (e.g.,
-  punctuation is owned by `.claude/skills/slides.fix_formatting/SKILL.md`);
-  follow `.claude/skills/slides.rules.md` as read in the Read the Rules step
+- Do not change the structure of the text (e.g., title, bullet structure, div
+  fenced blocks)
+- Keep the content of the existing text
+- Do not add formatting violations while fixing grammar. Punctuation belongs to
+  `.claude/skills/slides.fix_formatting/SKILL.md`. Follow
+  `.claude/skills/slides.rules.md` as read in the Read the Rules step
 
 ## Fix Mistakes
 - Fix English grammar
-- Fix any conceptual mistake only if you are sure about the correction
+- Fix a conceptual mistake only if you are sure of the correction
 
 # Verification
 - [ ] Make sure that the updated slides render correctly, e.g.,

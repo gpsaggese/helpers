@@ -13,8 +13,8 @@ model: haiku
 - Your role is specified in `.claude/skills/role.ai_researcher.md`
 
 ## Read the File
-- Given the file `<FILE>` from the user storing lecture slides or the provided
-  `<TEXT>` in the format described in `.claude/skills/slides.rules.md`
+- Read the file `<FILE>` with the lecture slides, or the provided `<TEXT>`, in
+  the format described in `.claude/skills/slides.rules.md`
 
 ## Extract Lecture Slides
 - The user selects one or more slides `<SLIDE>` by:
@@ -37,4 +37,4 @@ model: haiku
 - Focus on brevity, intuition, and simplicity
 
 ## Answer
-- Answer follow-on users questions about the slide
+- Answer follow-on questions from the user about the slide

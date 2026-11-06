@@ -6,19 +6,14 @@ model: sonnet
 # Goal
 
 - Run the AI lint, the standard linter, the local tests, and GitHub CI for the
-  current PR, fixing anything that comes up, so the PR is ready to be reviewed and
-  merged
+  current PR, and fix anything that comes up, so the PR is ready to review and merge
 
 # Workflow
 
 ## Create and Update a Plan
 
-- Create a file `plan-github.get_pr_ready_to_merge.md` with a plan in the form of a
-  bullet list of actions and maintain it updated, by marking each action
-  - [.] when something is in progress
-  - [x] when something is done
-  - [F] when something failed
-
+- Create `plan-github.get_pr_ready_to_merge.md`, a bullet list of actions. Keep it
+  updated: `[.]` in progress, `[x]` done, `[F]` failed
 - E.g.,
   ```
   # Plan: get PR #... ready to merge
@@ -37,13 +32,13 @@ model: sonnet
 
 ## Get the PR Number and Branch Name
 
-- Get the PR number
+- Get the PR number:
 
   ```bash
   > GH_PR_NUM=$(gh pr view --json number -q .number)
   ```
 
-- Get the branch name
+- Get the branch name:
 
   ```bash
   > BRANCH_NAME=$(git branch --show-current)
@@ -51,80 +46,73 @@ model: sonnet
 
 ## Run the AI Lint and Add TODOs
 
-- Run the AI-based linter on the branch, asking it to leave `TODO`s instead of
-  silently rewriting the code
+- Run the AI linter on the branch. Make it leave `TODO`s, not silently rewrite code:
 
   ```bash
   > linters2/cc_lint.py --branch --add_todos
   ```
 
-- Commit the added `TODO`s together with any other pending changes, following "Never
-  Commit Junk Files" below
+- Commit the added `TODO`s with pending changes (see "Never Commit Junk Files")
 
 ## Resolve the Added TODOs
 
-- For each file that `cc_lint.py` annotated, use `/coding.todoai_gp` to implement the
-  `TODO(ai_gp)` items it added
-- Commit the fixes, following "Never Commit Junk Files" below
+- For each file that `cc_lint.py` annotated, use `/coding.todoai_gp` to implement
+  its `TODO(ai_gp)` items
+- Commit the fixes (see "Never Commit Junk Files")
 
 ## Run the Standard Linter
 
-- Run the repo's standard linter on the branch
+- Run the standard linter on the branch:
 
   ```bash
   > linters2/lint.py --branch
   ```
 
-- Commit any resulting changes, following "Never Commit Junk Files" below
+- Commit any resulting changes (see "Never Commit Junk Files")
 
 ## Fix Pyright Issues
 - Fix the pyright warnings and errors in the branch
   ```bash
   > linters2/lint.py --clear_actions --action "pyright" --branch
   ```
-- Commit any resulting changes, following "Never Commit Junk Files" below
+- Commit any resulting changes (see "Never Commit Junk Files")
 
 ## Make Sure The Affected Local Tests Pass
-- Run the subset of tasks that are affected by the change, using
+- Run the tests affected by the change, using
   ```
   > pytest <TEST_NAMES>
   ```
-  to iterate on the tests and then `pytest_multi_build.py` to check all the different
-  builds
+  to iterate, then check all builds with `pytest_multi_build.py`
   ```
   > pytest_multi_build.py --target <TEST_NAMES>
   ```
 
 ## Make Sure Local Tests Pass
-- Use `/github.get_pr_to_pass_local_tests` to run and fix the local unit tests for
-  the branch, even if it's a long task
+- Use `/github.get_pr_to_pass_local_tests` to run and fix the local unit tests, even
+  if it is a long task
 
 ## Make Sure GitHub CI Passes
-- Use `/github.get_pr_to_pass_ci_tests` to run and monitor GitHub CI, fix any
-  failures
+- Use `/github.get_pr_to_pass_ci_tests` to run, monitor, and fix GitHub CI failures
 
 ## Never Commit Junk Files
 
-- Never run `git add -A` or `git add .` to stage a fix: it sweeps in every untracked
-  file sitting in the working tree (logs, `tmp.*` scratch files, test-run artifacts
-  like `.pkl`/`.json` caches, etc.), not just the files you intended to fix
-- Always stage files explicitly by path, e.g. `git add <file1> <file2>`
-- Before committing, run `git status --short` and review every listed file; drop
-  anything that is not part of the intended fix
-- If junk files were already committed and pushed, fix it by amending the commit to
-  contain only the intended files and force-pushing (`git push --force-with-lease`),
-  rather than leaving the junk in history
+- Never run `git add -A` or `git add .` to stage a fix. They sweep in untracked
+  junk: logs, `tmp.*` scratch files, and test-run caches like `.pkl`/`.json`
+- Stage files explicitly by path, e.g., `git add <file1> <file2>`
+- Before committing, run `git status --short` and drop anything not part of the fix
+- If junk was already committed and pushed, amend the commit to contain only the
+  intended files, then force-push (`git push --force-with-lease`). Do not leave the
+  junk in history
 
 ## Loop
 
-- Keep repeating until the branch has no outstanding `cc_lint.py` `TODO`s, the
-  standard linter is clean, and the local tests and the GitHub CI checks are all
-  passing
+- Repeat until no `cc_lint.py` `TODO`s remain, the standard linter is clean, and the
+  local tests and GitHub CI checks all pass
 
 # Constraints
 
-- This skill runs both when executed locally on a dev computer and remotely on cloud
-  (e.g., on GitHub or Anthropic infrastructure)
+- Runs both locally on a dev computer and remotely on cloud (e.g., on GitHub or
+  Anthropic infrastructure)
 
 # Verification
 

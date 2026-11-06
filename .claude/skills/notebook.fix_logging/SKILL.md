@@ -4,16 +4,15 @@ model: haiku
 ---
 
 # Goal
-- Implement the instructions in
-  `.claude/skills/notebook.rules.md` under
+- Implement the instructions in `.claude/skills/notebook.rules.md` under
   `## Use Standard Template Structure`
 
-- Use the structure from `.claude/templates/notebook.template.py` for consistent
-  notebook initialization
+- Use the structure from `.claude/templates/notebook.template.py` for notebook
+  initialization
 
 - Use `display`
 
-- In the local utility `*_utils.py` there should be a function like
+- The local utility `*_utils.py` should have a function like
   ```
   import helpers.hnotebook as hnotebo
 
@@ -28,14 +27,14 @@ model: haiku
   - `hnotebo.init_loggers()` already calls `config_notebook()`, initializes
     `hdbg` at INFO level, and redirects the notebook and utils loggers to
     print
-  - If the notebook needs a third-party logger (e.g., `causalml`), redirect it
-    inside `init_loggers()` with `hnotebo.set_logger_to_print()`:
+  - For a third-party logger (e.g., `causalml`), redirect it inside
+    `init_loggers()` with `hnotebo.set_logger_to_print()`:
     ```
     hnotebo.set_logger_to_print(logging.getLogger("causalml"))
     ```
 
-- In the notebook, the last setup cell calls `utils.init_loggers(_LOG)`
-  instead of `logging.basicConfig()` or `hdbg.init_logger()`
+- The last setup cell in the notebook calls `utils.init_loggers(_LOG)`, not
+  `logging.basicConfig()` or `hdbg.init_logger()`
 
 # Workflow
 
@@ -49,6 +48,8 @@ model: haiku
   `.claude/skills/notebook.rules.md`
 
 # Verification
-- [ ] Confirm the notebook init cell matches `.claude/templates/notebook.template.py`
-- [ ] Confirm `utils.init_loggers()` is called and log messages print in the notebook
+- [ ] Confirm the notebook init cell matches
+      `.claude/templates/notebook.template.py`
+- [ ] Confirm `utils.init_loggers()` is called and log messages print in the
+      notebook
 - [ ] Confirm the `.ipynb` and paired `.py` file are in sync via Jupytext

@@ -18,15 +18,14 @@ This skill supports two modes:
   > find class_project -mindepth 2 -maxdepth 2 -name Dockerfile \
       -not -path "class_project/project_template/*"
   ```
-- For each `<DST_DIR>` found this way
-- Make the Docker files `<DST_DIR>/docker_*.sh`, `<DST_DIR>/Dockerfile`,
-  `<DST_DIR>/run_jupyter.sh` as similar as possible to the corresponding ones in
-  `<SRC_DIR>`
+- For each `<DST_DIR>` found this way, make the Docker files
+  `<DST_DIR>/docker_*.sh`, `<DST_DIR>/Dockerfile`, `<DST_DIR>/run_jupyter.sh` as
+  similar as possible to the corresponding ones in `<SRC_DIR>`
   - The goal is to reuse functions and factored out code (e.g., from
     `class_project/project_template/utils.sh`)
 - If you are not sure about what the changes are
   - Summarize the changes for the user in bullet points
-  - Ask for the user to confirm
+  - Ask the user to confirm
 
 # Mode B: Last-commit sync
 - Use this mode when you only need to propagate the most recent changes
@@ -34,8 +33,7 @@ This skill supports two modes:
 ## Check the Last Commit
 - Look at the changes from the last git commit in `<SRC_DIR>`
 - Summarize the changes for the user in bullet points
-- If you are not sure about what the changes are, stop and ask for the user to
-  confirm
+- If you are not sure about what the changes are, stop and ask the user to confirm
 
 ## Propagate the Changes
 - Propagate the changes in the Docker system from `<SRC_DIR>` to every `<DST_DIR>`

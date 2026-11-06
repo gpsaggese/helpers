@@ -10,7 +10,7 @@ model: haiku
   in `py:percent` format
 
 # Constraints
-- For all the code follow the rules from `.claude/skills/coding.rules.md`
+- Follow `.claude/skills/coding.rules.md` for all code
 
 - Important Notes
   - Always sync before editing: `uvx jupytext --sync notebook.py`
@@ -20,25 +20,21 @@ model: haiku
 - This skill handles two complementary scenarios:
 
 ## Scenario 1: Moving Existing Functions to Utils
-- When you need to extract functions from an existing notebook and move them
-  to utils
+- Extract functions from an existing notebook and move them to utils
 
 ## Scenario 2: Adding New Code to Utils
-- When you need to add new functions or code to an existing utils file
-  corresponding to the notebook
+- Add new functions or code to the utils file that corresponds to the notebook
 
 # Workflow
 
 ## Identify or Create the Utils File
-- Find or create the library/utility file that corresponds to the notebook
-  - Naming convention: Notebook name with underscores
+- Find or create the library file for the notebook, named after it with underscores
   - E.g., `Lesson94-Information_Theory.ipynb` ->
     `Lesson94_Information_Theory_utils.py`
   - E.g., `tutorial_advanced.ipynb` -> `tutorial_advanced_utils.py`
 
 ## Organize Code Structure in Utils File
-- The utils file should have a structure that mirrors the flow of the notebook
-- Use section separators to organize code by notebook sections
+- Mirror the notebook's flow, with section separators for each notebook section
   - Example:
     ```python
     # #############################################################################
@@ -59,11 +55,9 @@ model: haiku
         ...
     ```
 
-- Add the functions in the part of the utility file that corresponds to the
-  notebook
+- Put each function in the part of the utils file that matches its notebook section
 - Group related functions together
-- Use private functions (prefix with `_`) for helpers not called from the
-  notebook
+- Use private functions (prefix `_`) for helpers not called from the notebook
 
 ## Move or Add Functions
 
@@ -71,10 +65,9 @@ model: haiku
 
 - Follow these steps:
 
-  1. Copy all functions from the notebook to the utils file (without
-     changing code)
+  1. Copy all functions from the notebook to the utils file, without changing code
   2. Remove the functions from the notebook
-  3. Update notebook cells to call the utils functions
+  3. Update the notebook cells to call the utils functions
 
 ### For Adding Functions (Scenario 2):
 
@@ -82,11 +75,10 @@ model: haiku
 
   1. Implement new code directly in the utils file
   2. Create caller code in the notebook that imports and uses the functions
-  3. Add the code in the appropriate section following the utils file
-     structure
+  3. Add the code in the matching section of the utils file
 
 ## Update Notebook to Call Utils
-- Replace function implementations with imports and function calls
+- Replace function implementations with imports and calls
 - Pattern:
   ```python
   import notebook_name_utils as utils
@@ -95,32 +87,28 @@ model: haiku
   utils.function_name(...)
   ```
 
-- Each code cell should be minimal:
+- Keep each code cell minimal:
   ```python
   # Display results of Cell 2 analysis.
   utils.cell2_calculate_entropy()
   ```
 
 ## Code Reuse
-- Reuse code already existing in the `*_utils.py` file
-- Reuse code already existing in the `helpers` directory
-- Avoid duplication across utils functions
-- Extract common patterns into helper functions
+- Reuse code already in the `*_utils.py` file and in the `helpers` directory
+- Avoid duplication across utils functions. Extract common patterns into helpers
 
 ## Sync with Jupytext
-- After all modifications are complete, sync to update both files following the
-  conventions in `# Code Architecture and Responsibility` -> `## Utilities vs.
-  Notebook Responsibilities` in `.claude/skills/notebook.rules.md`:
+- After all modifications, sync both files, following `# Code Architecture and
+  Responsibility` -> `## Utilities vs. Notebook Responsibilities` in
+  `.claude/skills/notebook.rules.md`:
   ```bash
   > uvx jupytext --sync <path/to/notebook.py>
   ```
 
 # Conventions
-- Always follow the conventions and guidelines in
-  `.claude/skills/notebook.rules.md`
+- Always follow `.claude/skills/notebook.rules.md`
 
 # Verification
 - [ ] Confirm no function moved to `*_utils.py` changed behavior
-- [ ] Confirm every notebook cell that used to hold inline code now calls the
-  corresponding utils function
+- [ ] Confirm every notebook cell that held inline code now calls its utils function
 - [ ] Confirm the `.ipynb` and paired `.py` file are in sync via Jupytext

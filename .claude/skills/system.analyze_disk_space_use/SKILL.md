@@ -5,18 +5,17 @@ model: haiku
 
 # Goal
 
-- Find what is consuming the most disk space, identify what is safely reclaimable
-  (unused container/VM images, caches, logs) versus what needs manual review, and
-  report the findings
-- Never delete, move, or modify anything: analysis only
+- Find what consumes the most disk space. Identify what is safely reclaimable
+  (unused container/VM images, caches, logs) and what needs manual review
+- Never delete, move, or modify anything. Analysis only
 
 # Workflow
 
 ## Check Overall Disk Usage
 
-- Run `df -h` to see total/used/available space per volume
-- On macOS, the volume that actually holds user data is `/System/Volumes/Data`, not
-  `/`: use its `Capacity`/`Avail` columns to judge how urgent the situation is
+- Run `df -h` to see total, used, and available space per volume
+- On macOS, user data lives on `/System/Volumes/Data`, not `/`. Use its
+  `Capacity`/`Avail` columns to judge urgency
 
 ## Survey the Home Directory
 
@@ -26,37 +25,34 @@ model: haiku
   > du -sh ~/* 2>/dev/null | sort -rh
   ```
 
-- Recurse one level at a time into whichever directory dominates (on macOS this is
-  typically `~/Library`), always sorting by size, until you reach the actual large
-  items instead of just a big parent directory name:
+- Recurse one level at a time into the dominant directory (on macOS, often
+  `~/Library`), sorting by size, until you reach the actual large items:
 
   ```bash
   > /usr/bin/du -sh ~/Library/* 2>/dev/null | sort -rh | head -30
   ```
 
-- Track every directory measured along the way: it feeds the top-10 list in "Rank
-  Findings And Write The Report"
+- Track every directory measured. They feed the top-10 list in "Rank Findings And
+  Write The Report"
 
 ## Check Container and VM Engines First
 
-- On a dev machine these are usually the single biggest consumer, because they cache
-  every pulled/built image and rarely self-prune
-- For every engine that is installed, check its own usage report before digging into
-  raw directory sizes:
-  - Docker: if `docker` exists, run `docker system df -v` for a per-image/per-volume
-    breakdown; images with `CONTAINERS` = 0 are unused and reclaimable
+- Container and VM engines are usually the biggest consumer on a dev machine. They
+  cache every pulled or built image and rarely self-prune
+- For each installed engine, check its usage report before raw directory sizes:
+  - Docker: if `docker` exists, run `docker system df -v` for a per-image and
+    per-volume breakdown. Images with `CONTAINERS` = 0 are unused and reclaimable
   - Apple `container` CLI (native macOS containers): if `container` exists, run
-    `container system df`; its data lives under
-    `~/Library/Application Support/com.apple.container` and Docker's VM disk lives
+    `container system df`. Its data lives under
+    `~/Library/Application Support/com.apple.container`. Docker's VM disk lives
     under `~/Library/Containers/com.docker.docker`
-  - Other engines present (`podman`, `colima`, `lima`, `nerdctl`): use their
-    equivalent `system df` / usage-report command
-- A builder container (e.g. Docker's `buildx` state volume, Apple's `buildkit`
-  builder container) can be reported as "active" and excluded from `RECLAIMABLE` by
-  the tool even when it has grown very large
-  - Size it directly with `/usr/bin/du -sh <PATH>` and report it as a manual
-    candidate, along with the reset command that would reclaim it
-    (`docker buildx prune --all`, or
+  - Other engines (`podman`, `colima`, `lima`, `nerdctl`): use their equivalent
+    `system df` / usage-report command
+- The tool can report a builder container (Docker `buildx` state volume, Apple
+  `buildkit` builder) as "active", which excludes it from `RECLAIMABLE` even when
+  it is very large
+  - Size it with `/usr/bin/du -sh <PATH>`. Report it as a manual candidate, with
+    the reset command (`docker buildx prune --all`, or
     `container builder stop && container builder delete`)
 
 ## Check Common Cache/Log Locations
@@ -69,45 +65,45 @@ model: haiku
   - `~/.Trash`
   - `tmutil listlocalsnapshots /`: flag any entry that is not a normal
     `com.apple.os.update-*` system snapshot
-- Linux: use the equivalents instead: `~/.cache`, `/var/cache`, `/var/log`, and
-  package-manager caches (`apt`, `dnf`, `pacman`)
+- Linux equivalents: `~/.cache`, `/var/cache`, `/var/log`, and package-manager
+  caches (`apt`, `dnf`, `pacman`)
 
 ## Spot-Check Dev Artifacts
 
 - Look for large, likely-stale developer artifacts: `venv`/`.venv` directories,
   `node_modules`, old or duplicate repo clones, and suspiciously named directories
   (`backups`, `ancient_*`, `old_*`)
-- Report these as "needs manual review", not as auto-recommended deletions: they can
-  hold unique, irreplaceable data
+- Report these as "needs manual review", never as auto-recommended deletions. They
+  can hold unique, irreplaceable data
 
 ## Rank Findings and Write the Report
 
-- For every candidate record: path, size, and whether it is safely reclaimable
-  (rebuildable / re-pullable / re-cacheable) or needs manual review (may hold unique
+- For each candidate, record: path, size, and whether it is safely reclaimable
+  (rebuildable, re-pullable, re-cacheable) or needs manual review (may hold unique
   data)
-- Fill in the template
-  `.claude/skills/system.analyze_disk_space_use/report.template.md`, formatted per
-  `.claude/skills/markdown.rules.md`
+- Fill in `.claude/skills/system.analyze_disk_space_use/report.template.md`,
+  formatted per `.claude/skills/markdown.rules.md`
 - Save the file in the current dir
+- Right after the title, add how the report was generated:
+  ```markdown
+  - Generated by `.claude/skills/system.analyze_disk_space_use/SKILL.md`
+  ```
 - List the top 10 directories measured in "Survey The Home Directory" and "Check
-  Container And VM Engines First" by size, largest first; prefer the most specific
-  directory that explains the bytes over a vague ancestor (e.g. list the Docker VM
-  disk itself, not just `~/Library`)
-- Every reclaim command in the report must come from the tool's own output (e.g
-  `docker system df`), never be guessed, and must be paired with the size it frees
-- Because the report describes commands, lead with a summary table of every command
-  and its estimated savings, then give the full nested breakdown per
-  `.claude/skills/markdown.rules.md` "List of Items" convention: one bold-labeled
-  bullet per reclaimable item, with the command and size nested underneath it
+  Container And VM Engines First", largest first. Prefer the most specific directory
+  that explains the bytes (e.g., the Docker VM disk, not just `~/Library`)
+- Take every reclaim command from the tool's own output (e.g., `docker system df`).
+  Never guess one. Pair each with the size it frees
+- Lead the report with a summary table of every command and its estimated savings.
+  Then give the full nested breakdown per `.claude/skills/markdown.rules.md`
+  "List of Items": one bold-labeled bullet per reclaimable item, with the command
+  and size nested under it
 - Rank the breakdown by impact (space freed) first, then by risk
 
 ## Create a Script to Perform the Cleanup
-- Create a Bash script `cleanup.sh` in the current dir to perform the clean up but
-  don't make it executable since the user needs to review it
-- For each potential space saving operation add a comment
-  - how safe it is to perform,
-  - how much space will be saved
-  - what is the command
+- Create a Bash script `cleanup.sh` in the current dir. Do not make it executable,
+  since the user must review it first
+- Add a comment for each potential saving: how safe it is, how much space it
+  saves, and the command
   ```
   # SAFETY: low (cache rebuilds automatically on next use)
   # SPACE FREED: ~20GB
@@ -119,17 +115,18 @@ model: haiku
 
 - Only run read-only commands: `df`, `du`, `*system df`, `*ls`,
   `tmutil listlocalsnapshots`, `find` (without `-delete`)
-- Never run a destructive command: `docker system prune`, `docker image rm`,
-  `container image rm`, `rm -rf`, `container builder delete`, etc.: only list them in
-  the report as candidates for the user to run themselves
-- If a read-only command errors with an unexpected `usage:` message, suspect a
-  shell-hook rewrite and retry with the command's full binary path (e.g
-  `/usr/bin/du`)
-- Do not enumerate every file: stop recursing into a directory once its largest child
-  no longer meaningfully explains the space gap
+- Never run a destructive command (`docker system prune`, `docker image rm`,
+  `container image rm`, `rm -rf`, `container builder delete`, etc.). List them in
+  the report only, as candidates for the user to run
+- If a read-only command fails with an unexpected `usage:` message, suspect a
+  shell-hook rewrite. Retry with the full binary path (e.g., `/usr/bin/du`)
+- Do not enumerate every file. Stop recursing once a directory's largest child no
+  longer meaningfully explains the space gap
 
 # Verification
 
 - [ ] The report accounts for most of the gap between disk size and free space (the
       sum of reported items roughly explains where the used space went)
 - [ ] No file was created, deleted, or modified other than the report itself
+- [ ] The report says that it was generated by
+      `.claude/skills/system.analyze_disk_space_use/SKILL.md`

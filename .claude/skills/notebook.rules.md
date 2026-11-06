@@ -778,8 +778,8 @@
 ## Use LaTeX Notation
 
 - Express variables and formulas with LaTeX:
-  - Inline: `$\mu$ (mean), $\sigma^2$ (variance)`
-  - Display: `$$E[X] = \sum x_i P(x_i)$$`
+  - **Inline**: `$\mu$ (mean), $\sigma^2$ (variance)`
+  - **Display**: `$$E[X] = \sum x_i P(x_i)$$`
 - **Bad**: `The mean is mu and variance is sigma^2`
 - **Good**: `The mean is $\mu$ and variance is $\sigma^2$`
 

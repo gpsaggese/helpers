@@ -1420,7 +1420,14 @@ def _perform_actions(
             backend = kwargs.pop("backend")
             mode = kwargs.pop("mode")
             width = kwargs.pop("width")
-            txt = hmarform.format_md(txt, backend, mode, width=width)
+            txt = hmarform.format_md(
+                txt,
+                backend,
+                mode,
+                width=width,
+                tmp_dir=kwargs.get("tmp_dir", ""),
+                use_hash=kwargs.get("use_hash", True),
+            )
         else:
             # Use prettier for all file types (e.g., tex and txt). `prettier`
             # only understands `md`/`txt`/`tex`, so treat `smd` as `txt`.
@@ -1803,6 +1810,8 @@ def _process_single_file(
         "use_dockerized_markdown_toc": args.use_dockerized_markdown_toc,
         # Directory for the intermediate files of `prettier_on_str()`.
         "tmp_dir": args.tmp_dir,
+        # Whether to add a random hash to the intermediate files.
+        "use_hash": args.use_hash,
     }
     # Add backend and mode if specified.
     if args.backend:

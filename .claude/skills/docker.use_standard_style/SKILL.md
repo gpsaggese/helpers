@@ -11,15 +11,15 @@ model: haiku
 # Workflow
 
 ## Read the Reference Template
-- Read `class_project/project_template/docker_scripts.README.md`, which
-  explains how the project uses Docker to build and execute containers
+- Read `class_project/project_template/docker_scripts.README.md`, which explains
+  how the project uses Docker to build and run containers
 
 ## Align the Target
-- Make the Docker files in `<TARGET>` align to the reference
+- Make the Docker files in `<TARGET>` align with the reference
   `class_project/project_template`, so containers build and run the same way
 
 ## Summarize
-- Write a short summary in bullet points of what needs to be done
+- Write a short bullet-point summary of what needs to be done
 
 # Constraints
 - Only change files in `<TARGET>`

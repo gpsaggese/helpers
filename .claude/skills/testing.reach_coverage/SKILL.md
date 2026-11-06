@@ -4,15 +4,14 @@ model: haiku
 ---
 
 # Goal
-- Given the passed function, file, or files `<FILES>`, increase unit test
-  coverage from the corresponding files `<TEST_FILES>` to approach 100 percent
-  using a plan-then-implement approach
+- Given the passed function, file, or files `<FILES>`, raise unit test coverage in
+  the test files `<TEST_FILES>` toward 100 percent, using a plan-then-implement
+  approach
 
 # Workflow
 
 ## Establish Current Coverage
-- Identify the test files corresponding to the target function, file, files
-  `<TEST_FILES>` using the rules
+- Identify the test files for the target, using the rules
   - E.g.,
     ```text
     helpers/hllm_cli.py -> helpers/test/test_hllm_cli.py
@@ -22,7 +21,7 @@ model: haiku
   Target files: <FILES>
   Test files: <TEST_FILES>
   ```
-- Run the following command and record the results:
+- Run the command below and record the results:
   ```bash
   # Using invoke (preferred):
   > i run_coverage --suite fast --generate-html-report
@@ -33,7 +32,7 @@ model: haiku
 - Summarize which lines and branches are not covered
 
 ## Design a Testing Plan
-- Analyze uncovered code paths and behaviors
+- Analyze the uncovered code paths and behaviors
 - Propose a clear testing plan that:
   - Tests functions modularly before testing interactions
   - Prioritizes end-to-end and user-visible behavior over incidental
@@ -59,7 +58,6 @@ model: haiku
 
 # Important Rules
 - Do not implement tests before the plan is approved
-- Do not proceed if instructions or requirements are ambiguous
 - Always adhere to the formatting and style guides referenced above
 - Focus on meaningful behavior and correctness rather than superficial coverage
 - All tests and code must strictly follow:

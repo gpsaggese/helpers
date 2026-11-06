@@ -4,34 +4,31 @@ model: opus
 ---
 
 # Goal
-- Review and criticize the table of content for a chapter (or set of chapters) in
-  a book
-- Identify mistakes and improvement opportunities, focusing on factual errors,
-  rather than style suggestions
-- Propose concrete, ranked improvements to topics, ordering, scope, and audience fit
+- Review and criticize the table of content of a book's chapter (or chapters)
+- Identify mistakes and improvement opportunities, focusing on factual errors
+  over style suggestions
+- Propose concrete, ranked improvements to topics, ordering, scope, and audience
+  fit
 
 # Workflow
 
 ## Read the Material
-- Read `.claude/templates/book_map.template.md` for the expected structure of a
-  table of content of a book
+- Read `.claude/templates/book_map.template.md` for the expected TOC structure
 
-- Read the `book_map.md` that stores the `### Topics` making up the table of
-  content for the book
-  - Read `**Title**`, `**Target audience**` at the top of `book_map.md`
+- Read `book_map.md`, which stores the `### Topics` of the book's TOC
+  - Read `**Title**` and `**Target audience**` at the top of `book_map.md`
   - Read the `# Part` heading description the chapter belongs to
   - Read the target chapter's `### Topics` that the user refers to
-  - Ignore the rest of the sections besides `### Topics`
+  - Ignore all other sections
     - I.e., `### Lessons`, `### Tutorials`, `### Related packages`,
       `### Related books`, `### Related papers`
-  - Read the `### Topics` in the sibling chapters in that Part and the immediate
+  - Read the `### Topics` of sibling chapters in that Part and the immediate
     neighbors, chapter N-1 and N+1, to judge continuity
 
 ## Criticize
-- Read `.claude/skills/text.criticize/SKILL.md` to understand general approaches
-  to review and criticize text
+- Read `.claude/skills/text.criticize/SKILL.md` for general review approaches
 
-- Evaluate along these axes, reporting only high-confidence issues:
+- Evaluate these axes, reporting only high-confidence issues:
   - **Internal flow**:
     - Order of the `### Topics` bullets
     - Prerequisite ordering
@@ -72,10 +69,9 @@ model: opus
 
 ## Wait for Approval
 - Present the criticism to the user
-- Wait for the user to select items to apply by index and give corrections
-- Only then edit `book_map.md`
-- Make sure to update all the sections (e.g., Topics, Lessons, Tutorials, Related
-  packages, Related books, Related papers)
+- Wait for the user to select items by index and give corrections
+- Only then edit `book_map.md`, updating every section it affects (Topics,
+  Lessons, Tutorials, Related packages, Related books, Related papers)
 
 # Verification
 - [ ] Confirm each reported issue cites the exact `### Topics` bullet or

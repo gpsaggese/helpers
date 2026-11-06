@@ -4,15 +4,14 @@ model: haiku
 ---
 
 # Check References
-- Make sure every picture and table has a label and caption and it's referenced
-  in the text
-- Captions should only contain a reference to what is done and comments and more
-  content should be in the text
+- Every picture and table needs a label and a caption, and must be referenced in
+  the text
+- Captions should only say what is done. Comments and other content go in the text
 
 # Add Captions and Labels
 
-- For all the figures in the latex files in the passed directory convert the
-  figure adding the caption and label to the commented section.
+- For all figures in the LaTeX files in the passed dir, add the caption and label to
+  the commented section.
 
 - For instance convert
 
@@ -48,25 +47,25 @@ model: haiku
 
 # Create Labels and Captions From Scratch
 
-- If a figure has no caption or label, infer them from the filename and
-  surrounding context
+- If a figure has no caption or label, infer them from the filename and surrounding
+  context
   - E.g., `figs/02_architecture.1.png` becomes `label=fig:architecture`,
     `caption=System architecture overview`
-- Choose label names that are short, lowercase, and use underscores
+- Use short, lowercase label names with underscores
 
 # Add References in the Text
 
-- If a figure has a label but is not cited anywhere in the text, add a
-  parenthetical reference near the most relevant paragraph:
+- If a figure has a label but no citation in the text, add a parenthetical reference
+  near the most relevant paragraph:
   ```latex
   (see Fig.~\ref{fig:confounding_adjustment})
   ```
 
 # Verify No Orphaned References
 
-- Scan the text for `\ref{fig:xxx}` or `\ref{tab:xxx}` that have no matching
-  `\label{fig:xxx}` or `\label{tab:xxx}` in any figure or table environment
-- Report orphaned references as warnings; do not silently delete them
+- Scan the text for `\ref{fig:xxx}` or `\ref{tab:xxx}` with no matching `\label` in
+  any figure or table environment
+- Report orphaned references as warnings. Do not silently delete them
 
 # Verification
 

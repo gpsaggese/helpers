@@ -5,8 +5,7 @@ model: haiku
 
 # Goal
 
-- Write a concise, engaging, and educational "Today I Learned" (TIL) blog post
-  about the topic / content from the user
+- Write a concise, engaging "Today I Learned" (TIL) blog post on the user's topic
 
 # Workflow
 
@@ -20,16 +19,11 @@ model: haiku
 6. References or Further Reading
 
 - The post should:
-  - Start with a short introduction explaining what I learned and why it caught
-    my attention
-  - Clearly explain the concept in simple language suitable for software
-    engineers, tech enthusiasts, or curious readers
-  - Include a practical example, code snippet, or real-world use case where
-    appropriate
-  - Highlight any surprising insights, common misconceptions, or lessons learned
-    during the discovery process
-  - End with key takeaways and actionable advice for readers who want to explore
-    the topic further
+  - Start with a short intro: what I learned and why it caught my attention
+  - Explain the concept in simple language for engineers and curious readers
+  - Include a practical example, code snippet, or real-world use case if relevant
+  - Highlight surprising insights, common misconceptions, or lessons learned
+  - End with key takeaways and actionable advice for further exploration
 
 ## Use Front Matter and TL;DR
 
@@ -53,12 +47,12 @@ model: haiku
 
 ## Length
 
-- Keep the post between 500 and 1000 words and focus on clarity, practical
-  value, and genuine learning rather than exhaustive coverage
+- Keep the post between 500 and 1000 words. Favor clarity and practical value
+  over exhaustive coverage
 
 ## Formatting Rules
 
-- Make sure to write using bullet points
+- Write using bullet points
 
 - Follow the rules in:
 

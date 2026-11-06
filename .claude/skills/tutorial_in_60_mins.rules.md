@@ -242,9 +242,9 @@
 
 ## Tools of the Trade
 
-- Format markdown: `lint_text.py -i ...`
-- Clean up Python code: Use the agent skill `/coding.improve_code_for_humans`
-- Render locally: `website/test.sh`
-- Reference tutorials:
+- **Format markdown**: `lint_text.py -i ...`
+- **Clean up Python code**: Use the agent skill `/coding.improve_code_for_humans`
+- **Render locally**: `website/test.sh`
+- **Reference tutorials**:
   - [`DATA605`](https://github.com/gpsaggese/gpsaggese.github.io/tree/master/data605/tutorials)
   - [`MSML610`](https://github.com/gpsaggese/gpsaggese.github.io/tree/master/msml610/tutorials)

@@ -9,11 +9,8 @@ model: sonnet
 # Workflow
 
 ## Create and Update a Plan
-- Create a file `plan-github.get_pr_to_pass_local_tests.md` with a plan in the form
-  of a bullet list of actions and maintain it updated, by marking each action
-  - [.] when something is in progress
-  - [x] when something is done
-  - [F] when something failed
+- Create `plan-github.get_pr_to_pass_local_tests.md`: a bullet list of actions
+- Keep it updated, marking each action `[.]` in progress, `[x]` done, `[F]` failed
 
 ## Get the PR Number and Branch Name
 - Get the PR number
@@ -57,16 +54,14 @@ model: sonnet
   - If the fix is not clear, stop and ask for the user to help
 
 ## Never Commit Junk Files
-- Never run `git add -A` or `git add .` to stage a fix: it sweeps in every
-  untracked file sitting in the working tree (logs, `tmp.*` scratch files,
-  test-run artifacts like `.pkl`/`.json` caches, etc.), not just the files you
-  intended to fix
+- Never run `git add -A` or `git add .` to stage a fix: they sweep in every
+  untracked file (logs, `tmp.*` scratch files, test-run artifacts like
+  `.pkl`/`.json` caches), not just the intended files
 - Always stage files explicitly by path, e.g. `git add <file1> <file2>`
-- Before committing, run `git status --short` and review every listed file;
-  drop anything that is not part of the intended fix
-- If junk files were already committed and pushed, fix it by amending the
-  commit to contain only the intended files and force-pushing
-  (`git push --force-with-lease`), rather than leaving the junk in history
+- Before committing, run `git status --short` and drop anything that is not part
+  of the intended fix
+- If junk was already committed and pushed, amend the commit to hold only the
+  intended files and force-push (`git push --force-with-lease`)
 
 ## Loop
 - Keep repeating until the PR is passing all the local tests

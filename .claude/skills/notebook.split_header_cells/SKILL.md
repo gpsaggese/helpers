@@ -4,14 +4,12 @@ model: haiku
 ---
 
 # Goal
-- Split each markdown cell in a Jupyter notebook so it contains at most one
-  header
+- Split each markdown cell in a Jupyter notebook so it has at most one header
 
 # Workflow
 
 ## Split Markdown Cells
-- Make sure that each markdown cell in a Jupyter notebook contains at most one
-  header and some text, but not more than one header
+- Make sure each markdown cell has at most one header and some text
   - **Bad** (there are 3 headers in the same cell: one H1, one H2, one H3)
     ```
     # %% [markdown]
@@ -36,12 +34,10 @@ model: haiku
     # %% [markdown]
     ### Mental Model
     ```
-  - Do not change the content of the markdown text besides splitting cells into
-    multiple ones
 
 ## Remove Empty Lines
-- Remove empty lines at the beginning or end of a markdown cell
-  - **Bad** (there are two headers in the same cell, one H1 and one H2)
+- Remove empty lines at the start or end of a markdown cell
+  - **Bad** (blank lines around the header)
     ```
 
     # %% [markdown]
@@ -49,15 +45,14 @@ model: haiku
 
 
     ```
-  - **Good** (each header is in a different cell)
+  - **Good** (no blank lines around the header)
     ```
     # %% [markdown]
     # Part 3: Composition Examples
     ```
 
 ## Sync with Jupytext
-- At the end of the transformation, run `jupytext --sync` to update the Python
-  paired notebook, following the conventions in
+- At the end, run `jupytext --sync` to update the paired Python notebook, per
   `# Code Architecture and Responsibility` -> `## Utilities vs. Notebook
   Responsibilities` in `.claude/skills/notebook.rules.md`
 

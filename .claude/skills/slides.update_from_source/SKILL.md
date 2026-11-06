@@ -8,8 +8,8 @@ model: sonnet
   with `// From: <SOURCE>:<LINE> '<source line>'` comments, find what changed in
   each `<SOURCE>` and incorporate it into the citing slide of `<TARGET>`
 
-- Optionally the user passes a scope (a slide title or a line range in
-  `<TARGET>`): process only the slides in that scope
+- Optionally, the user passes a scope (a slide title or a line range in
+  `<TARGET>`). Then process only the slides in that scope
 
 # Workflow
 - Read the conventions in `.claude/skills/slides.rules.md`, especially
@@ -20,19 +20,18 @@ model: sonnet
   ```bash
   > grep -n "^// From:" <TARGET>
   ```
-- Attach each citation to the slide it sits under, i.e., the nearest preceding
-  `* <slide title>` line
-- Skip a bare `// From: ...` (nothing after the colon): it marks a slide with no
+- Attach each citation to the nearest preceding `* <slide title>` line
+- Skip a bare `// From: ...` (nothing after the colon). It marks a slide with no
   identified source. Do not guess a source and do not drop the line
 - Group the citations by `<SOURCE>` file, so each `<SOURCE>` is read once
 
 ## Resolve Each Source Slide
-- Check that `<SOURCE>` exists. If it does not exist, report it and go to the
-  next citation
+- Check that `<SOURCE>` exists. If it does not, report it and go to the next
+  citation
 - Find the current position of the cited line in `<SOURCE>`
-  - Search for the verbatim `'<source line>'` text (including its leading
-    `* `, `#`, `## `, `### ` marker), since `<LINE>` drifts whenever `<SOURCE>` is
-    edited above it
+  - Search for the verbatim `'<source line>'` text, including its leading marker
+    (`* `, `#`, `## `, `### `). `<LINE>` drifts whenever `<SOURCE>` is edited
+    above it
     ```bash
     > grep -nF -- '<source line>' <SOURCE>
     ```
@@ -41,14 +40,14 @@ model: sonnet
     - Search for the title text without its marker, and for a close variant
     - If a single clear candidate exists, use it and record the new text in the
       `// From:` line
-    - If no candidate exists, report it as "source missing", leave the slide and
-      its `// From:` line unchanged, and go to the next citation
+    - If no candidate exists, report "source missing", leave the slide and its
+      `// From:` line unchanged, and go to the next citation
 - Extract the source content
   - For a `* <slide title>` line: the lines up to the next `* ` slide or `#`
     header line
   - For a `#`, `##`, `###` header line: the lines up to the next header of the
-    same or higher level. Only the part that matches the topic of the citing
-    slide is relevant
+    same or higher level. Only the part matching the citing slide's topic is
+    relevant
   - For a `- [P<NNN>]` or `- [B<NNN>]` entry in `related_papers.md` or
     `related_books.md`: the entry itself. Compare only its text (authors,
     title, year, link) with the reference used in the slide
@@ -57,7 +56,7 @@ model: sonnet
 - The optional `<BASE>` (a Git hash) is the version of `<SOURCE>` the slide was
   last synced with
   - If the user passes it, use it
-  - Otherwise use the last commit that touched `<TARGET>`:
+  - Otherwise, use the last commit that touched `<TARGET>`:
     ```bash
     > git log -1 --format=%H -- <TARGET>
     ```
@@ -81,23 +80,22 @@ model: sonnet
 ## Incorporate Changes
 - Edit the citing slide of `<TARGET>` to reflect every substantive change
 - Keep the slide as an adaptation, not a copy
-  - Keep the slide title, the structure, and the wording that the author already
+  - Keep the slide title, the structure, and the wording the author already
     adapted
   - Rename the slide only if the change renames the concept
   - Do not paste the source text over the slide
 - When a slide cites several sources, reconcile each `// From:` line in turn
   - Keep the content that comes from the other sources
   - Remove content only if its own source dropped or retracted it
-- Do not delete slide content only because the source no longer has a
-  counterpart: the slide may combine several sources or add material of its own.
-  Remove content only when the diff shows that the fact or example was changed or
-  retracted, not merely moved
+- Do not delete slide content only because the source has no counterpart. The
+  slide may combine several sources or add its own material. Remove content only
+  when the diff shows the fact or example was changed or retracted, not moved
 - Write the new text following `.claude/skills/slides.rules.md`
   - E.g., semantic tags, 80 columns, no back-reference to other lessons, no
     dashes as punctuation
-- If a change cannot be applied without a decision from the user (e.g., the source
-  restructured one slide into three), do not guess: leave the slide unchanged
-  and report the question
+- If a change needs a decision from the user (e.g., the source restructured one
+  slide into three), do not guess. Leave the slide unchanged and report the
+  question
 
 ## Update the `// From:` Lines
 - Rewrite each resolved `// From:` line to the current position and text of its
@@ -107,7 +105,7 @@ model: sonnet
   ```
   - `<NEW_LINE>` is the current line number of the source line in `<SOURCE>`
   - `<NEW_SOURCE_LINE>` is that line verbatim, including its leading marker
-- Do this for every resolved citation, including the ones with no content change,
+- Do this for every resolved citation, including those with no content change,
   since an edit above the source slide shifts its line number
 - Do not touch a bare `// From: ...` line or a source-missing citation
 - Keep one `// From:` line per source, stacked directly under the slide title, in

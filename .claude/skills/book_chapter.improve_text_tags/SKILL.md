@@ -4,8 +4,7 @@ model: haiku
 ---
 
 # Goal
-- Review a chapter (or a set of chapters) in a book to add bold and italic when
-  needed
+- Review book chapters and add bold and italic where needed
 
 # Workflow
 
@@ -13,11 +12,10 @@ model: haiku
 - Read `.claude/skills/book_map.rules.md`
 
 ## Identify Chapters to Process
-- If multiple chapters are passed, process each one independently: apply
-  every step below to each file in turn
+- For multiple chapters, process each one independently, applying every step below
 
 ## Detect File Type
-- Detect the file type from its extension:
+- Detect the type from its extension:
   - `.typ`: Typst
   - `.tex`: Latex
   - `.md`: markdown
@@ -25,19 +23,19 @@ model: haiku
   markup (e.g., `#emph[...]` implies Typst)
 
 ## Render Bold and Italic Based on the Type of File
-- Render bold depending on the type of file:
+- Render bold:
   - `#strong[...]` in Typst
   - `\textbf{...}` in Latex
   - `**...**` in markdown
-- Render italic depending on the type of file:
+- Render italic:
   - `#emph[...]` in Typst
   - `\textit{...}` in Latex
   - `_..._` in markdown
 
 ## Detect Chapter Type
-- Treat a chapter as Roadmap or Summary type if its title or heading contains
+- A chapter is Roadmap or Summary type if its title or heading contains
   "Roadmap", "Summary", or "Overview"
-- Treat every other chapter as a regular chapter
+- Every other chapter is a regular chapter
 
 ## Improve Roadmap and Summary Chapters
 - Do not use bold

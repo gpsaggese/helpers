@@ -4,23 +4,22 @@ model: haiku
 ---
 
 # Goal
-- Find files that were moved, renamed, updated, or deleted in the current repo
-  and update all references to them in the other Git repos
+- Find files moved, renamed, updated, or deleted in the current repo and
+  update all references to them in the other Git repos
 
 # Workflow
 
 ## Find Changed Files
-- Find all the files moved, renamed, updated, or deleted in the current repo
-  using a command line:
+- Find all files moved, renamed, updated, or deleted in the current repo:
   ```bash
   > invoke git_files --branch --only-print-files
   ```
 
-- Print all the files that are moved, renamed, or deleted
+- Print the files that are moved, renamed, or deleted
   - Print the main functions changed
 
 ## Search for References
-- For each file `<FILE>`, look for all the references to `<FILE>` in the repos:
+- For each file `<FILE>`, search for its references in these repos:
   - `helper`: the current repo
   - `umd_classes`: located at `~/src/umd_classes1`
   - `csfy`: located at `~/src/csfy1`
@@ -28,10 +27,9 @@ model: haiku
   - `lemonade`: located at `~/src/lemonade1`
 
 - You must:
-  - Ignore searching in any Git sub repository of each repo (e.g.,
-    `helpers_root`)
-  - Only search in files that are under Git control
-  - Ignore searching in symlinks (e.g., `.claude`) using an approach like:
+  - Skip the Git sub repos of each repo (e.g., `helpers_root`)
+  - Search only files under Git control
+  - Skip symlinks (e.g., `.claude`) using an approach like:
   ```bash
   search_repo() {
     local repo_path=$1

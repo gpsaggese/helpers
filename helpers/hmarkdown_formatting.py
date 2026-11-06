@@ -8,6 +8,7 @@ import logging
 import re
 from typing import List, Match
 
+import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hmarkdown_headers as hmarhead
@@ -15,7 +16,6 @@ import helpers.hmarkdown_slides as hmarslid
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.htimer as htimer
-import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
 
@@ -152,12 +152,9 @@ def md_clean_up(txt: str) -> str:
     txt = re.sub(r"\\\[(.*?)\\\]", r"$$\1$$", txt, flags=re.DOTALL)
     # Replace `P(.)`` with `\Pr(.)`.
     txt = re.sub(r"P\((.*?)\)", r"\\Pr(\1)", txt)
-    #
     txt = re.sub(r"\\left\[", r"[", txt)
     txt = re.sub(r"\\right\]", r"]", txt)
-    #
     txt = re.sub(r"\\mid", r"|", txt)
-    #
     txt = re.sub(r"→", r"$\\rightarrow$", txt)
     # Remove empty spaces at beginning / end of Latex equations $...$.
     # E.g., $ \text{Student} $ becomes $\text{Student}$
@@ -225,19 +222,18 @@ def bold_first_level_bullets(
     result = []
     for line in lines:
         # Check if this is a first-level bullet point.
-        if re.match(r"^\s*- ", line):
-            # Check if the line has already bold text it in it.
-            if not re.search(r"\*\*", line):
-                # Bold first-level bullets.
-                indentation = len(line) - len(line.lstrip())
-                if indentation == 0:
-                    # First-level bullet, add bold markers.
-                    m = re.match(r"^(\s*-\s+)(.*)", line)
-                    hdbg.dassert(m, "Can't parse line='%s'", line)
-                    bullet_text = m.group(2)  # type: ignore[union-attr]
-                    if max_length > -1 and len(bullet_text) <= max_length:
-                        spaces = m.group(1)  # type: ignore[union-attr]
-                        line = spaces + "**" + bullet_text + "**"
+        # Check if the line has already bold text it in it.
+        if re.match(r"^\s*- ", line) and not re.search(r"\*\*", line):
+            # Bold first-level bullets.
+            indentation = len(line) - len(line.lstrip())
+            if indentation == 0:
+                # First-level bullet, add bold markers.
+                m = re.match(r"^(\s*-\s+)(.*)", line)
+                hdbg.dassert(m, "Can't parse line='%s'", line)
+                bullet_text = m.group(2)  # type: ignore[union-attr]
+                if max_length > -1 and len(bullet_text) <= max_length:
+                    spaces = m.group(1)  # type: ignore[union-attr]
+                    line = spaces + "**" + bullet_text + "**"
         result.append(line)
     hdbg.dassert_isinstance(result, list)
     return result
@@ -462,7 +458,9 @@ def format_md_links_to_latex_format(
         # Store image links temporarily to avoid processing them.
         image_placeholders = []
 
-        def store_image_link(match):
+        # Bind the list as default arg so the closure does not depend on the
+        # loop variable.
+        def store_image_link(match, image_placeholders=image_placeholders):
             placeholder = f"__IMAGE_LINK_{len(image_placeholders)}__"
             image_placeholders.append(match.group(0))
             return placeholder
@@ -540,7 +538,9 @@ def format_md_links_to_latex_format(
             r"\[" + _STYLED_LINK_TEXT_RE + r"\]\(([^)]+)\)"
         )
 
-        def store_formatted_link(match):
+        # Bind the list as default arg so the closure does not depend on the
+        # loop variable.
+        def store_formatted_link(match, temp_placeholders=temp_placeholders):
             placeholder = f"__FORMATTED_LINK_{len(temp_placeholders)}__"
             temp_placeholders.append(match.group(0))
             return placeholder
@@ -607,10 +607,9 @@ def format_first_level_bullets(lines: List[str]) -> List[str]:
     result = []
     for i, line in enumerate(lines_clean):
         # Check if current line is a first level bullet (no indentation).
-        if re.match(r"^- ", line):
-            # Add empty line before first level bullet if not at start.
-            if i > 0:
-                result.append("")
+        # Add empty line before first level bullet if not at start.
+        if re.match(r"^- ", line) and i > 0:
+            result.append("")
         result.append(line)
     hdbg.dassert_isinstance(result, list)
     return result
@@ -665,12 +664,10 @@ def format_markdown_slide(lines: List[str], *, tmp_dir: str = ".") -> List[str]:
     file_type = "md"
     txt = "\n".join(lines)
     txt = dshdlipr.prettier_on_str(txt, file_type, tmp_dir=tmp_dir)
-    #
     lines = txt.split("\n")
     lines = hmarslid.convert_markdown_to_slide(lines)
     # Format the first level bullets.
     lines = format_first_level_bullets(lines)
-    #
     lines = hmarhead.capitalize_header(lines)
     return lines
 
@@ -761,6 +758,9 @@ def _format_with_prettier(
     txt: str,
     backend: str,
     width: int,
+    *,
+    tmp_dir: str = "",
+    use_hash: bool = True,
 ) -> str:
     """
     Format markdown text using Prettier.
@@ -768,15 +768,19 @@ def _format_with_prettier(
     :param txt: input text to format
     :param backend: execution backend ("dockerized" or "global")
     :param width: line width for formatting
+    :param tmp_dir: directory to save the tmp file used by the "dockerized"
+        backend (empty means the current dir)
+    :param use_hash: whether the "dockerized" backend appends a random hash
+        to its tmp file name
+        - If True, concurrent / overlapping calls (e.g., parallel test runs)
+          don't clobber each other's shared tmp file
     :return: formatted text
     """
     hdbg.dassert_in(backend, ["dockerized", "global"])
     if backend == "dockerized":
         _LOG.debug("Using dockerized prettier for formatting")
-        # Use `use_hash=True` so concurrent / overlapping calls (e.g., parallel
-        # test runs) don't clobber each other's shared tmp file.
         formatted_txt = dshdlipr.prettier_on_str(
-            txt, "md", width=width, use_hash=True
+            txt, "md", width=width, tmp_dir=tmp_dir, use_hash=use_hash
         )
     elif backend == "global":
         # backend == "global": use global prettier executable.
@@ -917,6 +921,8 @@ def format_md(
     backend: str,
     *,
     width: int = 80,
+    tmp_dir: str = "",
+    use_hash: bool = True,
 ) -> str:
     """
     Format markdown text using specified tool and backend.
@@ -930,6 +936,10 @@ def format_md(
     :param tool: formatter tool ("prettier", "mdformat", or "flowmark")
     :param backend: execution backend (depends on tool)
     :param width: line width for text wrapping (default: 80)
+    :param tmp_dir: directory to save the tmp file used by the "prettier"
+        tool (empty means the current dir)
+    :param use_hash: whether the "prettier" tool appends a random hash to its
+        tmp file name
     :return: formatted markdown text
     """
     _LOG.debug(hprint.to_str("tool backend width"))
@@ -945,7 +955,9 @@ def format_md(
         "Formatting with tool='%s' backend='%s' width=%s", tool, backend, width
     )
     if tool == "prettier":
-        formatted_txt = _format_with_prettier(txt, backend, width)
+        formatted_txt = _format_with_prettier(
+            txt, backend, width, tmp_dir=tmp_dir, use_hash=use_hash
+        )
     elif tool == "mdformat":
         formatted_txt = _format_with_mdformat(txt, backend, width)
     elif tool == "flowmark":

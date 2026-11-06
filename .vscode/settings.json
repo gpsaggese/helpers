@@ -2,5 +2,6 @@
     "workbench.colorCustomizations": {
         "titleBar.activeBackground": "#230000",
         "titleBar.activeForeground": "#ffffff"
-    }
+    },
+    "python.analysis.diagnosticsSource": "Pylance + Pyrefly"
 }

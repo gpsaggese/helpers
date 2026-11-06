@@ -124,10 +124,10 @@
   - Use italic for questions or hypothetical scenarios
   - Do not abuse bold throughout explanations
 - **Verbatim (backticks)**: Use for technical terms
-  - Tool names: `` `tool_name` ``
-  - Commands: `` `pip install` ``
-  - File names and config files: `` `pyproject.toml` ``
-  - Code elements: `` `variable_name` ``
+  - **Tool names**: `` `tool_name` ``
+  - **Commands**: `` `pip install` ``
+  - **File names and config files**: `` `pyproject.toml` ``
+  - **Code elements**: `` `variable_name` ``
 
 ## Tables and Examples
 

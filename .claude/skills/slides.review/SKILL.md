@@ -4,10 +4,10 @@ model: opus
 ---
 
 # Goal
-- Given a markdown file with slides about technical material, review the content
-  for correctness, clarity, and structural organization
+- Given a markdown file with technical slides, review content for correctness,
+  clarity, and structure
 - This skill composes `/slides.reorganize` (structure) and `/slides.criticize`
-  (content/clarity critique)
+  (content)
 
 # Workflow
 
@@ -15,29 +15,29 @@ model: opus
 
 ## Propose Structural Improvements
 - Run the flow from `.claude/skills/slides.reorganize/SKILL.md` through its
-  `## Wait for User` section, saving the proposal
+  `## Wait for User` section, and save the proposal
 
 ## Propose Content Improvements
-- Run the flow from `.claude/skills/slides.criticize/SKILL.md` on the deck, using the
+- Run the flow from `.claude/skills/slides.criticize/SKILL.md` on the deck, with the
   same axes and High/Medium/Low ranking
-- Also propose how to change and improve the titles of the slides
+- Also propose better slide titles
 
 ### Ignore TODOs and Comments
-- Leave the TODOs or comments in the format
+- Leave TODOs and comments in the format
   ```text
   // TODO...
   ```
   untouched
 
 ## Ask User and Implement
-- Present the structural proposal and the ranked content findings together,
-  numbered so each is easy to refer to
-- Ask the user which structural moves and which content fixes to apply
-- After the user approves a subset, perform the reorganization and the content
-  changes together in place
+- Present the structural proposal and the ranked content findings together, numbered
+  so each is easy to refer to
+- Ask which structural moves and content fixes to apply
+- After the user approves a subset, apply the reorganization and content changes
+  together, in place
 
 # Verification
-- [ ] Make sure that the updated slides render correctly, e.g.,
+- [ ] Make sure the updated slides render correctly, e.g.,
   ```bash
   > gen_slides.py -i <FILE> --notes_to_pdf_args="--skip_action open_pdf"
   ```

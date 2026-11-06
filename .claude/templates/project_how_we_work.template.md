@@ -1,14 +1,14 @@
 # How We Work on <Project>
 
-- Goal: a new student or RA reads this file and knows how we work on the project
-- Process: `docs/planning/all.plan_work.how_to_guide.md`
+- **Goal**: a new student or RA reads this file and knows how we work on the project
+- **Process**: `docs/planning/all.plan_work.how_to_guide.md`
 
 ## Resources
 
-- GitHub project: <link>
-- Slack channel: <link>
-- Google Drive dir: <link>
-- Google Doc of the project: <link>
+- **GitHub project**: <link>
+- **Slack channel**: <link>
+- **Google Drive dir**: <link>
+- **Google Doc of the project**: <link>
 
 ## Master Plan
 
@@ -16,8 +16,8 @@
 
 ## Log
 
-- File: `07-progress.md`
-- Format: <history table or one section per PR>
+- **File**: `07-progress.md`
+- **Format**: <history table or one section per PR>
 
 ## Task Rule
 

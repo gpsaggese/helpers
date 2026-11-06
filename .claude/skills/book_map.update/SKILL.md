@@ -30,8 +30,7 @@ model: opus
 
 ## Compute the New Numbers
 
-- `## Short TOC` is the source of truth for the order of the chapters, the parts,
-  and the part names
+- `## Short TOC` is the source of truth for chapter order, parts, and part names
   - Do not trust the chapter numbers in the file
 - Match chapters across Short TOC, Detailed TOC, and Roadmap by title
   - Treat titles that differ only in case, `and`, or a trailing `s` as equal
@@ -57,8 +56,8 @@ model: opus
 ## Write the Plan
 
 - Create `plan-book_map.update.md` next to `<BOOK_MAP>`
-- Write a checkbox list with a global index on each item, so the user can approve
-  by index
+- Write a checkbox list with a global index per item, so the user can approve by
+  index
 - Make each item state the exact change, the line number, and the reason
 - Group the items under these headers, omitting the empty ones:
   - `## Short TOC`, `## Parts`, `## Renumbering`, `## Reordering`,
@@ -98,7 +97,7 @@ Propose these changes:
 - **`// TODO(ai_gp):` markers**: remove a marker the plan resolves, and list the
   others under `## Questions`
 
-Only report these, because they need content judgment:
+Report only these, since they need content judgment:
 - Missing chapter subsection
 - `### Goals` without 3 bullets, or a bullet of 100 characters or more
 - `### Topics` over 25 lines or 200 words
@@ -109,9 +108,8 @@ Only report these, because they need content judgment:
 
 ## Wait for Approval
 
-- Print only the path of the plan and the number of items
+- Print only the plan path and the item count
 - Wait for the user to approve items by index, or to give corrections
-- Do not edit `<BOOK_MAP>` or rename any file before the approval
 
 ## Apply the Approved Items
 

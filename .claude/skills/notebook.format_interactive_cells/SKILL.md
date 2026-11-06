@@ -4,31 +4,25 @@ model: haiku
 ---
 
 # Goal
-- Given a Jupyter notebook, format the markdown cells corresponding to
-  interactive / visualization cells
-- Each visualization uses the triplet structure:
-  - Pre-visualization markdown (goal, then description of inputs and panels)
-  - Code cell (visualization / interactive widget)
-  - Post-visualization markdown (guided usage, then implementation and the
-    `print_obj_info()` code cell)
+- Given a Jupyter notebook, format the markdown cells that correspond to interactive
+  or visualization cells
+- Each visualization uses a triplet: pre-visualization markdown, the code cell, and
+  post-visualization markdown
 
 # Workflow
 
 ## Update the Cell Triplets
-- Update all markdown cells around interactive cells to follow the triplet
-  structure:
-  - **Before the visualization**: A markdown cell with the goal, then a
-    description cell with the plot descriptions (under each title) and widget
-    descriptions (close to each widget)
-  - **After the visualization**: A guided-usage markdown cell explaining what
-    experiments can be done and what was learned, then the implementation cell
-    and the `print_obj_info()` code cell
-- Follow the conventions from `## Visualization Cell Triplet Details`
-  in `.claude/skills/notebook.rules.md`
+- Make the markdown cells around each interactive cell follow the triplet structure:
+  - **Before the visualization**: a markdown cell with the goal, then a description
+    cell with the plot descriptions (under each title) and widget descriptions
+    (close to each widget)
+  - **After the visualization**: a guided-usage markdown cell that explains which
+    experiments to run and what was learned, then the implementation cell and the
+    `print_obj_info()` code cell
 
 ## Sync with Jupytext
-- At the end, sync the paired `.py` file with Jupytext following the conventions
-  in `# Code Architecture and Responsibility` -> `## Utilities vs. Notebook
+- At the end, sync the paired `.py` file with Jupytext, following
+  `# Code Architecture and Responsibility` -> `## Utilities vs. Notebook
   Responsibilities` in `.claude/skills/notebook.rules.md`
 
 # Conventions
@@ -43,5 +37,5 @@ model: haiku
 
 # Verification
 - [ ] Confirm each interactive cell has both a pre- and post-visualization
-  markdown cell
+      markdown cell
 - [ ] Confirm the `.ipynb` and paired `.py` file are in sync via Jupytext

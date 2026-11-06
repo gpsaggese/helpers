@@ -42,6 +42,12 @@ ignore = [
 # N999: Invalid module name (tutorial files are named like `L05_01_01_*.py`)
 "**/tutorials/**/*.py" = ["E402", "N999"]
 "**/tutorials/**/*.ipynb" = ["E402", "N999"]
+# Claude templates are not real modules: dotted names, placeholder imports,
+# and `# %%` cells between imports.
+# E402: Module level import not at top of file
+# I001: Import block is unsorted (autofix breaks the `# %%` cell layout)
+# N999: Invalid module name (templates are named like `notebook.template.py`)
+"**/.claude/templates/*.py" = ["E402", "I001", "N999"]
 
 [tool.pyrefly]
 # Currently, Pyrefly doesn't officially support [tool.pyrefly] config

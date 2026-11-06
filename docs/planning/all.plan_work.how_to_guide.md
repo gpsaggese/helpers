@@ -121,6 +121,9 @@
   - Do it in the same PR
 - Write the onboarding doc, the glossary, and the design docs as described in
   `.claude/skills/project.rules.md` section "Project Docs"
+- Write a README for each executable and for each dir, so that a newcomer knows how
+  to run the code
+  - See [Document the Executables](#document-the-executables)
 - Create a C4 diagram of the system following `.claude/skills/C4.rules.md`
   - E.g., `research/Estimate_academic_paper_quality/docs/02-design.architecture.md`
   - Put a short refresher of the C4 levels before the first diagram: Context,
@@ -174,6 +177,63 @@
 - Delegate a task list to an AI agent with the `auto_task` flow
   - See
     [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md)
+
+## Follow the Architecture Rules
+
+- **Goal**: every design, plan, and PR follows the same architectural decisions, so
+  that the code of different projects is organized in the same way
+- The rules live in `.claude/skills/architecture.rules.md`
+  - Each rule has a tag `ARCH<N>.<M>`, e.g., `ARCH2.5`
+  - Cite the tag in the design docs, the plan, the specs, and the PR description
+  - Do not copy the text of a rule into a doc (DRY)
+- Apply the rules at each phase of the flow:
+  - **Define**: `02-design.architecture.md` and `02.<N>-design.<component>.md`
+    - Organize the system in layers, with one responsibility per layer: `ARCH1.1`
+    - Keep I/O and external services apart from the business logic: `ARCH1.2`
+    - Keep the interfaces between layers small and one-directional: `ARCH1.3`
+    - Model the sequential processing as a pipeline of stages with explicit data
+      flow: `ARCH2.1`, `ARCH2.2`
+    - Choose how to run the pipeline:
+      - One script with `hselect_action` if the stages share dependencies, runtime,
+        and schedule: `ARCH2.3`, `ARCH2.4`
+      - One executable per stage, linked by files on disk, if they do not:
+        `ARCH2.5`
+    - Group the data that crosses a boundary in data classes: `ARCH4.3`
+    - Validate the input once, at the system boundary: `ARCH5.1`
+  - **Plan**: `04-plan.md` and `06-spec.<PR_ID>.md`
+    - Cut the PRs along the lines of the architecture, e.g., one PR per layer or
+      per pipeline stage: `ARCH1.1`, `ARCH2.2`
+    - Put the data classes in the first PR, before the stages that use them:
+      `ARCH4.3`
+    - Make each PR testable alone: `ARCH7.1`, `ARCH7.2`
+  - **Build**: the code of each PR
+    - Keep the signatures simple, with a config object for many options, a data
+      class for many return values, and no change to the inputs: `ARCH3.1`,
+      `ARCH3.2`, `ARCH3.3`, `ARCH3.4`
+    - Pass data through arguments and return values, never through globals:
+      `ARCH4.1`, `ARCH4.2`
+    - Fail fast on a bad configuration: `ARCH5.2`
+    - Name the stages `_<action_name>()` and keep each module focused:
+      `ARCH6.1`, `ARCH6.2`
+    - Declare the configuration and structure the script as in `ARCH8.1`, `ARCH8.2`
+  - **Test**: unit tests for the pure logic and integration tests for the
+    infrastructure layer: `ARCH7.1`, `ARCH7.2`
+- Record a departure from a rule as a decision in `03-decisions.md`
+  - Cite the tag that the decision departs from
+  - E.g., `` ### `D<N>` (Run all the stages in one script although their runtimes differ) ``
+    with the text "Departs from `ARCH2.5` because ..."
+- Check the rules in the review of the design and of each PR
+  - Quote the tag in the review comment, e.g., "Split this function: `ARCH1.2`"
+- E.g., `research/Estimate_academic_paper_quality` follows the rules:
+  - The stages are selected with `hselect_action`: `ARCH2.3`
+    - See `research/Estimate_academic_paper_quality/estimate_paper_quality.py`
+  - The dataclasses are in a module that imports nothing of the project: `ARCH4.3`
+    - See `research/Estimate_academic_paper_quality/epq_types.py`
+  - The rater is pure code and the LLM function is injected: `ARCH1.2`, `ARCH7.1`
+    - See `research/Estimate_academic_paper_quality/epq_rater.py` and
+      `research/Estimate_academic_paper_quality/epq_extractor.py`
+  - Each module imports only the modules of a lower layer: `ARCH1.1`
+    - See `research/Estimate_academic_paper_quality/test/test_epq_import_graph.py`
 
 ## Create an End-to-End Plan
 
@@ -363,6 +423,43 @@
   - The interaction of the new code are properly tested (e.g., integration tests,
     end-to-end tests)
   - All the specs are tested
+
+## Document the Executables
+
+- **Goal**: give a newcomer an entry point on how to run the code
+  - A README per executable says what it does and how to call it
+  - A README per dir says what is in the dir and points to the executables
+- **Commands**:
+  ```text
+  # Write or update the README of one executable.
+  claude> /readme_file.create <executable>
+  claude> /readme_file.create research/Estimate_academic_paper_quality/estimate_paper_quality.py
+
+  # Write or update the README of a dir.
+  claude> /readme_dir.create <dir>
+  claude> /readme_dir.create research/Estimate_academic_paper_quality
+  ```
+- What the skills write:
+  - `/readme_file.create` writes `<executable>.README.md` next to the executable
+    - E.g., `research/Estimate_academic_paper_quality/estimate_paper_quality.py.README.md`
+    - It has usage examples, a table of the arguments, the outputs, and the
+      software architecture
+    - It adds a pointer to the README in the docstring of the executable
+  - `/readme_dir.create` writes `README.md` in the dir
+    - E.g., `research/Estimate_academic_paper_quality/README.md`
+    - It has the structure of the dir and a short description of each file,
+      executable, and workflow
+- Rules for the flow:
+  - Run `/readme_file.create` for each executable first, then `/readme_dir.create`
+    for the dir
+  - Rerun the skills in the PR that changes the arguments of an executable or adds,
+    renames, or removes a file in the dir
+  - The conventions are in `.claude/skills/readme_file.rules.md` and
+    `.claude/skills/readme_dir.rules.md`
+
+- **Gates**:
+  - Every argument of the executable is in its README
+  - The examples in the README run as written
 
 ## Update Docs and Close GH Issue
 
@@ -604,6 +701,8 @@
   [`docs/planning/all.document_research.how_to_guide.md`](/docs/planning/all.document_research.how_to_guide.md)
 - Rules and templates:
   - `.claude/skills/project.rules.md`
+  - `.claude/skills/architecture.rules.md`, see
+    [Follow the Architecture Rules](#follow-the-architecture-rules)
   - `.claude/templates/project_*.template.md`
   - `.claude/templates/github_PR_description.template.md`
   - `.claude/templates/auto_task.template.md`

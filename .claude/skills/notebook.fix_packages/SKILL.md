@@ -6,15 +6,15 @@ model: haiku
 # Goal
 
 - When creating Docker images for projects and tutorials, we want to
-  - Try to use always the same Docker template image from the `class_project` to
-    avoid replication of Docker containers
+  - Always use the same Docker template image from `class_project` to avoid
+    replicating Docker containers
   - Install the needed packages in the notebooks to customize the container
 
 ## Inputs
 
 - The user passes:
-  - A pointer to a target directory `<TARGET_DIR>` (e.g.,
-    `msml610/tutorials/L03_knowledge_representation`) that was cloned from
+  - A target dir `<TARGET_DIR>` (e.g.,
+    `msml610/tutorials/L03_knowledge_representation`) cloned from
     `class_project/project_template`
   - (Optional) pointers to Jupyter notebooks
 
@@ -22,45 +22,41 @@ model: haiku
 
 ## Use the Docker Container From the Project Teamplate
 
-- In the directory with the project (e.g.,
-  `msml610/tutorials/L03_knowledge_representation`) we want to use the same
-  `Dockerfile` and `requirements.txt` as the corresponding files in
-  `class_project/project_template` (so that the Docker container for the project is
-  the same as the template used for class project)
-- If something needs to be added to the Docker image (e.g., a package that can't be
-  installed with `pip`) then it's ok to add it to `Dockerfile` but it should be
-  clearly commented why that package is needed
+- In the project dir (e.g., `msml610/tutorials/L03_knowledge_representation`),
+  use the same `Dockerfile` and `requirements.txt` as the matching files in
+  `class_project/project_template`, so the project container matches the class
+  project template
+- If the image needs something that `pip` cannot install, add it to `Dockerfile`
+  with a clear comment on why it is needed
 
 ## Discover All Packages Needed by the Notebook
 
-- A notebook's own `import` lines are not the full picture: each notebook is paired
-  with a `*_utils.py` file (e.g., `L03_06_logic_solvers.ipynb` ->
-  `L03_06_logic_solvers_utils.py`), and that file is imported with a line like:
+- A notebook's own `import` lines are not the full picture. Each notebook pairs with
+  a `*_utils.py` file (e.g., `L03_06_logic_solvers.ipynb` ->
+  `L03_06_logic_solvers_utils.py`), imported with a line like:
 
   ```
   import L03_06_logic_solvers_utils as utils
   ```
 
-- Read the `*_utils.py` file (and any other local module it imports, transitively)
-  and collect every third-party `import` / `from ... import` statement in it, not
-  just the ones in the notebook itself
-- Map import names to their pip package name where they differ (e.g., `cv2` ->
-  `opencv-python`, `sklearn` -> `scikit-learn`, `PIL` -> `Pillow`, `yaml` ->
-  `PyYAML`)
-- Diff this full package list against `requirements.txt` and `Dockerfile`: any
-  package used by the notebook or its utils file that is missing from both is a bug,
-  even if it happens to already be installed in whatever container was used to author
-  the notebook
-- Add every missing package to `requirements.txt` (and to `Dockerfile` only if it
-  can't be installed with `pip`, per
-  `## Use the Docker Container from the Project Teamplate` above)
+- Read the `*_utils.py` file and any local module it imports (transitively). Collect
+  every third-party `import` / `from ... import` statement, not just those in the
+  notebook
+- Map import names to pip names where they differ (e.g., `cv2` -> `opencv-python`,
+  `sklearn` -> `scikit-learn`, `PIL` -> `Pillow`, `yaml` -> `PyYAML`)
+- Diff this full list against `requirements.txt` and `Dockerfile`. A package used by
+  the notebook or its utils that is missing from both is a bug, even if it is
+  already installed in the container used to author the notebook
+- Add every missing package to `requirements.txt`, and to `Dockerfile` only if it
+  cannot be installed with `pip` (per `## Use the Docker Container from the Project
+  Teamplate` above)
 
 ## Add Packages to Notebooks
 
-- Then we want to add `pip install` the packages needed in each notebook, including
-  every package found in `## Discover All Packages Needed by the Notebook` above, by
-  installing and pinning down the packages
-- For each notebook we want to add after the first call with
+- Add a `pip install` cell for the packages needed in each notebook, including every
+  package from `## Discover All Packages Needed by the Notebook` above. Install and
+  pin the versions
+- For each notebook, add after the first call with
 
   ```
   %load_ext autoreload
@@ -90,8 +86,9 @@ model: haiku
 
 # Verification
 
-- [ ] Every third-party import in the notebook and its paired `*_utils.py` file has a
-      matching entry in `requirements.txt` and in the notebook's `pip install` cell
+- [ ] Every third-party import in the notebook and its paired `*_utils.py` file
+      has a matching entry in `requirements.txt` and in the notebook's
+      `pip install` cell
 - [ ] Build the docker container with `docker_build.sh` inside the target dir
       `<TARGET_DIR>`
 - [ ] Make sure the container builds correctly and it's the same as the Docker

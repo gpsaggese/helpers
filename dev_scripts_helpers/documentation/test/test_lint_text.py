@@ -2496,6 +2496,9 @@ class Test_lint_text_py1(hunitest.TestCase):
             # Save the intermediate `prettier` files in the scratch space,
             # instead of the current dir.
             cmd.append(f"--tmp_dir {out_dir}")
+            # Use a hash in the intermediate files to avoid collisions
+            # between concurrent test runs.
+            cmd.append("--use_hash")
             cmd.append(cmd_opts)
             cmd = " ".join(cmd)
             hsystem.system(cmd)

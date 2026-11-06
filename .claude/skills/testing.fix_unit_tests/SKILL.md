@@ -4,8 +4,8 @@ model: haiku
 ---
 
 # Goal
-- The user passes one or more test files `<FILE>` and you need to apply the
-  corresponding conventions and rules.
+- The user passes one or more test files `<FILE>`. Apply the corresponding
+  conventions and rules to them.
 
 # Workflow
 
@@ -22,12 +22,11 @@ model: haiku
   - ``## Do Not Use `hdbg.dassert` to Test Assertions``
 
 ## Draft a Plan
-- Given the code passed in `<FILE>` and the list of all the transformations
-  create a list of transformations and code lines to apply them, since the
-  code violates them
+- List the transformations and the code lines to apply them to, since the code
+  violates them
 
 ## Implement the Plan
-- Apply the transformations one at the time to the parts of the code
+- Apply the transformations one at a time to the parts of the code
 
 ## Refactor the Code
 - Run the skill `/coding.factor_common_code` on the file `<FILE>` to factor out

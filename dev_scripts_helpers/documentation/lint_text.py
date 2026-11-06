@@ -144,6 +144,17 @@ def _parser() -> argparse.ArgumentParser:
             "mount, e.g., a dir under the Git root"
         ),
     )
+    parser.add_argument(
+        "--use_hash",
+        action="store_true",
+        default=False,
+        help=(
+            "Append a random hash to the intermediate files used by "
+            "`prettier` (e.g., `tmp.prettier.<hash>.md`) so concurrent calls "
+            "do not collide. By default fixed names are used, to avoid "
+            "leaving hashed files around (unit tests set this)"
+        ),
+    )
     # TODO(gp): Convert to backend "global", "dockerized".
     parser.add_argument(
         "--use_dockerized_prettier",

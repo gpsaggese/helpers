@@ -4,16 +4,14 @@ model: opus
 ---
 
 # Goal
-- Given the content of a book in the form of a markdown or tex file `<TARGET>` and
-  a source file `<SOURCE>`, find and incorporate the changes from `<SOURCE>` into
-  `<TARGET>`
+- Given a book content file `<TARGET>` (markdown or tex) and its source file
+  `<SOURCE>`, find the changes in `<SOURCE>` and incorporate them into `<TARGET>`
 
 # Workflow
 
 ## Read the Version Header
-- The file `<SOURCE>` contains a header with the last version, in terms of Git hash
-  and timestamp, of the material used to generate the current version of
-  `<TARGET>`
+- `<SOURCE>` has a header with the Git hash and timestamp of the material used to
+  generate the current `<TARGET>`
   - E.g.,
     ```text
     % git_hash=<GIT_HASH>, timestamp=<TIMESTAMP>
@@ -24,90 +22,78 @@ model: opus
     % git_hash=f15bc6b9, timestamp=2026-07-15 14:41:12 EDT
     % book_springer/lectures_source/Lesson02.1_From_Data_Science_To_Decision_Science.txt
     ```
-- Get the diff of `<SOURCE>` since `<GIT_HASH>` once, up front, instead of re-diffing
-  piecemeal per section:
+- Get the diff of `<SOURCE>` since `<GIT_HASH>` once, up front, not per section:
   ```bash
   > git diff <GIT_HASH> -- <SOURCE>
   ```
 
 ## Incorporate Changes
-- Find what changed in `<SOURCE>` from `<GIT_HASH>` to now, and modify `<TARGET>` to
-  incorporate those changes
-- Follow the same style as `<TARGET>` (e.g., read the corresponding
-  `.claude/skills/*.rules.md`)
-- `<TARGET>` is allowed to be a superset of `<SOURCE>` (e.g., a `.typ` book chapter
-  routinely has headings, diagrams, or explanatory paragraphs that group or expand
-  several flat `.smd` slides, per `typst.rules.md`'s "Structural Hierarchy"). When
-  `<SOURCE>` drops a heading or a diagram that `<TARGET>` already built on, do not
-  delete the corresponding `<TARGET>` content just because it no longer has a direct
-  counterpart: only remove it if the diff shows the underlying fact/example was
-  itself changed or retracted, not merely reorganized out of the slide deck
-- Update the header at the top of `<TARGET>` to the new hash/timestamp once done:
+- Modify `<TARGET>` to reflect every change in `<SOURCE>` since `<GIT_HASH>`
+- Follow the style of `<TARGET>`, reading the matching `.claude/skills/*.rules.md`
+- `<TARGET>` may be a superset of `<SOURCE>`. A `.typ` chapter routinely adds
+  headings, diagrams, or paragraphs that group or expand several flat `.smd` slides
+  (see "Structural Hierarchy" in `typst.rules.md`)
+  - If `<SOURCE>` drops a heading or diagram that `<TARGET>` built on, keep the
+    `<TARGET>` content, since it has no direct counterpart anymore
+  - Remove it only if the diff shows the underlying fact or example was changed or
+    retracted, not merely reorganized out of the slide deck
+- Update the header at the top of `<TARGET>` to the new hash and timestamp:
   ```text
   // git_hash=<NEW_GIT_HASH> timestamp=<NEW_TIMESTAMP>
   ```
 
 ## Compare Entire Flow
-- Make sure the flow of the `<TARGET>` book chapter (in typst, latex, md format)
-  follows the flow of the `<SOURCE>`
-- E.g., you can run `extract_toc_from_txt.py` on `<SOURCE>` and `<TARGET>` and
-  compare
+- Make the flow of `<TARGET>` (typst, latex, or md) follow the flow of `<SOURCE>`
+- E.g., run `extract_toc_from_txt.py` on both files and compare
   ```bash
   > extract_toc_from_txt.py -i msml610/lectures_source/Lesson03.3-Non_classical_logics.smd
 
   > extract_toc_from_txt.py -i msml610/book/Lesson03.3-Non_classical_logics.typ
   ```
-- Ensure that the flow of `<TARGET>` is consistent with `<SOURCE>`
+- Ensure the flow of `<TARGET>` is consistent with `<SOURCE>`
 
 ## Update Source-Line References
-- A `.typ` `<TARGET>` carries a `// From: <SOURCE>:<LINE> '<slide title>'` comment
-  above each section, pointing at the exact `<SOURCE>` line it was generated from
-- Any edit to `<SOURCE>` above a given slide shifts every later line number: after
-  incorporating the changes, re-walk `<TARGET>`'s `// From:` comments top to bottom
-  and update each `<LINE>` to match the slide's current position in `<SOURCE>` (grep
-  `<SOURCE>` for the slide's `*`/`#` title to find it)
+- A `.typ` `<TARGET>` has a `// From: <SOURCE>:<LINE> '<slide title>'` comment above
+  each section, pointing to the exact `<SOURCE>` line it was generated from
+- An edit above a slide shifts every later line number. After incorporating the
+  changes, walk the `// From:` comments top to bottom and fix each `<LINE>` so it
+  matches the slide's current position in `<SOURCE>`
+  - Find a slide by grepping `<SOURCE>` for its `*` or `#` title
 
 ## Update Rendered Images
-- When `<SOURCE>`'s diff changes a `graphviz`/`mermaid`/`tikz`/... code block (new
-  styling, new nodes, a swapped static image for a rendered diagram, or vice versa),
-  carry that same code change into `<TARGET>`'s matching
-  `rendered_images:begin`/`rendered_images:end` placeholder (see
-  `typst.rules.md`'s "Diagram Placeholders and `wrap-content`")
-- Never touch the numbered `.png` filenames
-  (`<Chapter>.typ.figs/<Chapter>.<N>.png`) or the figure `#figure(image(...))` calls
-  by hand for content that already renders correctly: `render_images.py` regenerates
-  both the images and their numbering from the placeholders on the next render
-- If a section gains or loses a rendered figure, every later figure's `<N>` shifts;
-  after editing the placeholders, grep `<TARGET>` for
-  `\.typ\.figs/.*\.[0-9]+\.png` and renumber every `#figure(image(...))` call (and
-  its matching `label=`/`caption=` metadata line) sequentially from 1, in document
-  order, so the bare `#figure(...)` blocks stay in sync with what the next render
-  will produce
-- Carry over caption/label wording changes the same way you would prose: if
-  `<SOURCE>`'s diff renames or rewords what a diagram depicts, update the figure's
-  `caption=`/`caption:` to match, following `typst.rules.md`'s "Figures: Required
-  Elements" (sentence case, one plain line, no node-by-node listing)
+- If the diff changes a `graphviz`/`mermaid`/`tikz`/... code block (new styling, new
+  nodes, or a static image swapped for a rendered diagram, or vice versa), carry the
+  same change into the matching `rendered_images:begin`/`rendered_images:end`
+  placeholder in `<TARGET>` (see "Diagram Placeholders and `wrap-content`" in
+  `typst.rules.md`)
+- Never edit the numbered `.png` files (`<Chapter>.typ.figs/<Chapter>.<N>.png`)
+  or the `#figure(image(...))` calls by hand for content that already renders
+  correctly. `render_images.py` regenerates both on the next render
+- If a section gains or loses a rendered figure, every later `<N>` shifts. After
+  editing the placeholders, grep `<TARGET>` for `\.typ\.figs/.*\.[0-9]+\.png` and
+  renumber every `#figure(image(...))` call, and its matching `label=`/`caption=`
+  line, sequentially from 1 in document order
+- Carry caption or label wording changes like prose. If the diff renames or rewords
+  what a diagram depicts, update the figure's `caption=`/`caption:` per "Figures:
+  Required Elements" in `typst.rules.md` (sentence case, one plain line, no
+  node-by-node listing)
 
 # Verification
 - [ ] Confirm every change in `<SOURCE>` since `<GIT_HASH>` is reflected in
-  `<TARGET>`
-- [ ] Confirm `<TARGET>` still follows the style of its corresponding
-  `.claude/skills/*.rules.md` (`typst.rules.md`, `latex.rules.md`, or
-  `markdown.rules.md`, depending on `<TARGET>`'s format)
+      `<TARGET>`
+- [ ] Confirm `<TARGET>` still follows the style of its `.claude/skills/*.rules.md`
+      (`typst.rules.md`, `latex.rules.md`, or `markdown.rules.md`)
 - [ ] Confirm `<TARGET>` compiles
-  - For a `.typ` `<TARGET>`, use `render_book_chapter.py -i <TARGET>` when a working
-    Docker/graphviz setup is available
-  - As a lighter syntax-only check that doesn't need Docker (and avoids
-    `render_book_chapter.py`'s Docker/graphviz image-tagging bug, and its
-    side-effect of re-rendering other `.typ` files if a `gen_slides.py --daemon` is
-    watching the same book directory), stub out any not-yet-rendered figure PNGs
-    and compile directly:
+  - For `.typ`, use `render_book_chapter.py -i <TARGET>` if Docker and graphviz work
+  - Lighter syntax-only check without Docker. It avoids the image-tagging bug of
+    `render_book_chapter.py` and re-rendering of sibling `.typ` files under a
+    running `gen_slides.py --daemon`: stub the unrendered figure PNGs, then compile
     ```bash
     > typst compile --root . <TARGET> /tmp/check.pdf
     ```
   - After either check, `git status`/`git diff` the whole book directory, not just
-    `<TARGET>`, to catch an unintended side effect on a sibling chapter
-- [ ] Confirm every `// From: <SOURCE>:<LINE>` comment in `<TARGET>` points at the
-  correct, current line in `<SOURCE>`
+    `<TARGET>`, to catch side effects on sibling chapters
+- [ ] Confirm every `// From: <SOURCE>:<LINE>` comment points to the current line
+      in `<SOURCE>`
 - [ ] Confirm every figure's numbered `.png` filename is sequential in document
-  order with no gaps or duplicates
+      order, with no gaps or duplicates

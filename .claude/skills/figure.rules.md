@@ -25,9 +25,10 @@
 - These are anchor hues and meanings, not final fill/border/font values: each format
   builds its own concrete triad (fill/border/font) and syntax from these anchors,
   documented in that format's rules file
-  - GraphViz: `.claude/skills/graphviz.rules.md` "Color Scheme" tables
-  - TikZ: `.claude/skills/tikz.rules.md` "Colors" section
-  - SVG: `.claude/skills/svg.rules.md` "Color System" section (`c-{ramp}` classes)
+  - **GraphViz**: `.claude/skills/graphviz.rules.md` "Color Scheme" tables
+  - **TikZ**: `.claude/skills/tikz.rules.md` "Colors" section
+  - **SVG**: `.claude/skills/svg.rules.md` "Color System" section (`c-{ramp}`
+    classes)
 - Keep one hue meaning one thing across every diagram in a document set, e.g. orange
   always means "input/source", never "action" in one diagram and "input" in another
 
@@ -177,13 +178,14 @@
 - Every rendered diagram gets a short id and a one-sentence caption: what the diagram
   shows, and what the colors mean when color encodes a category
 - Implementation differs by format:
-  - GraphViz: trailing `label=fig:<slug>` / `caption=<sentence>` lines (see
+  - **GraphViz**: trailing `label=fig:<slug>` / `caption=<sentence>` lines (see
     `.claude/skills/graphviz.rules.md` "Footer")
-  - TikZ: `\label{fig:<slug>}` + `\caption{<sentence>}` inside a `figure` environment
+  - **TikZ**: `\label{fig:<slug>}` + `\caption{<sentence>}` inside a `figure`
+    environment
     for a standalone figure; for a `.smd` slide fence, put the caption as
     `\footnotesize _<sentence>_` text below the rendered image in the slide markdown,
     since the fence itself carries no comments
-  - SVG: the required `<title>`/`<desc>` (see "Accessibility" in
+  - **SVG**: the required `<title>`/`<desc>` (see "Accessibility" in
     `.claude/skills/svg.rules.md`) doubles as the id/caption, no extra footer needed
 
 ## Best Practices

@@ -10,34 +10,33 @@ model: haiku
 # Workflow
 
 ## Find the Files to Process
-- Extract the timestamp `<TIMESTAMP>` from the comment at the end of
-  `research/ideas/README.md`, e.g. `// Last update timestamp: "Aug 3 10:54"`
-- Find every file in `research/ideas/*.md` modified or added after
-  `<TIMESTAMP>`, or not yet present as a row in the table
-- Build the list of files to process, `<FILES>`
+- Extract `<TIMESTAMP>` from the comment at the end of `research/ideas/README.md`,
+  e.g. `// Last update timestamp: "Aug 3 10:54"`
+- Find every `research/ideas/*.md` file modified or added after `<TIMESTAMP>`, or
+  with no row in the table yet
+- Build the list of those files, `<FILES>`
 
 ## Read the Template
-- Read `.claude/templates/research_idea.template.md` to know what each idea
-  file should contain
+- Read `.claude/templates/research_idea.template.md` to learn what each idea file
+  should contain
 
 ## Update the Table
-- For each file in `<FILES>`, add or update its row in
-  `research/ideas/README.md` using the column order:
+- For each file in `<FILES>`, add or update its row in `research/ideas/README.md`
+  using the column order:
   `| File | Links | Status | Assignee | Specs Complete | GitHub Issue | Result |`
-- Fill each column to the best of your ability from the file's content and
-  status prefix
+- Fill each column from the file content and status prefix, as well as you can
 - Sort all rows by descending `Specs Complete`
 
 ## Update the Timestamp
-- Update the `// Last update timestamp: "..."` comment at the end of the file
-  to the current timestamp
+- Set the `// Last update timestamp: "..."` comment at the end of the file to the
+  current timestamp
 
 # Conventions
 - Follow `.claude/skills/research_idea.rules.md`
 
 # Constraints
-- Only touch rows for files in `<FILES>`; do not rewrite rows for unchanged
-  files beyond re-sorting the table
+- Only touch rows of files in `<FILES>`. Re-sorting the table is the only change
+  allowed to other rows
 - Do not remove a row for a file that still exists in `research/ideas/*.md`
 
 # Verification

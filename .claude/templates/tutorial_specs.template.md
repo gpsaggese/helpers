@@ -51,16 +51,16 @@ worth a 60-minute tutorial>
 
 ### Milestones
 
-- Milestone 1: <SETUP_AND_DATA>
-  - Project tasks: <Data Preprocessing>
-  - Result: <RESULT_1>
-- Milestone 2: <API_NOTEBOOK>
-  - Project tasks: <Use the Tool>
-  - Result: `<TOOL>.API.ipynb` covering <FEATURE_1> and <FEATURE_2>
-- Milestone 3: <EXAMPLE_NOTEBOOK>
-  - Project tasks: <Define the Problem>, <Use the Tool>, <Evaluation>,
+- **Milestone 1**: <SETUP_AND_DATA>
+  - **Project tasks**: <Data Preprocessing>
+  - **Result**: <RESULT_1>
+- **Milestone 2**: <API_NOTEBOOK>
+  - **Project tasks**: <Use the Tool>
+  - **Result**: `<TOOL>.API.ipynb` covering <FEATURE_1> and <FEATURE_2>
+- **Milestone 3**: <EXAMPLE_NOTEBOOK>
+  - **Project tasks**: <Define the Problem>, <Use the Tool>, <Evaluation>,
     <Visualization>
-  - Result: `<TOOL>.example.ipynb` running end to end
+  - **Result**: `<TOOL>.example.ipynb` running end to end
 
 ## Project 2: <TITLE>
 

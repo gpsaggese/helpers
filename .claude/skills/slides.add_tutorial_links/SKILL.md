@@ -4,8 +4,8 @@ model: sonnet
 ---
 
 # Goal
-- Given a slides file `<SMD_FILE>` and a rendered HTML tutorial `<TUTORIAL_URL>`, add
-  links from each slide to the tutorial section it corresponds to
+- Given a slides file `<SMD_FILE>` and a rendered HTML tutorial `<TUTORIAL_URL>`,
+  add links from each slide to the tutorial section it corresponds to
 
   - E.g., `<SMD_FILE>` =
     `msml610/lectures_source/Lesson09.3-Multi_Armed_Bandits.txt` and
@@ -16,9 +16,8 @@ model: sonnet
 
 ## Find the Relationship
 - Read `<SMD_FILE>` and `<TUTORIAL_URL>`
-- If a companion tutorial markdown file exists next to the notebook (e.g.,
-  `<TUTORIAL_DIR>/<TUTORIAL_NAME>.md`), use it to help match slide content to
-  tutorial cells
+- If a companion tutorial markdown exists next to the notebook (e.g.,
+  `<TUTORIAL_DIR>/<TUTORIAL_NAME>.md`), use it to match slides to tutorial cells
 - Match each slide to the tutorial cell(s) that cover the same concept
 
 ## Add Links

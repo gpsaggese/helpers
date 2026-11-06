@@ -71,8 +71,8 @@
 
 ## Directory Structure
 
-- Golden files: `test/outcomes/<TestClass.test_method>/output/test.txt`
-- Ephemeral scratch: `test/scratch/<TestClass.test_method>/`
+- **Golden files**: `test/outcomes/<TestClass.test_method>/output/test.txt`
+- **Ephemeral scratch**: `test/scratch/<TestClass.test_method>/`
   - It is automatically deleted by `hunitest.TestCase.tearDown()`
   - Do not delete it explicitly in test code
 
@@ -762,9 +762,9 @@
   per-method setup
   - Never override `setUp()` / `tearDown()` directly
 - For inherited test classes that both need setup, add a numeric suffix:
-  - Parent: `set_up_test()`, `tear_down_test()`
-  - Child: `set_up_test2()`, `tear_down_test2()`, which must call parent hooks
-  - Next level: `set_up_test3()`, etc
+  - **Parent**: `set_up_test()`, `tear_down_test()`
+  - **Child**: `set_up_test2()`, `tear_down_test2()`, which must call parent hooks
+  - **Next level**: `set_up_test3()`, etc
 - Use `setUpClass` and `tearDownClass` only for expensive one-time class-scoped setup
   (DB connection, shared file) and decorate with `@classmethod`
 - Use this idiom when multiple test methods need the same setup/teardown code:

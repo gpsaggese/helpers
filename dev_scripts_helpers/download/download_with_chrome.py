@@ -65,20 +65,22 @@ import dev_scripts_helpers.download.download_with_chrome as dshddwich
 
 import argparse
 import base64
+import json
 import logging
 import os
 import socket
 import sys
 import time
 import urllib.parse
+import urllib.request
 from typing import Any, Tuple
 
+import dev_scripts_helpers.download.download_utils as dshddut
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
-import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 
@@ -115,8 +117,10 @@ def _resolve_urls(input_arg: str, mode: str, referer: str) -> Tuple[str, str]:
         else:
             # Keep a delivery URL given by the user, build it otherwise.
             if "Delivery.cfm" not in input_arg:
+                # This is the link of the "Download This Paper" button. The
+                # form `Delivery.cfm/<id>.pdf` gives HTTP 404 for some papers.
                 url = (
-                    f"https://papers.ssrn.com/sol3/Delivery.cfm/{ssrn_id}.pdf"
+                    "https://papers.ssrn.com/sol3/Delivery.cfm"
                     f"?abstractid={ssrn_id}&mirid=1"
                 )
             if not referer:
@@ -220,6 +224,37 @@ def _launch_chrome(
         _LOG.info("Chrome is already listening on '%s'", cdp_url)
     _LOG.debug("return=%s", is_launched)
     return is_launched
+
+
+def _ensure_window(cdp_url: str, *, timeout_sec: int = 10) -> bool:
+    """
+    Open a blank tab if the Chrome listening on `cdp_url` has no window.
+
+    On macOS, Chrome keeps running after the user closes its last window. A
+    Chrome with no window refuses the Playwright connection with the error
+    `Browser context management is not supported`.
+
+    :param cdp_url: CDP endpoint, e.g., `http://127.0.0.1:9222`
+    :param timeout_sec: seconds to wait for each HTTP request to Chrome
+    :return: True if a tab was opened, False if Chrome already had a window
+    """
+    _LOG.debug(hprint.to_str("cdp_url timeout_sec"))
+    # The HTTP endpoints of Chrome list the open tabs and open a new one.
+    url = f"{cdp_url}/json/list"
+    with urllib.request.urlopen(url, timeout=timeout_sec) as response:
+        targets = json.load(response)
+    # Targets of other types are not windows, e.g., extension service workers.
+    has_window = any(target.get("type") == "page" for target in targets)
+    is_opened = not has_window
+    if is_opened:
+        _LOG.warning("Chrome has no window: opening a blank tab")
+        request = urllib.request.Request(
+            f"{cdp_url}/json/new?about:blank", method="PUT"
+        )
+        with urllib.request.urlopen(request, timeout=timeout_sec) as response:
+            response.read()
+    _LOG.debug("return=%s", is_opened)
+    return is_opened
 
 
 # #############################################################################
@@ -333,6 +368,8 @@ def _download(
     from playwright.sync_api import sync_playwright
 
     timeout_ms = timeout_sec * 1000
+    # A Chrome with no window rejects the connection of Playwright.
+    _ensure_window(cdp_url)
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(cdp_url)
         hdbg.dassert_lt(0, len(browser.contexts), "Chrome has no window")

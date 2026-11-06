@@ -10,22 +10,21 @@ model: opus
 # Workflow
 
 ## Read the Given Text
-- Analyze the text below and extract the most thought-provoking, surprising, and
-  intellectually interesting ideas
-
+- Extract the most thought-provoking, surprising, and intellectually
+  interesting ideas from the text below
 - Focus on:
   - Ideas that challenge common assumptions or conventional wisdom
-  - Concepts that are counterintuitive, paradoxical, or unexpected
+  - Counterintuitive, paradoxical, or unexpected concepts
   - Insights with deep implications (philosophical, scientific, social, or
     psychological)
-  - Particularly elegant, novel, or powerful ways of explaining something
-  - Any hidden patterns, connections, or underlying themes
+  - Elegant, novel, or powerful ways of explaining something
+  - Hidden patterns, connections, or underlying themes
 
 ## Extract Ideas
-- For each idea create bullet points using following
-  `.claude/skills/markdown.rules.md` and `.claude/skills/text.rules.md`
+- For each idea, write bullets following `.claude/skills/markdown.rules.md` and
+  `.claude/skills/text.rules.md`
 
-- Create an header 1 with a short summary
+- Create a header 1 with a short summary
   ```markdown
   # <ID>. Creative Destruction as Generative Force
   ```

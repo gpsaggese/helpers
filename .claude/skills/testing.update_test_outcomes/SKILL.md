@@ -4,25 +4,24 @@ model: haiku
 ---
 
 # Goal
-- The user passes you a list of tests or a repro script with tests failing
-  `<FAILING_TESTS>` because of mismatching actual vs expected outputs
+- The user passes a list of tests, or a repro script, with failing tests
+  `<FAILING_TESTS>` whose actual and expected outputs mismatch
 
 # Important
-- For all code you must follow the instructions in
-  `.claude/skills/coding.rules.md`
+- For all code, follow `.claude/skills/coding.rules.md`
 - Follow the invariants and conventions for unit tests in
   `.claude/skills/testing.rules.md`
 
 # Workflow
 
 ## Run the Failing Tests
-- Run the tests one at the time in the way the user suggested to verify that the
-  tests are failing due to mismatching outputs
+- Run the tests one at a time, the way the user suggested, to confirm they fail
+  due to mismatching outputs
 
 ## Classify the Assertion Method
-- Check each failing test method and find out if the result is checked with
+- For each failing test method, check whether the result is checked with
   - `self.check_string()`
-  - `self.assert_equal()` or similar assertion (e.g.,
+  - `self.assert_equal()` or a similar assertion (e.g.,
     `hunteuti.assert_sys_calls()`, `self.assertEqual()`)
 
 - Print a table with the following info:
@@ -35,17 +34,18 @@ model: haiku
   | dev_scripts_helpers/documentation/test/test_notes_to_pdf.py | Test_notes_to_pdf_output_types::test1 | FAIL | self.assert_equal() with fuzzy_match=True |
   ```
 
-- Save this to a file `tmp.update_test_outcomes.failing_tests.md`
+- Save this to `tmp.update_test_outcomes.failing_tests.md`
 
 ## Update the Expected Output
 - For each failing test method:
   - If the result is checked with `self.check_string()`
-    - Run the test adding the pytest option `--update_golden` to refresh the output
-  - If the result is checked with `self.assert_equal()` or similar assertions
-    (e.g., `hunteuti.assert_sys_calls()`) read the file
+    - Run the test with the pytest option `--update_golden` to refresh the output
+  - If the result is checked with `self.assert_equal()` or a similar assertion
+    (e.g., `hunteuti.assert_sys_calls()`), read the file
     `<TEST_DIR>/tmp.initial.actual.txt`
-    (e.g., `dev_scripts_helpers/documentation/test/outcomes/Test_run_pandoc_to_html.test1`)
-    containing the actual variable and update the `expected` variable
+    (e.g.,
+    `dev_scripts_helpers/documentation/test/outcomes/Test_run_pandoc_to_html.test1`)
+    that holds the actual variable, and update the `expected` variable
     - E.g.,
       ```python
       expected = """
@@ -58,13 +58,12 @@ model: haiku
       """
       ```
 
-- Follow the directions in `.claude/skills/testing.rules.md`
+- Follow `.claude/skills/testing.rules.md`:
   - `## Code Formatting in Tests`
   - `# Test Input and Output Handling`
 
-- Do not change way of checking results
-  - E.g., do not replace `self.assert*()` with `self.check_string()` and vice
-    versa
+- Do not change how results are checked
+  - E.g., do not replace `self.assert*()` with `self.check_string()` or vice versa
   - E.g., do not replace `self.assert*()` with `self.assertIn()`
 
 # Verification

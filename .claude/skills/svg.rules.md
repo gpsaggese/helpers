@@ -27,13 +27,13 @@ a technical book, paper, thesis, or technical presentation)
 
 ## Spacing
 
-- Box padding: 24px horizontal, 12px vertical
+- **Box padding**: 24px horizontal, 12px vertical
 - Minimum gap between adjacent boxes: 20px
 - Arrow must not cross any unrelated box: use L-bend `<path>` detours
 - For N boxes in a row: verify (N × box_width) + ((N-1) × gap) ≤ 500px
-- Two-line boxes: height ≥ 56px, title-to-subtitle spacing = 18px
+- **Two-line boxes**: height ≥ 56px, title-to-subtitle spacing = 18px
 - Add adequate padding and element spacing so nothing looks cramped
-- Tight cropping: minimize whitespace around content
+- **Tight cropping**: minimize whitespace around content
 
 # Typography
 
@@ -104,10 +104,10 @@ TikZ diagram in the same document set:
 ## Paths and Connectors
 
 - All connector/arrow paths: `fill="none" stroke-width="1.5"`
-- Box borders: `stroke-width="0.5"` (refined, not heavy)
-- Box corners: `rx="4"` default, `rx="8"` for emphasized nodes
+- **Box borders**: `stroke-width="0.5"` (refined, not heavy)
+- **Box corners**: `rx="4"` default, `rx="8"` for emphasized nodes
 - Standardize stroke widths across the figure (no more than 2-3 distinct widths)
-- Standardize shape style: consistent corner rounding, consistent arrow markers
+- **Standardize shape style**: consistent corner rounding, consistent arrow markers
   across all edges
 
 ## Arrow Markers
@@ -125,11 +125,11 @@ TikZ diagram in the same document set:
 
 ## Leader Lines and Effects
 
-- Dashed leaders: `stroke-width="0.5" stroke-dasharray="4 3" opacity="0.6"`
+- **Dashed leaders**: `stroke-width="0.5" stroke-dasharray="4 3" opacity="0.6"`
 - No drop shadows, gradients, blur, or glow (exception: one `linearGradient` for a
   continuous physical property like temperature)
 - Stroke and fill ratios balanced (not overdrawn, not too faint)
-- Anti-aliasing: ensure elements render cleanly at typical screen resolutions
+- **Anti-aliasing**: ensure elements render cleanly at typical screen resolutions
 
 # SVG Structure
 
@@ -146,12 +146,12 @@ TikZ diagram in the same document set:
 # Figure Types
 
 Choose the appropriate type for your diagram:
-- FLOWCHART: sequential steps, decision branches, pipelines
-- STRUCTURAL: containment (things inside other things), architecture
-- ILLUSTRATIVE: physical cross-sections or abstract spatial metaphors that build
+- **FLOWCHART**: sequential steps, decision branches, pipelines
+- **STRUCTURAL**: containment (things inside other things), architecture
+- **ILLUSTRATIVE**: physical cross-sections or abstract spatial metaphors that build
   intuition (attention maps, loss surfaces, etc.)
-- DATA CHART: use Chart.js or D3, not raw SVG, for quantitative data
-- ERD/CLASS: use mermaid.js erDiagram / classDiagram syntax
+- **DATA CHART**: use Chart.js or D3, not raw SVG, for quantitative data
+- **ERD/CLASS**: use mermaid.js erDiagram / classDiagram syntax
 
 # Accessibility
 

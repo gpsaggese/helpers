@@ -5,17 +5,17 @@ model: sonnet
 
 # Goal
 
-- Given the plan ids of the merged PR(s), bring the docs of the project in sync:
-  tick the plan, add the log entry, record the decisions
-- Log facts only: never invent a result
+- Given the plan ids of merged PR(s), sync the project docs: tick the plan, add the
+  log entry, and record the decisions
+- Log facts only. Never invent a result
 
 ## Input
 
-- `<PR_IDS>`: one or more plan ids, e.g., `PR_M10`
-- `<PR_NUM>`: the GitHub PR number, optional
+- `<PR_IDS>`: One or more plan ids, e.g., `PR_M10`
+- `<PR_NUM>`: The GitHub PR number, optional
   - If missing, find the merged PR with `gh pr list --state merged --search
     "<PR_ID>"`
-- `<DOCS_DIR>`: the `docs/` dir of the project, optional
+- `<DOCS_DIR>`: The project `docs/` dir, optional
   - If missing, use `docs/` in the current dir
 
 # Workflow
@@ -23,56 +23,56 @@ model: sonnet
 ## Check the PR Is Merged
 
 - Read the PR with `gh pr view <PR_NUM>`
-- If the PR is not merged, stop and tell the user: a PR is checked only when merged
+- If the PR is not merged, stop and tell the user. A PR is checked only when merged
 
 ## Update the Plan
 
 - Tick `[x]` the PR in the roadmap and in its entry in `<DOCS_DIR>/04-plan.md`
-- For a partly done PR, write the status in its entry and do not tick it
-- If the scope or the order changed, edit the plan and log why in the progress log
+- For a partly done PR, write its status in its entry. Do not tick it
+- If the scope or order changed, edit the plan and log why in the progress log
 
 ## Update the Log
 
 - Add the entry to `<DOCS_DIR>/07-progress.md`, after the older ones
   - Use a History row, or one section per PR when a row is too short
-  - Follow `.claude/skills/project.rules.md` section "Write the Log" and the template
-    `.claude/templates/project_progress.template.md`
-- Take from the PR: the issue, the author, the dates in UTC, the testing evidence,
-  the failing checks that the PR did not cause
+  - Follow `.claude/skills/project.rules.md` section "Write the Log" and the
+    template `.claude/templates/project_progress.template.md`
+- Take from the PR: the issue, the author, the UTC dates, the testing evidence,
+  and the failing checks that the PR did not cause
 - Update "Status", "Built", and "Next"
-- Ask the user for any finding or number that is not in the PR: do not invent it
+- Ask the user for any finding or number missing from the PR. Do not invent it
 
 ## Record the Decisions
 
-- For each decision in the "Decisions" section of the PR description, add an entry
-  to `<DOCS_DIR>/03-decisions.md`
-  - Follow the template `.claude/templates/project_decisions.template.md`
+- For each decision in the PR description's "Decisions" section, add an entry to
+  `<DOCS_DIR>/03-decisions.md`
+  - Follow `.claude/templates/project_decisions.template.md`
 - Add a one-line pointer to the decision in the log entry
   - Make the pointer a link to the
     ```
     ### `D<N>` (<Decision title>)
     ```
-    header in `03-decisions.md`, per `.claude/skills/project.rules.md` section "Link
-    Requirements and Decisions"
+    header in `03-decisions.md`, per `.claude/skills/project.rules.md` section
+    "Link Requirements and Decisions"
 
 ## Sync the Other Docs
 
 - Apply the event map in `.claude/skills/project.rules.md` section "Map Each Event
   to the Doc to Update"
-- Update the design doc of each module the PR changed
+- Update the design doc of each changed module
 - Update `<DOCS_DIR>/README.md` if a doc was added, renamed, or removed
 - Add new terms to `<DOCS_DIR>/10-glossary.md`, if the file exists
 
 # Conventions
 
-- Follow `.claude/skills/project.rules.md` for the docs of a project
+- Follow `.claude/skills/project.rules.md` for project docs
 - Follow `.claude/skills/markdown.rules.md` and `.claude/skills/text.rules.md`
 
 # Constraints
 
-- Append to the history: do not rewrite the past rows
+- Append to the history. Do not rewrite past rows
 - Log facts, not plans
-- Do not commit any change: the user commits the doc update in the PR that finishes
+- Do not commit any change. The user commits the doc update in the PR that finishes
   the task
 
 # Verification

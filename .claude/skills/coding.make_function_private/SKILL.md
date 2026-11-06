@@ -4,9 +4,9 @@ model: haiku
 ---
 
 # Goal
-For each function `<FUNC>` in the passed Python file `<FILE>`, determine if it
-should be private or public by checking if it's called by Python files or
-Jupyter notebooks outside `<FILE>`.
+For each function `<FUNC>` in the passed Python file `<FILE>`, decide if it is
+private or public by checking whether Python files or Jupyter notebooks outside
+`<FILE>` call it.
 
 # Conventions
 - Follow `## Mark Private Functions` in `.claude/skills/coding.rules.md`
@@ -17,27 +17,25 @@ Jupyter notebooks outside `<FILE>`.
 - **External files** = any Python file or Jupyter notebook outside the target
   file
   - Including:
-    - Sibling scripts in the same package (e.g., `notes_to_pdf.py` calling functions
-      from `lib_notes_to_pdf.py`)
+    - Sibling scripts in the same package (e.g., `notes_to_pdf.py` calling
+      functions from `lib_notes_to_pdf.py`)
     - Parent/sibling modules that import from the target
     - CLI entry point scripts
-  - Excluding
-    - Test files that test the target module, since a function is private even if
-      it's called by a test files
+  - Excluding:
+    - Test files of the target. A function stays private even if a test calls it
 
-- **Note:** Functions that form the public API of a library module should be
-  PUBLIC, even if they're not called from a `__main__` entry point. If a module
-  exports utility functions for use by other scripts in the package, those are
-  PUBLIC functions
+- **Note:** Functions in a library module's public API are PUBLIC, even if no
+  `__main__` entry point calls them. Utilities that other scripts in the package
+  import are PUBLIC too
 
 # Private Functions
-- If the function `<FUNC>` is not called by any external file, then it should be
-  a private function and should be renamed and prepended with a `_`
+- If `<FUNC>` is not called by any external file, it is private: rename it with a
+  `_` prefix
   - E.g., `def function` -> `def _function`
-  - Include only internal utility functions, helpers, and implementation details
-- Modify all the callers of the function `<FUNC>` to use the new name
+  - Include only internal utilities, helpers, and implementation details
+- Update all callers of `<FUNC>` to the new name
 
-- **Good** (function only called within its own file, so it is renamed private)
+- **Good** (only called within its own file, so renamed private)
   ```python
   # lib_helper.py
   def public_function():
@@ -48,13 +46,12 @@ Jupyter notebooks outside `<FILE>`.
   ```
 
 # Public Functions
-- If the function `<FUNC>` is called by external files, then it should be a
-  public function and its name must not start with `_`
-  - This includes functions in shared utility modules called by sibling scripts
-- Modify all callers (both external and internal) of the function to use the new
-  name
+- If `<FUNC>` is called by external files, it is public: its name must not start
+  with `_`
+  - This includes functions in shared utility modules that sibling scripts call
+- Update all callers, external and internal, to the new name
 
-- **Good** (function called by an external file, so it stays public)
+- **Good** (called by an external file, so it stays public)
   ```python
   # lib_notes_to_pdf.py
   def preprocess_notes(file_name, prefix):  # Called by notes_to_pdf.py, so public.
@@ -70,19 +67,18 @@ Jupyter notebooks outside `<FILE>`.
 - Find all functions in `<FILE>`
 
 ## Search for External Calls
-- For each function, search the entire codebase for external calls:
+- For each function, search the whole codebase:
   ```bash
   grep -r "<FUNC>" --include="*.py" --include="*.ipynb" --exclude="test_*.py"
   ```
 
 ## Classify and Rename
-- Classify each function as public or private based on external usage
-- Rename functions and update all call sites (both files)
+- Classify each function as public or private from its external usage
+- Rename functions and update all call sites (in both files)
 - Verify the changes
 
 # Verification
-- [ ] Grep in the entire codebase to confirm all function calls were renamed
-      correctly
+- [ ] Grep the entire codebase to confirm all calls were renamed correctly
       ```bash
       grep -r "old_name\|new_name" --include="*.py" --include="*.ipynb"
       ```

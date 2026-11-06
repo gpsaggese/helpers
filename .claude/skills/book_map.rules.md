@@ -6,8 +6,8 @@
 
 - `book_map.md`: the map of a book / course
   - E.g.,
-    - `/Users/saggese/src/umd_classes2/book_springer/book_map.md`
-    - `/Users/saggese/src/umd_classes1/msml610/book_map.md`
+    - `book_springer/book_map.md`
+    - `msml610/book_map.md`
 - `chap_toc`: contains a description of a book chapter
   - It corresponds to the `### Topics` in a map
 - `skeleton_slides`: describes the high level flow of slides

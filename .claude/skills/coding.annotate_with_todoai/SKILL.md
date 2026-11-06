@@ -4,23 +4,22 @@ model: haiku
 ---
 
 # Goal
-- The user will give you a file `<FILE>` and you will annotate the file with
-  TODOs based on the violated rules and conventions
+- Annotate the file `<FILE>` with TODOs for each violated rule and convention
 
 # Workflow
 
 ## Determine the Rules to Apply
-- If `<FILE>` is a Python file use `<RULES>`
+- If `<FILE>` is a Python file, use `<RULES>`
   - `.claude/skills/coding.rules.md`
-- If `<FILE>` is a Python testing file (e.g., `test/test_*.py`) use `<RULES>`
+- If `<FILE>` is a Python testing file (e.g., `test/test_*.py`), use `<RULES>`
   - `.claude/skills/coding.rules.md`
   - `.claude/skills/testing.rules.md`
-- Print the rule files `<RULES>` to be used for each file in `<FILE>`
+- Print the rule files `<RULES>` used for each file in `<FILE>`
 - Read the rule files `<RULES>` carefully
 
 ## Annotate with TODOs
-- Annotate all the points in `<FILE>` with violations to rules in `<RULES>`
-  adding a TODO, like
+- Annotate every point in `<FILE>` that violates `<RULES>`, adding a TODO
+  before it, like
   ```python
   # TODO(ai_gp): Apply <RULE> before the point with violation
   ```

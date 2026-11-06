@@ -321,8 +321,8 @@ This document contains all the rules that must be followed when writing markdown
 
 ## Mathematical Notation
 
-- Inline math: `$E = mc^2$`
-- Block math:
+- **Inline math**: `$E = mc^2$`
+- **Block math**:
   ```markdown
   $$
   E = mc^2

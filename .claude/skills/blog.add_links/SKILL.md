@@ -10,17 +10,15 @@ model: haiku
 
 ## Collect Material
 
-- Read the passed blog text `<BLOG_FILE>` and the other blogs in `<BLOG_DIR>`
-  `website/docs/blog/posts/*.md`
-  (both published ones and drafts)
+- Read the passed blog `<BLOG_FILE>` and the other blogs in `<BLOG_DIR>`
+  `website/docs/blog/posts/*.md`, both published and drafts
 
 ## Add Internal Links
-- Find which parts of the blog `<BLOG_FILE>` can point to the other blogs and add
-  references to each other
+- Find parts of `<BLOG_FILE>` that can point to the other blogs, and add links
+  between them
 
 ## Add External Links
-- Find references to the content of the blog `<BLOG_FILE>` that are meaningful
-  and expand on it by adding more links
+- Find meaningful content in `<BLOG_FILE>` and add links that expand on it
 
 ## Format
 - At the end, format the text with
@@ -29,8 +27,8 @@ model: haiku
   ```
 
 # Constraints
-- Make sure to follow rules from `.claude/skills/blog.rules.md`
-- Do not change the content of the blog, but only add links
+- Follow the rules in `.claude/skills/blog.rules.md`
+- Do not change the content of the blog, only add links
 
 # Verification
 - [ ] Confirm every added link resolves to an existing blog post or a valid

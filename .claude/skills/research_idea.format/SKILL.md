@@ -12,34 +12,32 @@ model: sonnet
 ## Read the Inputs
 - Read `<FILE>`
 - Read the template `.claude/templates/research_idea.template.md`
-- Read `.claude/skills/research_idea.rules.md` `# Examples` for a worked
-  example
+- Read `# Examples` in `.claude/skills/research_idea.rules.md` for a worked example
 
 ## Apply the Template
-- Map the content already in `<FILE>` onto the template's sections (`Status`,
-  `Core Idea`, `Formalization`, `Key Examples`, `Questions`, `Research
-  Topics`, `Next steps`, `Implementation plan`, `References`)
-- Do not leave the template's placeholder bullets in a section: fill it from the
-  idea's own content, or remove the empty bullets
-- Do not invent facts, results, or citations to fill a section; write only what
-  follows from the idea (e.g., a hypothetical example marked as illustrative)
-- Do not add an `Assignee` field: assignees live only in the README table
+- Map the content of `<FILE>` onto the template sections (`Status`, `Core Idea`,
+  `Formalization`, `Key Examples`, `Questions`, `Research Topics`, `Next steps`,
+  `Implementation plan`, `References`)
+- Remove or fill every template placeholder bullet. Fill from the idea's own content
+- Do not invent facts, results, or citations. Write only what follows from the idea
+  (e.g., mark a hypothetical example as illustrative)
+- Do not add an `Assignee` field. Assignees live only in the README table
 - Write references as `Author(s), _Title_. (Year)`
-- Write the result back into `<FILE>`, replacing its previous content
+- Replace the previous content of `<FILE>` with the result
 
 # Conventions
 - Follow `.claude/skills/research_idea.rules.md`
 
 # Constraints
-- Keep the file name and its status prefix unchanged; formatting does not
-  change status
+- Keep the file name and its status prefix. Formatting does not change status
 - Fit text in 85 character lines, per `.claude/skills/research_idea.rules.md`
 
 # Examples
 - `research/ideas/in_progress.RL_for_pickleball.md`
 
 # Verification
-- [ ] `<FILE>` follows the section order of `.claude/templates/research_idea.template.md`
+- [ ] `<FILE>` follows the section order of
+      `.claude/templates/research_idea.template.md`
 - [ ] No template placeholder text is left in the file
 - [ ] No fabricated facts or citations were added
 - [ ] No `Assignee` line; references use `Author(s), _Title_. (Year)`
