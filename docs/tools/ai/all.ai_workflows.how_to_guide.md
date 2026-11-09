@@ -57,6 +57,8 @@
   - `readme_dir`: README file for a directory
   - `readme_file`: README file for a single executable
   - `references`: Format of references to books and papers
+  - `related_python_packages`: List of the Python packages related to the content of
+    a directory
   - `research_idea`: Research idea docs and their tracking table
   - `role`: Role descriptions for AI agents (coding, notebook, AI researcher,
     skill designer)
@@ -141,7 +143,8 @@
   `github_PR_description.template.md`, `book_map.template.md`,
   `graphviz.template.md`, `tikz.template.md`, `typst.template.typ`,
   `auto_task.template.md`, `specs.template.md`, `research_idea.template.md`,
-  `tutorial_specs.template.md`, and the `project_*.template.md` family for the
+  `related_python_packages.template.md`, `tutorial_specs.template.md`, and the
+  `project_*.template.md` family for the
   docs of a project
 - List all templates with `ls .claude/templates`
 - Placeholders inside a template use the `<VAR>` notation (e.g., `<Directory

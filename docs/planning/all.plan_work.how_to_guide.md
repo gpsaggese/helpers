@@ -50,6 +50,7 @@
      - Use suggestion mode, so that other people can track the change
      - Once in a while, accept all the changes
   3. When the idea is picked, turn it into a file `research/ideas/<name>.md`
+     - Run `/research_idea.format` to make the file follow the standard template
 - Why use a Gdoc:
   - We keep track of work that could be done
   - Planning is simpler: someone who is blocked can open the Gdoc and choose a
@@ -97,18 +98,11 @@
 
 ## Plan Documents
 
-- All the docs of a project live in the `docs/` dir of the project
-- The doc set, what each doc answers, and its cluster are defined in
-  `.claude/skills/project.rules.md` section _"Use One Doc per Question"_
-- Start with `04-plan.md`, `07-progress.md`, and `08-how_we_work.md`
-  - Add the others only when needed
-- Prefix the name of each doc with the number of its slot, so that `ls docs/` lists
-  the docs in reading order, see
-  [Name the Docs with a Slot Number](#name-the-docs-with-a-slot-number)
-- `04-plan.md` is both the roadmap and the execution plan
-  - Do not keep a separate execution-plan file: two plans drift apart
-- Write a spec for a complex PR instead of growing its entry
-  - Follow the template `.claude/templates/specs.template.md`
+- The place of the docs, the doc set, what each doc answers, and its cluster are
+  defined in `.claude/skills/project.rules.md` sections "Keep All the Docs in One
+  Dir", "Use One Doc per Question", and "Name the Docs with a Slot Number"
+- The plan and the specs are defined in `.claude/skills/project.rules.md` sections
+  "Keep One Plan" and "Write a Spec for a Complex PR"
 
 ## Organize the Docs of a Project
 
@@ -117,8 +111,6 @@
   - E.g., `research/Noesis/docs/README.md`
   - Follow `.claude/skills/project.rules.md` section "Write an Index in
     docs/README.md"
-- Add a row when you add a doc and remove it when you delete the doc
-  - Do it in the same PR
 - Write the onboarding doc, the glossary, and the design docs as described in
   `.claude/skills/project.rules.md` section "Project Docs"
 - Write a README for each executable and for each dir, so that a newcomer knows how
@@ -247,13 +239,9 @@
      architecture doc)
   2. List the components, the candidate solutions, and their open questions
   3. Split the work into versions, where each version can be run and demoed
-  4. Write the PR entries of the next version in detail
-     - Identify the dependencies between the entries
-     - Estimate the complexity of each entry
-     - Later versions can stay as a few bullets until they are close
-     - File GitHub issues only for the immediate work (the next version)
-       - The plan often changes after the first iteration
-       - Issues for later versions would go stale and need to be rewritten
+  4. Write the PR entries of the next version in detail, and file GitHub issues
+     only for them
+     - See "Structure the Plan File" in `.claude/skills/project.rules.md`
   5. Review the plan before executing it
      - See `/auto_task.criticize`
 - To break a complex feature into an ordered PR plan with a spec per complex PR, see
@@ -261,11 +249,10 @@
 
 ### Rules for the Plan
 
-- The structure of the file, the format of a PR entry, and the naming and checking of
-  PRs are in `.claude/skills/project.rules.md` section "Plan File"
+- The structure of the file, the format of a PR entry, the naming and checking of
+  PRs, and how to change the plan are in `.claude/skills/project.rules.md` section
+  "Plan File"
 - Copy the template `.claude/templates/project_plan.template.md`
-- Change the plan in a PR, like code
-  - Log why it changed in the progress log
 
 ## Keep a Progress Log
 
@@ -278,7 +265,6 @@
     section "Progress Log"
 - Update the log in the PR that finishes the task
   - Draft the update with `/project.update_progress`
-- Link the record from its issue and PR
 
 ### Record Decisions
 
@@ -286,10 +272,6 @@
   - E.g., `research/Noesis/docs/03-decisions.md`
   - The format is in `.claude/skills/project.rules.md` section "Decisions Log"
   - Copy the template `.claude/templates/project_decisions.template.md`
-  - Write each decision as its own H3 `` ### `D<N>` (<Decision title>) ``, so that
-    other docs can link it
-- Link the decision from the design docs that follow it and from the description of
-  the PR that implements it
 
 ## How to Document Research
 
@@ -306,13 +288,11 @@
 
 ## Write a Project Meta-Doc
 
-- Goal: a new team member reads one file and knows how we work on the project
-- Test: after reading it, the newcomer can deliver work of the same quality as the
-  current contributors
-- Create a file `08-how_we_work.md` in the `docs/` dir of the project
+- Create the file `08-how_we_work.md` in the `docs/` dir of the project
   - E.g., `research/Noesis/docs/08-how_we_work.md`
-  - Copy the template `.claude/templates/project_how_we_work.template.md`
-  - The rules are in `.claude/skills/project.rules.md` section "Write the Meta-Doc"
+- Copy the template `.claude/templates/project_how_we_work.template.md`
+  - The goal, the content, and when to update it are in
+    `.claude/skills/project.rules.md` section "Write the Meta-Doc"
 
 // TODO(gp): Does it belong here?
 - Treat a bulleted task list in an issue or in a review comment as work to do
@@ -320,12 +300,11 @@
   - Tick each box with a short link to the result, e.g.,
     `- [x] Update the master plan: PR #123`
   - Create a separate issue for each large item
-- Update the meta-doc when the process changes
 
 ## PR Description Template
 
-- Copy the template `.claude/templates/github_PR_description.template.md` into every
-  PR
+- Write the description of every PR as described in
+  `.claude/skills/project.rules.md` section "PR Description"
   - `/github.find_name_for_pr` writes a draft of it in `pr_description.md`
 - Link the PR to its issue as described in "Filing Process" in
   [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md#filing-process)
