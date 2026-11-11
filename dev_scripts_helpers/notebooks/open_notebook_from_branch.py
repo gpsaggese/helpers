@@ -4,6 +4,7 @@ r"""
 Open a notebook from a git branch in a live Jupyter Lab, in a git worktree.
 
 The current client is not touched. The script:
+- resolves a PR URL passed as `--branch` to the head branch of the PR with `gh`
 - fetches the branch from `origin`
 - creates a git worktree for the branch, or reuses and fast-forwards the existing
   one
@@ -23,6 +24,11 @@ Stop Jupyter Lab with Ctrl+C. The worktree is left in place, remove it with
     -i research/Optimal_strategy_for_racket_sports/notebooks/racket_shot_probability.ipynb \
     --branch UmdTask788_Racket_sports_Change_color_of_heatmaps
 
+- Open a notebook from the branch of a PR, passing the PR URL:
+> open_notebook_from_branch.py \
+    -i tutorials/AutoGluon/AutoGluon.API.ipynb \
+    --branch https://github.com/gpsaggese/gpsaggese.github.io/pull/895
+
 - Print the commands that change the client or start containers without
   running them:
 > open_notebook_from_branch.py -i <notebook> --branch <branch> --dry_run
@@ -40,15 +46,17 @@ import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 """
 
 import argparse
+import json
 import logging
 import os
+import re
 import shlex
 import socket
 import threading
 import time
 import urllib.parse
 import webbrowser
-from typing import Optional
+from typing import Optional, Tuple
 
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
@@ -78,6 +86,95 @@ def _normalize_branch(branch: str) -> str:
     prefix = "origin/"
     branch = branch.removeprefix(prefix)
     return branch
+
+
+def _parse_pr_url(txt: str) -> Optional[Tuple[str, int]]:
+    """
+    Parse a GitHub PR URL into the repo full name and the PR number.
+
+    Trailing parts of the URL (e.g., `/files`, `?diff=split`, `#issuecomment-1`)
+    are ignored.
+
+    :param txt: string passed to `--branch`
+        - E.g., `https://github.com/gpsaggese/gpsaggese.github.io/pull/895`
+    :return: `(repo_full_name, pr_number)` if `txt` is a PR URL, `None` if it is
+        a branch name
+        - E.g., `("gpsaggese/gpsaggese.github.io", 895)`
+    """
+    # Match `https://github.com/<owner>/<repo>/pull/<number>` followed by
+    # nothing or by a `/`, `?` or `#` part.
+    pr_url_re = re.compile(
+        r"""
+        ^https?://github\.com/
+        (?P<repo>[^/\s]+/[^/\s]+)/
+        pull/(?P<num>\d+)
+        (?:[/?#].*)?$
+        """,
+        re.VERBOSE,
+    )
+    match = pr_url_re.match(txt.strip())
+    ret: Optional[Tuple[str, int]] = None
+    if match:
+        ret = (match.group("repo"), int(match.group("num")))
+    return ret
+
+
+def _parse_pr_head_branch(txt: str, pr_url: str) -> str:
+    """
+    Get the head branch of a PR from the JSON output of `gh pr view`.
+
+    :param txt: JSON with the keys `headRefName` and `isCrossRepository`
+        - E.g., `{"headRefName": "UmdTask1_Foo", "isCrossRepository": false}`
+    :param pr_url: PR URL, used only in the error messages
+    :return: head branch name without remote
+    """
+    info = json.loads(txt)
+    hdbg.dassert(
+        not info["isCrossRepository"],
+        "PR '%s' comes from a fork, so its branch is not on 'origin'",
+        pr_url,
+    )
+    branch = info["headRefName"]
+    return branch
+
+
+def _resolve_branch(branch: str, *, git_root: str) -> str:
+    """
+    Get the branch name from a branch name or a GitHub PR URL.
+
+    A PR URL is resolved to its head branch with `gh`. This is a read-only query,
+    so it runs also in a dry run.
+
+    :param branch: branch name, with or without the remote, or PR URL
+        - E.g., `UmdTask788_Racket_sports`, `origin/UmdTask788_Racket_sports`, or
+          `https://github.com/gpsaggese/gpsaggese.github.io/pull/895`
+    :param git_root: absolute path of the git root
+    :return: branch name without remote
+    """
+    pr_info = _parse_pr_url(branch)
+    if pr_info is None:
+        ret = _normalize_branch(branch)
+    else:
+        pr_repo, pr_num = pr_info
+        # The branch is fetched from `origin`, so the PR must belong to it.
+        origin_repo = hgit.get_repo_full_name_from_dirname(
+            git_root, include_host_name=False
+        )
+        hdbg.dassert_eq(
+            pr_repo,
+            origin_repo,
+            "PR is not in the repo of 'origin': run the script from a client "
+            "of the PR repo",
+        )
+        cmd = [
+            f"gh pr view {shlex.quote(branch.strip())}",
+            "--json headRefName,isCrossRepository",
+        ]
+        cmd = " ".join(cmd)
+        _, txt = hsystem.system_to_string(cmd, suppress_output=True)
+        ret = _parse_pr_head_branch(txt, branch)
+        _LOG.info("PR #%s is on branch '%s'", pr_num, ret)
+    return ret
 
 
 def _get_notebook_rel_path(notebook: str, git_root: str) -> str:
@@ -439,7 +536,9 @@ def _parse() -> argparse.ArgumentParser:
         "--branch",
         action="store",
         required=True,
-        help="Git branch with the notebook, with or without the `origin/` prefix",
+        help="Git branch with the notebook, with or without the `origin/` "
+        "prefix, or URL of a GitHub PR "
+        "(e.g., `https://github.com/<owner>/<repo>/pull/<n>`)",
     )
     parser.add_argument(
         "--worktree_dir",
@@ -485,8 +584,9 @@ def _main(parser: argparse.ArgumentParser) -> None:
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
     dry_run = args.dry_run
-    branch = _normalize_branch(args.branch)
     git_root = hgit.find_git_root()
+    # Accept a branch name or a PR URL.
+    branch = _resolve_branch(args.branch, git_root=git_root)
     rel_notebook = _get_notebook_rel_path(args.input, git_root)
     # Get the branch. The fetch only updates the remote-tracking ref, so it is
     # run also in a dry run to be able to inspect the branch.
