@@ -81,7 +81,8 @@
   ```mermaid
   graph LR
     A["Idea"] --> B["PRD"]
-    B --> C["Design"]
+    B --> M["01.1-milestones.md"]
+    M --> C["Design"]
     C --> D["04-plan.md"]
     D --> E["05-tasks.md and 06-spec"]
     E --> F{"Execution mode"}
@@ -103,6 +104,59 @@
   Dir", "Use One Doc per Question", and "Name the Docs with a Slot Number"
 - The plan and the specs are defined in `.claude/skills/project.rules.md` sections
   "Keep One Plan" and "Write a Spec for a Complex PR"
+- The milestones doc is described in [Write the Milestones](#write-the-milestones)
+
+## Write the Milestones
+
+- **Goal**: one file that maps each version of the project to a short description, to
+  what the user gets, and to the requirements of the PRD that the version implements
+  - A reader sees what each release contains without reading the whole PRD
+  - The plan splits each version into PRs, see
+    [Create an End-to-End Plan](#create-an-end-to-end-plan)
+- Create the file `01.1-milestones.md` in the `docs/` dir of the project
+  - It is a child of `01-prd.md`: it comes right after the PRD in `ls docs/`
+  - E.g., `research/Infer_DAGs_from_papers/docs/milestones.md`, to be renamed to
+    `01.1-milestones.md`
+- Generate it from `01-prd.md`, after the PRD is approved and before the design
+  - Use the section "Scope by Version" of the PRD for the versions and their order
+  - Use the requirement groups of the PRD (`## Requirements: <Group>`) to group the
+    requirements of a version
+  - See [Define](#define) for the command
+- Structure of the file:
+  - `# <Project> Milestones`, then bullets that say:
+    - The file maps each version to its description and to its requirements
+    - Releases are cumulative: a version also has the features of the versions
+      before it
+    - Where the scope of each version also lives in the PRD, with a link to "Scope by
+      Version"
+  - One H2 per version, in release order: `` ## v<N>.0: <Title> ``
+    - **Description**: what the version builds, in one or two lines
+    - **Deliverable**: what the user gets, or "not defined yet"
+    - **Requirements**: the requirements of the PRD that the version implements
+      - Group them by the requirement groups of the PRD
+      - Write each one as a link to its H3 header, followed by a few words
+      - E.g.,
+        ```text
+        [`R2`](/research/Infer_DAGs_from_papers/docs/01-prd.md#r2-relationship-record):
+        one record for each relationship
+        ```
+      - From the second version on, split them in "New" and "Extended to ...": the
+        requirements that the version adds, and those of an earlier version whose
+        behavior grows
+      - For a version whose requirements are not written yet, say so and link the
+        open question to answer first
+- Rules for the file:
+  - Do not copy the text of a requirement: link it (DRY)
+  - Every requirement of the PRD is in at least one version
+  - A requirement is "New" in only one version
+  - The milestones and "Scope by Version" in the PRD must agree
+    - Update both in the same PR when the scope of a version changes
+  - Add a row for the file in `docs/README.md`, see
+    [Organize the Docs of a Project](#organize-the-docs-of-a-project)
+
+// TODO(gp): Add a skill `/project.write_milestones` and a template
+// `.claude/templates/project_milestones.template.md`, and move the structure above to
+// `.claude/skills/project.rules.md`
 
 ## Organize the Docs of a Project
 
@@ -239,6 +293,7 @@
      architecture doc)
   2. List the components, the candidate solutions, and their open questions
   3. Split the work into versions, where each version can be run and demoed
+     - Start from the versions of `01.1-milestones.md`, if the project has it
   4. Write the PR entries of the next version in detail, and file GitHub issues
      only for them
      - See "Structure the Plan File" in `.claude/skills/project.rules.md`
@@ -331,12 +386,21 @@
   claude> /research_idea.format <project>/idea.md
   claude> /project.write_prd <project>/idea.md
   claude> /text.criticize <project>/docs/01-prd.md
+
+  # Map each version to the requirements it implements.
+  claude> Write <project>/docs/01.1-milestones.md from <project>/docs/01-prd.md,
+          following "Write the Milestones" in
+          docs/planning/all.plan_work.how_to_guide.md
+  claude> /text.criticize <project>/docs/01.1-milestones.md
+
   claude> /architecture.write_design <project>/docs/01-prd.md
   claude> /text.criticize <project>/docs/02-design.architecture.md
   ```
 - **Gates**:
   - Pick the idea
   - Approve the scope
+  - Approve the milestones: every requirement of the PRD is in a version, and the
+    versions agree with "Scope by Version" in the PRD
   - Approve the design
 
 ## Plan
@@ -556,9 +620,11 @@
 // TODO(ai_gp): Make a mermaid graph
 - Flow of the files:
   ```text
-  idea.md -> 01-prd.md -> 02-design.architecture.md -> 02.<N>-design.<component>.md
-                                                                  |
-          06-spec.<PR_ID>.md <- 05-tasks.md <- 04-plan.md <-------+
+  idea.md -> 01-prd.md -> 01.1-milestones.md -> 02-design.architecture.md
+                                                            |
+                                              02.<N>-design.<component>.md
+                                                            |
+          06-spec.<PR_ID>.md <- 05-tasks.md <- 04-plan.md <-+
                   |
                   +--> PR merged --> 07-progress.md, 03-decisions.md
   ```
@@ -575,6 +641,7 @@
   | Slot   | File                           |
   | :----- | :----------------------------- |
   | `01`   | `01-prd.md`                    |
+  | `01.1` | `01.1-milestones.md`           |
   | `02`   | `02-design.architecture.md`    |
   | `02.N` | `02.<N>-design.<component>.md` |
   | `03`   | `03-decisions.md`              |
@@ -603,6 +670,10 @@
 - **`01-prd.md`**: PRD (Product Requirements Document)
   - Content: users, goals, success metrics, scope, non-goals, user stories
   - Format: one H3 per requirement, `` ### `R<N>` (<Title>) ``
+- **`01.1-milestones.md`**: versions mapped to the requirements they implement
+  - Content: one H2 per version, with description, deliverable, and links to the
+    requirements of the PRD
+  - See [Write the Milestones](#write-the-milestones)
 - **`04-plan.md`**: roadmap
   - Content: versions and milestones over time
 

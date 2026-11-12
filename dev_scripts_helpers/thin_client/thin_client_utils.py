@@ -104,7 +104,7 @@ def create_parser(docstring: str) -> argparse.ArgumentParser:
     parser.add_argument(
         "--index",
         type=str,
-        help="Index or identifier of the client (e.g., 1, 2, 3, or worktree_1325)",
+        help="Index or identifier of the client (e.g., 1, 2, 3, or 1_1325)",
         required=False,
     )
     parser.add_argument(
@@ -263,7 +263,6 @@ def create_tmux_session(
     # Parse the args.
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
-    #
     if args.create_global_link:
         _LOG.info("Creating the global link")
         hdbg.dassert_file_exists(script_path)
@@ -271,11 +270,9 @@ def create_tmux_session(
         system(cmd)
         _LOG.info("Link created: exiting")
         sys.exit(0)
-    #
     hdbg.dassert_is_not(args.index, None, "Need to specify --index")
     tmux_name = f"{dir_suffix}{args.index}"
     _LOG.info("tmux_name=%s", tmux_name)
-    #
     _LOG.debug("Checking if the tmux session '%s' already exists", tmux_name)
     _, tmux_session_str = hsystem.system_to_string(
         "tmux list-sessions", abort_on_error=False

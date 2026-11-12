@@ -55,7 +55,7 @@ import os
 import re
 import shlex
 import tempfile
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
@@ -64,6 +64,7 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.lib_tasks.lib_tasks_gh as hltltagh
+import helpers.repo_config_utils as hrecouti
 
 _LOG = logging.getLogger(__name__)
 
@@ -502,22 +503,21 @@ def _update_issue_body_with_pr_links(
 
 def _create_worktree(
     branch_name: str,
-    issue_id: int,
     original_branch: str,
-    submodule_paths: Optional[List[str]] = None,
+    submodule_paths: List[str],
 ) -> str:
     """
     Create a git worktree for the given branch.
 
-    When `submodule_paths` is passed, the submodules are initialized inside
-    the new worktree and checked out on `branch_name` too (matching the outer
-    repo), instead of being left uninitialized / on a detached HEAD.
+    The worktree is a sibling of the current repo, named `<repo>_<issue_id>`.
+    The submodules are initialized inside the new worktree and checked out on
+    `branch_name` too (matching the outer repo), instead of being left on a
+    detached HEAD.
 
     :param branch_name: Name of the branch to create worktree for
-    :param issue_id: GitHub issue number (for path naming)
     :param original_branch: Original branch to checkout before creating worktree
     :param submodule_paths: paths of submodules (relative to the outer repo)
-        to initialize and check out on `branch_name` inside the worktree
+        to check out on `branch_name` inside the worktree
     :return: Path to the created worktree
     """
     # Checkout original branch first to free up the new branch.
@@ -528,27 +528,40 @@ def _create_worktree(
     cmd = f"git checkout {shlex.quote(original_branch)}"
     hsystem.system(cmd, log_level=logging.INFO)
     # Determine worktree path (parent directory of current repo).
-    current_dir = os.getcwd()
-    parent_dir = os.path.dirname(current_dir)
-    repo_name = os.path.basename(current_dir)
-    worktree_path = os.path.join(parent_dir, f"{repo_name}_worktree_{issue_id}")
+    git_root = os.getcwd()
+    worktree_path = hgit.get_default_worktree_dir(branch_name, git_root=git_root)
     _LOG.info("Creating worktree at: '%s'", worktree_path)
-    # Create worktree.
-    cmd = f"git worktree add {worktree_path} {branch_name}"
-    hsystem.system(cmd, log_level=logging.INFO)
-    if submodule_paths:
-        # Initialize the submodules inside the new worktree and land each of
-        # them on `branch_name` (not a detached HEAD), matching the outer repo.
-        cmd = f"git -C {worktree_path} submodule update --init --recursive"
-        hsystem.system(cmd, log_level=logging.INFO)
-        for submodule_path in submodule_paths:
-            submodule_worktree_path = os.path.join(worktree_path, submodule_path)
-            cmd = (
-                f"git -C {submodule_worktree_path} checkout "
-                f"{shlex.quote(branch_name)}"
-            )
-            hsystem.system(cmd, log_level=logging.INFO)
+    hgit.create_worktree(
+        branch_name,
+        worktree_path,
+        git_root=git_root,
+        submodule_paths=submodule_paths,
+    )
     return worktree_path
+
+
+def _get_tmux_index(worktree_path: str, dir_suffix: str) -> str:
+    """
+    Get the `--index` to pass to `tmux.py` to open the session of a worktree.
+
+    `tmux.py` names the session `<dir_suffix><index>` and looks for the client
+    in `~/src/<dir_suffix><index>`. So the index is the dir name of the
+    worktree without the `dir_suffix` prefix.
+
+    :param worktree_path: path to the worktree
+        - E.g., `/home/user/src/helpers1_1325`
+    :param dir_suffix: suffix of the `dev_scripts_<dir_suffix>` dir from the
+        repo config
+        - E.g., `helpers`
+    :return: index to pass to `tmux.py`
+        - E.g., `1_1325`
+    """
+    worktree_dir = os.path.basename(worktree_path)
+    if worktree_dir.startswith(dir_suffix):
+        tmux_index = worktree_dir[len(dir_suffix) :]
+    else:
+        tmux_index = worktree_dir
+    return tmux_index
 
 
 def _print_usage_instructions(
@@ -582,15 +595,9 @@ def _print_usage_instructions(
             f"    - {repo_label}: branch '{branch_name}' ({status})"
         )
     summary = "\n".join(summary_lines)
-    # Extract worktree suffix (e.g., "1_worktree_1325" from "helpers1_worktree_1325").
-    worktree_dir = os.path.basename(worktree_path)
-    # TODO(ai_gp2): We should get the basename of the repo from the config.
-    # Strip "helpers" prefix from repo name to get suffix.
-    worktree_suffix = (
-        worktree_dir.replace("helpers", "", 1)
-        if worktree_dir.startswith("helpers")
-        else worktree_dir
-    )
+    # Get the index to pass to `tmux.py`.
+    dir_suffix = hrecouti.get_repo_config().get_dir_suffix()
+    worktree_suffix = _get_tmux_index(worktree_path, dir_suffix)
     msg = f"""
     Worktree created successfully for issue #{issue_id}!
 
@@ -844,7 +851,7 @@ def _main_workflow(
     # Create worktree, if requested.
     if args.create_worktree:
         worktree_path = _create_worktree(
-            branch_name, issue_id, original_branch, submodule_targets
+            branch_name, original_branch, submodule_targets
         )
         # Print usage instructions.
         _print_usage_instructions(

@@ -1,7 +1,8 @@
 import os
 
-import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 
 # #############################################################################
 # Test_normalize_branch
@@ -48,6 +49,111 @@ class Test_normalize_branch(hunitest.TestCase):
         # Check outputs.
         expected = "feature/origin/fix"
         self.assert_equal(actual, expected)
+
+
+# #############################################################################
+# Test_parse_pr_url
+# #############################################################################
+
+
+class Test_parse_pr_url(hunitest.TestCase):
+    """
+    Test `open_notebook_from_branch._parse_pr_url()`.
+    """
+
+    def test1(self) -> None:
+        """
+        Test that a PR URL is parsed into the repo and the PR number.
+        """
+        # Prepare inputs.
+        txt = "https://github.com/gpsaggese/gpsaggese.github.io/pull/895"
+        # Run test.
+        actual = dsnoonfb._parse_pr_url(txt)
+        # Check outputs.
+        expected = ("gpsaggese/gpsaggese.github.io", 895)
+        self.assertEqual(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test that the trailing parts of a PR URL are ignored.
+        """
+        # Prepare inputs.
+        txt = "https://github.com/gpsaggese/helpers/pull/12/files?diff=split#r1"
+        # Run test.
+        actual = dsnoonfb._parse_pr_url(txt)
+        # Check outputs.
+        expected = ("gpsaggese/helpers", 12)
+        self.assertEqual(actual, expected)
+
+    def test3(self) -> None:
+        """
+        Test that a branch name is not a PR URL.
+        """
+        # Prepare inputs.
+        txt = "UmdTask673_ADS_Implement_Tutorial_for_AutoGluon"
+        # Run test.
+        actual = dsnoonfb._parse_pr_url(txt)
+        # Check outputs.
+        self.assertIsNone(actual)
+
+    def test4(self) -> None:
+        """
+        Test that a branch name with a slash is not a PR URL.
+        """
+        # Prepare inputs.
+        txt = "origin/feature/pull/12"
+        # Run test.
+        actual = dsnoonfb._parse_pr_url(txt)
+        # Check outputs.
+        self.assertIsNone(actual)
+
+    def test5(self) -> None:
+        """
+        Test that a GitHub URL that is not a PR is not a PR URL.
+        """
+        # Prepare inputs.
+        txt = "https://github.com/gpsaggese/helpers/issues/12"
+        # Run test.
+        actual = dsnoonfb._parse_pr_url(txt)
+        # Check outputs.
+        self.assertIsNone(actual)
+
+
+# #############################################################################
+# Test_parse_pr_head_branch
+# #############################################################################
+
+
+class Test_parse_pr_head_branch(hunitest.TestCase):
+    """
+    Test `open_notebook_from_branch._parse_pr_head_branch()`.
+    """
+
+    def test1(self) -> None:
+        """
+        Test that the head branch is extracted from the `gh pr view` output.
+        """
+        # Prepare inputs.
+        txt = '{"headRefName": "UmdTask673_ADS", "isCrossRepository": false}'
+        pr_url = "https://github.com/gpsaggese/gpsaggese.github.io/pull/895"
+        # Run test.
+        actual = dsnoonfb._parse_pr_head_branch(txt, pr_url)
+        # Check outputs.
+        expected = "UmdTask673_ADS"
+        self.assert_equal(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test that a PR from a fork is rejected.
+        """
+        # Prepare inputs.
+        txt = '{"headRefName": "fix", "isCrossRepository": true}'
+        pr_url = "https://github.com/gpsaggese/helpers/pull/12"
+        # Run test.
+        with self.assertRaises(AssertionError) as cm:
+            dsnoonfb._parse_pr_head_branch(txt, pr_url)
+        # Check outputs.
+        self.assertIn("comes from a fork", str(cm.exception))
 
 
 # #############################################################################
@@ -111,99 +217,6 @@ class Test_get_notebook_rel_path(hunitest.TestCase):
             dsnoonfb._get_notebook_rel_path(notebook, git_root)
         # Check outputs.
         self.assertIn("is outside the git root", str(cm.exception))
-
-
-# #############################################################################
-# Test_parse_worktree_list
-# #############################################################################
-
-
-class Test_parse_worktree_list(hunitest.TestCase):
-    """
-    Test `open_notebook_from_branch._parse_worktree_list()`.
-    """
-
-    def helper(self, branch: str, expected: object) -> None:
-        # Prepare inputs.
-        txt = """
-        worktree /src/repo
-        HEAD 1111111111111111111111111111111111111111
-        branch refs/heads/master
-
-        worktree /src/repo_worktree_788
-        HEAD 2222222222222222222222222222222222222222
-        branch refs/heads/UmdTask788_Racket_sports
-
-        worktree /src/repo_detached
-        HEAD 3333333333333333333333333333333333333333
-        detached
-        """
-        txt = "\n".join(line.strip() for line in txt.split("\n"))
-        # Run test.
-        actual = dsnoonfb._parse_worktree_list(txt, branch)
-        # Check outputs.
-        self.assert_equal(str(actual), str(expected))
-
-    def test1(self) -> None:
-        """
-        Test that the worktree of a branch is found.
-        """
-        self.helper("UmdTask788_Racket_sports", "/src/repo_worktree_788")
-
-    def test2(self) -> None:
-        """
-        Test that the main client is found as the worktree of its branch.
-        """
-        self.helper("master", "/src/repo")
-
-    def test3(self) -> None:
-        """
-        Test that a branch without worktree returns `None`.
-        """
-        self.helper("UmdTask999_Other", None)
-
-    def test4(self) -> None:
-        """
-        Test that a branch name that is a prefix of another one is not matched.
-        """
-        self.helper("UmdTask788", None)
-
-
-# #############################################################################
-# Test_get_default_worktree_dir
-# #############################################################################
-
-
-class Test_get_default_worktree_dir(hunitest.TestCase):
-    """
-    Test `open_notebook_from_branch._get_default_worktree_dir()`.
-    """
-
-    def test1(self) -> None:
-        """
-        Test that the dir uses the issue number, like `git_create_issue_and_branch`.
-        """
-        # Prepare inputs.
-        branch = "UmdTask788_Racket_sports_Change_color_of_heatmaps"
-        git_root = "/src/umd_classes1"
-        # Run test.
-        actual = dsnoonfb._get_default_worktree_dir(branch, git_root=git_root)
-        # Check outputs.
-        expected = "/src/umd_classes1_worktree_788"
-        self.assert_equal(actual, expected)
-
-    def test2(self) -> None:
-        """
-        Test that a branch without issue number uses the branch name.
-        """
-        # Prepare inputs.
-        branch = "feature/fix_bug"
-        git_root = "/src/umd_classes1"
-        # Run test.
-        actual = dsnoonfb._get_default_worktree_dir(branch, git_root=git_root)
-        # Check outputs.
-        expected = "/src/umd_classes1_worktree_feature_fix_bug"
-        self.assert_equal(actual, expected)
 
 
 # #############################################################################
