@@ -419,6 +419,36 @@
   - `session` applies one rules section per turn in the same session
   - Skills give more control since you review the diff after each one
 
+### Check the Effect of Each Skill on an Existing Project
+
+- Use this when the skills of
+  [Clean Up a Python File With a Sequence of Skills](#clean-up-a-python-file-with-a-sequence-of-skills)
+  are applied to code that notebooks and tests already depend on
+  - The goal is a PR where each commit shows the effect of one skill, and the
+    results are the same at the end
+- Before the first skill
+  - Make the unit tests run, so that every later step can be checked
+  - Run the notebooks and save their output, to compare against later
+  - Implement the `TODO(ai_gp)` items first with `/coding.todoai_gp`
+- After each skill
+  - Run the unit tests and the notebooks, and check that the output is the same
+    as before
+  - Commit, with a message about the change and not the file, e.g., "Use
+    specialized dasserts in the causal success utils"
+- When a rule does not fit the code, do not force it
+  - Leave the `TODO(ai_gp)` in place with a comment on why, as
+    `/coding.todoai_gp` says
+  - List these exceptions in the doc of the project, so that reviewers see them
+    in one place
+- Check the tests themselves before and after rewriting them
+  - Plant a few bugs in the code, e.g., remove a check or change a constant, and
+    check that the tests fail
+- Check the text against the output
+  - Compare every number in the markdown cells with what the notebook prints
+- Example: `research/Causal_Analysis_of_Agent_Skill_And_Luck/skills_usage.md` in
+  `gpsaggese/gpsaggese.github.io` records this workflow for one project, with
+  one commit per skill
+
 ### Remove Duplication in Test Files
 
 - Preview first with `--dry_run`
