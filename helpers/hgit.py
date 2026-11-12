@@ -12,8 +12,9 @@ import logging
 import os
 import random
 import re
+import shlex
 import string
-from typing import cast, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, cast
 
 import helpers.hdbg as hdbg
 import helpers.hio as hio
@@ -161,7 +162,7 @@ def _get_branch_next_name_via_github_api(
     return new_branch_name
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _get_gh_pr_list(dir_name: str = ".") -> str:
     """
     Get a cached list of all pull requests from GitHub (merged and open).
@@ -205,7 +206,6 @@ def does_branch_exist(
             )
             exists = exists or exists_tmp
         return exists
-    #
     hdbg.dassert_in(mode, ("git_local", "git_remote", "github"))
     exists = False
     if mode in ("git_local", "git_remote"):
@@ -378,7 +378,7 @@ def get_branch_hash(dir_name: str = ".") -> str:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def is_inside_submodule(git_dir: str = ".") -> bool:
     """
     Return whether a dir is inside a Git submodule or a Git supermodule.
@@ -411,7 +411,7 @@ def is_inside_submodule(git_dir: str = ".") -> bool:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_client_root(super_module: bool) -> str:
     """
     Return the full path of the root of the Git client.
@@ -554,6 +554,209 @@ def is_git_worktree(path: str = ".") -> bool:
     except Exception:
         # On any error, assume not in a worktree.
         return False
+
+
+# #############################################################################
+# Git worktree functions
+# #############################################################################
+
+
+def parse_worktree_list(txt: str, branch: str) -> Optional[str]:
+    """
+    Find the worktree that has a branch checked out.
+
+    :param txt: output of `git worktree list --porcelain`
+    :param branch: branch name without remote
+    :return: dir of the worktree with the branch checked out, or `None`
+    """
+    _LOG.debug(hprint.to_str("branch"))
+    worktree_dir: Optional[str] = None
+    curr_dir: Optional[str] = None
+    for line in txt.split("\n"):
+        if line.startswith("worktree "):
+            curr_dir = line[len("worktree ") :]
+        elif line == f"branch refs/heads/{branch}":
+            worktree_dir = curr_dir
+    _LOG.debug("return=%s", worktree_dir)
+    return worktree_dir
+
+
+def get_default_worktree_dir(branch: str, *, git_root: str) -> str:
+    """
+    Get the default dir of the worktree of a branch.
+
+    The dir is a sibling of the git root named `<repo>_<issue_id>`. When the
+    branch has no issue number, the branch name is used in place of the issue
+    number.
+
+    :param branch: branch name without remote
+    :param git_root: absolute path of the git root
+    :return: dir of the worktree
+        - E.g., `/src/umd_classes1_788`
+    """
+    _LOG.debug(hprint.to_str("branch git_root"))
+    issue_id = extract_gh_issue_number_from_branch(branch)
+    suffix = str(issue_id) if issue_id is not None else branch.replace("/", "_")
+    repo_name = os.path.basename(git_root)
+    parent_dir = os.path.dirname(git_root)
+    worktree_dir = os.path.join(parent_dir, f"{repo_name}_{suffix}")
+    _LOG.debug("return=%s", worktree_dir)
+    return worktree_dir
+
+
+def exists_on_ref(ref: str, rel_path: str, *, git_root: str) -> bool:
+    """
+    Check if a path exists in the tree of a Git ref.
+
+    :param ref: ref to inspect (e.g., `origin/master` or a local branch)
+    :param rel_path: path relative to the git root
+    :param git_root: absolute path of the git root
+    :return: whether the path exists on the ref
+    """
+    _LOG.debug(hprint.to_str("ref rel_path git_root"))
+    obj = shlex.quote(f"{ref}:{rel_path}")
+    cmd = f"git -C {shlex.quote(git_root)} cat-file -e {obj}"
+    rc, _ = hsystem.system_to_string(cmd, abort_on_error=False)
+    exists = rc == 0
+    _LOG.debug("return=%s", exists)
+    return exists
+
+
+def _ref_exists(ref: str, *, git_root: str) -> bool:
+    """
+    Check if a full ref exists.
+
+    :param ref: full ref (e.g., `refs/heads/master`)
+    :param git_root: absolute path of the git root
+    :return: whether the ref exists
+    """
+    _LOG.debug(hprint.to_str("ref git_root"))
+    cmd = [
+        f"git -C {shlex.quote(git_root)}",
+        "show-ref --verify --quiet",
+        shlex.quote(ref),
+    ]
+    cmd = " ".join(cmd)
+    rc, _ = hsystem.system_to_string(cmd, abort_on_error=False)
+    exists = rc == 0
+    _LOG.debug("return=%s", exists)
+    return exists
+
+
+def _system_or_dry_run(cmd: str, *, dry_run: bool) -> None:
+    """
+    Run a command showing its output, or only report it in a dry run.
+
+    :param cmd: command to run
+    :param dry_run: report the command without running it
+    """
+    hsystem.system(
+        cmd, suppress_output=False, dry_run=dry_run, log_level=logging.INFO
+    )
+
+
+def create_worktree(
+    branch: str,
+    worktree_dir: str,
+    *,
+    git_root: str,
+    submodule_paths: List[str],
+    dry_run: bool = False,
+) -> None:
+    """
+    Create the worktree of a branch and initialize the submodules.
+
+    - The local branch is reused, if it exists, and fast-forwarded to
+      `origin/<branch>`, if this exists
+    - Otherwise a local branch tracking `origin/<branch>` is created
+    - The branch must not be checked out in another worktree (e.g., in the main
+      client)
+
+    :param branch: branch name without remote
+    :param worktree_dir: dir of the new worktree
+    :param git_root: absolute path of the git root
+    :param submodule_paths: paths of submodules (relative to the git root) to
+        check out on `branch` in the worktree, instead of leaving them on a
+        detached HEAD
+        - Pass `[]` to leave all the submodules on a detached HEAD
+    :param dry_run: report the commands without running them
+    """
+    _LOG.debug(
+        hprint.to_str("branch worktree_dir git_root submodule_paths dry_run")
+    )
+    hdbg.dassert_path_not_exists(
+        worktree_dir,
+        "The dir is not a worktree of branch '%s': use another dir",
+        branch,
+    )
+    git_cmd = f"git -C {shlex.quote(git_root)}"
+    dir_arg = shlex.quote(worktree_dir)
+    branch_arg = shlex.quote(branch)
+    remote_branch_arg = shlex.quote(f"origin/{branch}")
+    has_local_branch = _ref_exists(f"refs/heads/{branch}", git_root=git_root)
+    has_remote_branch = _ref_exists(
+        f"refs/remotes/origin/{branch}", git_root=git_root
+    )
+    hdbg.dassert(
+        has_local_branch or has_remote_branch,
+        "Branch '%s' doesn't exist locally or on 'origin'",
+        branch,
+    )
+    # Reuse the local branch, if it exists, otherwise create it to track the
+    # remote one.
+    if has_local_branch:
+        cmd = f"{git_cmd} worktree add {dir_arg} {branch_arg}"
+    else:
+        cmd = [
+            f"{git_cmd} worktree add",
+            "--track",
+            f"-b {branch_arg}",
+            dir_arg,
+            remote_branch_arg,
+        ]
+        cmd = " ".join(cmd)
+    _system_or_dry_run(cmd, dry_run=dry_run)
+    if has_local_branch and has_remote_branch:
+        # The local branch can be behind the remote one.
+        cmd = f"git -C {dir_arg} merge --ff-only {remote_branch_arg}"
+        _system_or_dry_run(cmd, dry_run=dry_run)
+    # A new worktree has empty submodule dirs.
+    ref = branch if has_local_branch else f"origin/{branch}"
+    if exists_on_ref(ref, ".gitmodules", git_root=git_root):
+        cmd = f"git -C {dir_arg} submodule update --init --recursive"
+        _system_or_dry_run(cmd, dry_run=dry_run)
+        # Land each submodule on the branch, not on a detached HEAD.
+        for submodule_path in submodule_paths:
+            submodule_dir = os.path.join(worktree_dir, submodule_path)
+            cmd = f"git -C {shlex.quote(submodule_dir)} checkout {branch_arg}"
+            _system_or_dry_run(cmd, dry_run=dry_run)
+
+
+def sync_worktree(
+    branch: str, worktree_dir: str, *, dry_run: bool = False
+) -> None:
+    """
+    Fast-forward an existing worktree to the remote branch, if it is clean.
+
+    :param branch: branch name without remote
+    :param worktree_dir: dir of the existing worktree
+    :param dry_run: report the commands without running them
+    """
+    _LOG.debug(hprint.to_str("branch worktree_dir dry_run"))
+    if is_client_clean(dir_name=worktree_dir):
+        cmd = [
+            f"git -C {shlex.quote(worktree_dir)}",
+            "merge --ff-only",
+            shlex.quote(f"origin/{branch}"),
+        ]
+        cmd = " ".join(cmd)
+        _system_or_dry_run(cmd, dry_run=dry_run)
+    else:
+        _LOG.warning(
+            "Worktree '%s' has local changes: not syncing it with 'origin/%s'",
+            worktree_dir,
+            branch,
+        )
 
 
 # #############################################################################
@@ -860,7 +1063,7 @@ def _get_submodule_hash(dir_name: str) -> str:
     return git_hash
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_path_from_supermodule() -> Tuple[str, str]:
     """
     Return the path to the Git repo including the Git submodule for a submodule.
@@ -896,7 +1099,7 @@ def get_path_from_supermodule() -> Tuple[str, str]:
     return superproject_path, submodule_path
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_submodule_paths() -> List[str]:
     """
     Return the path of the submodules in this repo.
@@ -1034,8 +1237,7 @@ def _parse_github_repo_name(repo_name: str) -> Tuple[str, str]:
     assert m is not None
     # origin  git@github.com:.../ORG_....git (fetch)
     suffix_to_remove = ".git"
-    if repo_name.endswith(suffix_to_remove):
-        repo_name = repo_name[: -len(suffix_to_remove)]
+    repo_name = repo_name.removesuffix(suffix_to_remove)
     return host_name, repo_name
 
 
@@ -1217,7 +1419,7 @@ def is_cwd_git_repo() -> bool:
 
 
 # TODO(gp): Use find_file
-@functools.lru_cache()
+@functools.lru_cache
 def find_file_in_git_tree(
     file_name: str, super_module: bool = True, remove_tmp_base: bool = False
 ) -> str:
@@ -1265,7 +1467,6 @@ def get_path_from_git_root(
     # Get the root of the Git client.
     if git_root is None:
         git_root = get_client_root(super_module)
-    #
     git_root = os.path.normpath(git_root)
     _LOG.debug("git_root=%s", git_root)
     file_name = os.path.normpath(file_name)
@@ -1289,14 +1490,13 @@ def get_path_from_git_root(
 
 
 # TODO(gp): Rewrite this function in a better way.
-@functools.lru_cache()
+@functools.lru_cache
 def get_amp_abs_path() -> str:
     """
     Return the absolute path of `amp` dir.
     """
     repo_sym_name = get_repo_full_name_from_client(super_module=False)
     _LOG.debug("repo_sym_name=%s", repo_sym_name)
-    #
     repo_sym_names = ["alphamatic/amp"]
     import helpers.repo_config_utils as hrecouti
 
@@ -1814,7 +2014,7 @@ def get_files_to_process(
 
 
 # TODO(gp): -> get_user_name()
-@functools.lru_cache()
+@functools.lru_cache
 def get_git_name() -> str:
     """
     Return the configured git user name from git config.
