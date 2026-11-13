@@ -276,6 +276,10 @@
 ## How to Document Research
 
 - A research project keeps a Google Doc and a daily entry per day of work
+  - The Google Doc also holds the research questions, their discussion, and the
+    research decisions; GitHub is only for code, and links to them
+  - A PR that changes a result, a model, or an assumption fills the Paper and Gdoc
+    checklist in its description
 - See
   [`docs/planning/all.document_research.how_to_guide.md`](/docs/planning/all.document_research.how_to_guide.md)
 
