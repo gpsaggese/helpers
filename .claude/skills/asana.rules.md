@@ -1,48 +1,48 @@
-- This document contains the rules to sync project emails from Gmail into Asana
+- This document contains the rules and invariants to sync project emails from Gmail
+  into Asana
 
 # Source of Truth
 
 ## Project to Asana Board Mapping
 
-- Read the mapping from `research/contributors.md` in the repo
-  `gpsaggese/gpsaggese.github.io` every run
+- The mapping lives in `research/contributors.md` in the repo
+  `gpsaggese/gpsaggese.github.io`
   - URL: `https://github.com/gpsaggese/gpsaggese.github.io/blob/master/research/contributors.md`
-  - Never hard-code Asana project IDs in a skill, a plan, or a script, since the
-    links in the file change
+  - Read the file at every run, since the links in the file change
+  - Never hard-code Asana project IDs in a skill, a plan, or a script
 - Each project is an H3 section under `## Projects` with a bullet
   `**Asana board**: [<TEXT>](<URL>)`
-  - Match the section by the start of its title
+  - The section title starts with the project name
     - `Noesis` matches `### Noesis`
     - `Tymes` matches `### Tymes.ai`
     - `Tyrn` matches `### Tyrn.dev`
-- Extract `<PROJECT_GID>` from the URL segment `/project/<PROJECT_GID>/`
+- `<PROJECT_GID>` is the URL segment `/project/<PROJECT_GID>/`
   - E.g., `https://app.asana.com/1/<WORKSPACE_GID>/project/<PROJECT_GID>/list/<ID>`
-- Confirm access with `get_project` before reading or writing tasks
+- A successful `get_project` is the only proof of access to a project
   - The workspace in the URL can be missing from the `workspaces` list of `get_me`
-  - A `get_project` success is the only proof of access
+  - Do not read or write the tasks of a project without this proof
 
 ## Project Signals
 
-- Use the other links of the project section to find the related emails
-  - Google doc IDs and Google Drive folder IDs, which appear in sharing and comment
-    notifications
+- A signal links an email to a project
+- The signals of a project are:
+  - The links of the project section: Google doc IDs and Google Drive folder IDs,
+    which appear in sharing and comment notifications
   - GitHub repo or org names
   - The project name
-- Use the contributors table (`Project` column) to get the names and emails of the
-  people of a project
-  - Only some projects have rows in the table, e.g., `Noesis`
-  - For the others, use the Asana project members (`get_project`) and the signals
-    above
+  - The names and emails of the people of the project
+- The people of a project come from:
+  - The contributors table (`Project` column), only for the projects that have
+    rows in the table, e.g., `Noesis`
+  - The Asana project members, for the other projects
 
 # Gmail
 
 ## Mailbox
 
 - The mailbox is `saggese@gmail.com`
-- Verify the connected mailbox before reading, since the Gmail connector can link
-  to another account
-  - Open one recent thread and check that `saggese@gmail.com` appears in its headers
-  - If the check fails, stop and tell the user
+- Read only from this mailbox, since the Gmail connector can link to another account
+- If the connected mailbox is another one, stop and tell the user
 
 ## Read-Only Access
 
@@ -92,8 +92,8 @@
   Attachments (not copied): <NAMES>
   ```
 - Omit the `Cc` and `Attachments` lines when empty
-- If Asana rejects a comment for size, split it into consecutive comments and
-  label them `(1/2)`, `(2/2)`, with the marker on the first one only
+- Label the parts of a split comment `(1/2)`, `(2/2)`, with the marker on the first
+  part only
 
 # Matching Emails to Tasks
 
@@ -112,7 +112,7 @@
 - Compare the message with the name, description, assignee, and section of each task
   - Same deliverable or topic
   - Sender or recipient is the assignee or a project member
-- Search completed tasks too, since a late reply can belong to a closed task
+- Completed tasks are candidates too, since a late reply can belong to a closed task
 - A strong match is a task with the same deliverable and a related person
   - E.g., an email from a contributor about the draft of a report matches the task
     "Draft report"
@@ -122,8 +122,7 @@
 - Create a task only for a concrete activity in the email:
   - A request, a commitment, a deadline, a decision to execute, or a meeting to
     prepare
-- Before proposing a task, search the project (`search_tasks` with `projects_any`
-  and `text`) and do not duplicate a task that exists
+- Never duplicate a task that exists
   - If a similar task exists, use the outcome `Comment` on it
 - Task fields:
   - **Name**: imperative phrase under 80 characters
@@ -132,20 +131,19 @@
   - **Assignee**: only if the email names one project member without ambiguity,
     otherwise leave it empty
   - **Section**: the section that holds similar tasks, or the default one
-- Add the email as the first comment of the new task, with the format above
+- The email is the first comment of the new task, in the comment format above
 
 ## Changes to Existing Tasks
 
 - Do not change the name, assignee, due date, or status of an existing task
-- Put a suggested change in the plan under `Suggested Field Changes`
+- A change that an email suggests is a suggestion, not an action
   - Apply it only if the user approves it explicitly
 
 # Plan Before Change
 
-## Plan File
+## Plan Content
 
-- Write the plan before any change to Asana
-- File name: `plan-asana.update_from_gmail.md`, in the current directory
+- Write every change to Asana in a plan before it happens
 - Follow the template `.claude/templates/asana_plan.template.md`
 - Link every task to update with its Asana URL
   - Use the `permalink_url` field of the task when available
@@ -153,17 +151,19 @@
 - Keep the plan short
   - One bullet per action
   - Never paste an email body in the plan
+- Put a suggested change to an existing task under `Suggested Field Changes`
+- Put a message with outcome `Decide` under `Needs Decision`
 
 ## Approval Gate
 
 - Do not call `add_comment`, `create_tasks`, `update_tasks`, or any other Asana
   write tool until the user approves the plan
-- The user can edit the plan file before approving
-  - Re-read the file after approval and execute only what it says
+- The user can edit the plan before approving
+  - The plan at the time of approval is the only source of actions
   - Skip an item that the user deleted or left out
 
 ## Privacy
 
 - The plan and the emails contain private student data
-  - Keep `plan-asana.update_from_gmail.md` out of commits
+  - Keep the plan out of commits
   - Copy emails only to the Asana project of the matched contributor group

@@ -36,21 +36,31 @@ model: sonnet
       --jq .content | base64 -d
   ```
   - If `gh` fails, use `WebFetch` on the GitHub URL of the file
-- For each project in `<PROJECTS>`, read its section as described in
-  `.claude/skills/asana.rules.md` `# Source of Truth`
-  - Get `<PROJECT_GID>` from the `Asana board` link
-  - Collect the project signals and the contributors
+- For each project in `<PROJECTS>`, find its section in the file
+  - Match the section by the start of its title, as described in
+    `.claude/skills/asana.rules.md` `# Source of Truth`
+  - Extract `<PROJECT_GID>` from the URL segment `/project/<PROJECT_GID>/` of the
+    `Asana board` link
+  - Collect the project signals from the other links of the section
+  - Collect the names and emails of the people of the project
+    - Use the contributors table (`Project` column) when the project has rows
+    - Otherwise use the Asana project members from `get_project`
 - If a project has no `Asana board` link, report it and skip the project
-- Call `get_project` with `<PROJECT_GID>` for each project
+- Call `get_project` with `<PROJECT_GID>` for each project, before any read or write
+  of its tasks
   - Record the name, the permalink, and the members
   - If the call fails, report the error and skip the project
+  - Do not use the `workspaces` list of `get_me` as a check, since the workspace can
+    be missing from it
 
 ## Verify the Mailbox
 
 - Load the Gmail tools with `ToolSearch` if their schemas are not available
 - Verify the connected mailbox is `saggese@gmail.com` as described in
   `.claude/skills/asana.rules.md` `# Gmail`
-- Stop if the check fails
+  - Open one recent thread with `get_thread`
+  - Check that `saggese@gmail.com` appears in its headers
+- If the check fails, stop and tell the user
 
 ## Collect the Emails
 
@@ -82,16 +92,21 @@ model: sonnet
 
 - Give each remaining message one outcome (`Comment`, `New task`, `Skip`, `Decide`)
   following `.claude/skills/asana.rules.md` `# Matching Emails to Tasks`
-- Before a `New task` outcome, search for duplicates with `search_tasks`
+- Before a `New task` outcome, search the project for duplicates
+  - Call `search_tasks` with `projects_any=<PROJECT_GID>` and `text`
+  - If a similar task exists, change the outcome to `Comment` on that task
 - Note any change to an existing task that an email states explicitly
   - Do not apply it: it goes to `Suggested Field Changes` in the plan
 
 ## Write the Plan
 
 - Create `plan-asana.update_from_gmail.md` in the current directory
+  - Create it before any change to Asana
 - Follow the template `.claude/templates/asana_plan.template.md`
   - Add one H1 section per project
   - Link each task to update with its Asana URL
+  - Put each `Decide` message under `Needs Decision`
+  - Put each suggested change under `Suggested Field Changes`
 - Print the path of the plan and these counts for each project:
   - Comments to add
   - Tasks to create
@@ -111,13 +126,18 @@ model: sonnet
 
 ## Apply the Plan
 
-- Re-read the plan file and execute only the items that it still contains
+- Re-read the plan file after approval and execute only the items that it still
+  contains
+  - Skip an item that the user deleted or left out
 - Create the new tasks first with `create_tasks`
   - Set `project_id`, name, notes, section, and due date from the plan
   - Set the assignee only if the plan lists one
 - Add the email comments with `add_comment`, oldest message first
   - Use the comment format in `.claude/skills/asana.rules.md` `## Comment Format`
   - Use the plain `text` field and keep the body verbatim
+  - If Asana rejects a comment for size, split it into consecutive comments
+    - Label the parts as described in `.claude/skills/asana.rules.md`
+      `## Comment Format`
 - Apply a suggested field change only if the user approved it explicitly
 - After each write, update the plan file
   - Tick the item
