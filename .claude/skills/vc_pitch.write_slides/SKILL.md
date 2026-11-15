@@ -39,8 +39,8 @@ model: opus
     - Default: a placeholder logo (see `## Add Logo`)
 - Use only facts present in the input
   - Do not invent market sizes, revenue, customers, growth rates, or biographies
-  - For each missing fact, write a placeholder and a TODO (see `## Flag Doubts` and
-    `## Placeholders and Special Characters`)
+  - For each missing fact, write a `\<PLACEHOLDER\>`, with no TODO (see
+    `## Flag Doubts` and `## Placeholders and Special Characters`)
 
 ## Plan Deck
 - Write a one-line pitch `<TAGLINE>` of at most 15 words: the customer, the pain,
@@ -115,19 +115,36 @@ model: opus
   - Follow `.claude/skills/slides.rules.md` `## Typst Tables`
 
 ## Flag Doubts
-- Put a comment right above each bullet whose content is missing or uncertain
-  - **Uncertain**: a number or claim from memory, a self-made estimate, or an
-    unverified source
-  - **Missing**: a fact the input does not contain
-- Use one of these formats, starting at column 0
-  ```
-  // TODO(gp): Check <WHAT> : <WHY IN DOUBT>
-  // TODO(gp): Provide <WHAT> : not in the input
-  ```
+- A `\<PLACEHOLDER\>` is already the flag for a missing fact
+  - Never add a TODO above a bullet only because it has a placeholder
+  - The reader finds each gap by searching for `\<`
+- Put a TODO comment right above a bullet only in these two cases
+  - **Uncertain**: the bullet has a real value that is a number or claim from
+    memory, a self-made estimate, or an unverified source
+    ```
+    // TODO(gp): Check <WHAT> : <WHY IN DOUBT>
+    ```
+  - **Missing, with no placeholder**: the input lacks a fact that no
+    `\<PLACEHOLDER\>` can stand for, e.g., a whole table or a claim
+    ```
+    // TODO(gp): Provide <WHAT> : not in the input
+    ```
+  - Start the comment at column 0
   - Wrap a long TODO on more lines, each starting with `//` at column 0
   - Put a TODO that covers a whole slide right above the slide title
 - Never indent the comment. The preprocessor strips only lines that start with `//`,
   so an indented comment renders inside the slide
+- **Bad** (the placeholders already show what is missing, so the TODO repeats them)
+  ```markdown
+  // TODO(gp): Provide <N_REQ>, <N_BUYERS>, and <N_PAID> : not in the input
+  - @Observed funnel@: \<N_REQ\> requests logged $\to$ \<N_BUYERS\> active
+    buyers $\to$ \<N_PAID\> paying buyers
+  ```
+- **Good** (placeholders only)
+  ```markdown
+  - @Observed funnel@: \<N_REQ\> requests logged $\to$ \<N_BUYERS\> active
+    buyers $\to$ \<N_PAID\> paying buyers
+  ```
 
 ## Save Result
 - Save the deck to `<OUTPUT_FILE>`
@@ -171,8 +188,8 @@ model: opus
 
 ## Report
 - Do not print the slides on screen
-- Print only the paths of `<OUTPUT_FILE>` and `<PDF_FILE>`, and the list of all TODO
-  comments
+- Print only the paths of `<OUTPUT_FILE>` and `<PDF_FILE>`, the list of all TODO
+  comments, and the list of all distinct `<PLACEHOLDER>` names to fill
 
 # Conventions
 
@@ -197,8 +214,8 @@ model: opus
       `// Authors=Alice, Bob, Carol`
     - If the user gives no order, list operating founders first, then the
       chairman and part-time founders
-    - If founders are unknown, write `// Authors=<FOUNDERS>`, unescaped, and a TODO
-      comment after the block
+    - If founders are unknown, write `// Authors=<FOUNDERS>`, unescaped, with no
+      TODO comment
   - Always set `logo` (see `## Add Logo`)
 - Follow `.claude/skills/slides.rules.md` `## First Slide`
 
@@ -401,11 +418,10 @@ model: opus
 
   - @1% share@: is enough to reach \$500M
   ```
-- **Good** (bottom-up, plain arithmetic, doubts flagged)
+- **Good** (bottom-up, plain arithmetic, missing facts shown as placeholders)
   ```markdown
   * Market Size
 
-  // TODO(gp): Check <N> and <ACV> : not in the input, find a cited source
   - @TAM \$\<TAM\> a year@: \<N\> \<CUSTOMER_TYPE\> in \<REGION\> $\times$
     \$\<ACV\> a year each
 
@@ -569,8 +585,8 @@ model: opus
 - Do not join two clauses with a dash inside a bullet. Use a sub-bullet or a colon
 - Do not use `\text{...}` in math mode
 - Do not write `// From:` lines, since a pitch has no source slides
-- Do not invent facts. Every figure comes from the input, or is a placeholder with a
-  TODO comment
+- Do not invent facts. Every figure comes from the input, or is a
+  `\<PLACEHOLDER\>`. Add a TODO comment only as `## Flag Doubts` says
 
 # Verification
 - [ ] Count the slides. The output must have at most 12
@@ -588,7 +604,9 @@ model: opus
   ```bash
   > grep -n '^ \+// TODO' <OUTPUT_FILE>
   ```
-- [ ] Confirm each number that has no source has a `// TODO(gp)` line above it
+- [ ] Confirm each real number that has no source has a `// TODO(gp)` line above it
+- [ ] Confirm no `// TODO(gp)` line sits above a bullet that has a `\<PLACEHOLDER\>`
+      and no doubt about a real value
 - [ ] Confirm the deck has at least 3 figures and at least one `styled-table`
 - [ ] Confirm every top-level bullet starts with an `@Label@:` lead-in, except
       the founder bullets on the Team slide
