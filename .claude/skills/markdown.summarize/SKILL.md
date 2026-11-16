@@ -22,7 +22,7 @@ model: sonnet
 | Item | Format | Description |
 |------|--------|-------------|
 | Console output | Text | Header structure preview + summary + statistics |
-| Output file | Markdown | `explanation.<tag>.md` (overwrites if exists) |
+| Output file | Markdown | `explanation.<tag>.md` in the current dir (overwrites if exists) |
 | Word count | Integer | Original and target word counts printed to console |
 
 - Say in the output file how it was generated, with this comment at the top:
@@ -143,7 +143,11 @@ model: sonnet
 
 ## Output Results
 - Print statistics: `<ORIG_NUM_WORDS>` compared to the actual output word count
-- Write `explanation.<tag>.md` (overwrite if it exists)
+- Write `explanation.<tag>.md` in the current working directory (overwrite if it
+  exists)
+  - Do not write it in a scratchpad or temp dir
+  - Do not write it next to `<INPUT>` when `<INPUT>` lives in another dir
+  - Scratch files (e.g., an extracted copy of the input) may stay in the scratchpad
 
 ## Interactive Follow-up
 - Wait for user questions
@@ -203,5 +207,5 @@ model: sonnet
 - [ ] Chunk titles are 2-6 word noun phrases, in sentence case, unnumbered
 - [ ] Quotes, cross-references, and rhetorical filler are dropped
 - [ ] Text wrapped at 85 columns
-- [ ] File written successfully
+- [ ] File written successfully, in the current working directory
 - [ ] User can ask follow-up questions
