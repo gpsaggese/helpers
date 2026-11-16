@@ -28,6 +28,10 @@ with Dockerized execution for dependency isolation.
     `--add_gh_user`, skipping users already invited, with `--dry_run`
 - `set_secrets_and_variables.py`
   - Batch upload GitHub secrets and variables from JSON file
+- `sync_google_group.py`
+  - Create or update a Google Workspace group so that its members are the emails in a
+    CSV file, adding the missing members and removing the extra ones, with
+    `--dry_run`
 - `sync_gh_issue_labels.py`
   - Wrapper script to synchronize GitHub issue labels
 - `sync_gh_projects.py`

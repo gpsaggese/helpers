@@ -320,7 +320,6 @@ def _create_branch_and_pr(
     *,
     create_pr: bool = True,
     gh_issue_id_provided: bool = False,
-    no_abort_if_not_master: bool = False,
     no_abort_if_not_clean: bool = False,
     suffix: str = "",
 ) -> str:
@@ -331,9 +330,6 @@ def _create_branch_and_pr(
     :param original_branch: Name of the original branch to extract files from
     :param create_pr: Whether to create a draft PR (default: True)
     :param gh_issue_id_provided: True if issue ID was provided (not newly created)
-    :param no_abort_if_not_master: if True, allow branching from a non-'master'
-        branch instead of aborting (the underlying invoke task switches to
-        'master' first)
     :param no_abort_if_not_clean: if True, allow branching with uncommitted
         changes instead of aborting
     :param suffix: if specified (e.g., "1"), append `_<suffix>` to the branch
@@ -367,10 +363,6 @@ def _create_branch_and_pr(
         cmd += f" --suffix {shlex.quote(suffix)}"
     if not create_pr:
         cmd += " --no-create-pr"
-    if no_abort_if_not_master:
-        # Let git_branch_create switch to 'master' itself instead of
-        # aborting when the current branch isn't 'master'.
-        cmd += " --no-abort-if-not-master"
     if no_abort_if_not_clean:
         cmd += " --no-abort-if-not-clean"
     _LOG.info("Creating branch via invoke: %s", cmd)
@@ -391,7 +383,6 @@ def _create_branch_in_submodule(
     branch_name: str,
     *,
     create_pr: bool = True,
-    no_abort_if_not_master: bool = False,
     no_abort_if_not_clean: bool = False,
 ) -> None:
     """
@@ -406,9 +397,6 @@ def _create_branch_in_submodule(
     :param branch_name: literal branch name, already computed from the outer
         repo's GH issue
     :param create_pr: whether to create a draft PR (default: True)
-    :param no_abort_if_not_master: if True, allow branching from a non-'master'
-        branch instead of aborting (the underlying invoke task switches to
-        'master' first)
     :param no_abort_if_not_clean: if True, allow branching with uncommitted
         changes instead of aborting
     """
@@ -427,10 +415,6 @@ def _create_branch_in_submodule(
     )
     if not create_pr:
         cmd += " --no-create-pr"
-    if no_abort_if_not_master:
-        # Let git_branch_create switch to 'master' itself instead of
-        # aborting when the current branch isn't 'master'.
-        cmd += " --no-abort-if-not-master"
     if no_abort_if_not_clean:
         cmd += " --no-abort-if-not-clean"
     _LOG.info("Creating branch in '%s' via invoke: %s", submodule_path, cmd)
@@ -716,7 +700,10 @@ def _parse() -> argparse.ArgumentParser:
         "--no_abort_if_not_master",
         action="store_true",
         default=False,
-        help="Skip checking that every repo target is on 'master'",
+        help=(
+            "Skip checking that every repo target is on 'master'. The new "
+            "branch is always created from 'origin/master'"
+        ),
     )
     parser.add_argument(
         "--no_abort_if_not_clean",
@@ -826,7 +813,6 @@ def _main_workflow(
         original_branch,
         create_pr=args.create_pr,
         gh_issue_id_provided=bool(args.gh_issue_id),
-        no_abort_if_not_master=args.no_abort_if_not_master,
         no_abort_if_not_clean=args.no_abort_if_not_clean,
         suffix=args.suffix,
     )
@@ -838,7 +824,6 @@ def _main_workflow(
             submodule_path,
             branch_name,
             create_pr=args.create_pr,
-            no_abort_if_not_master=args.no_abort_if_not_master,
             no_abort_if_not_clean=args.no_abort_if_not_clean,
         )
     # Create worktree, if requested.
