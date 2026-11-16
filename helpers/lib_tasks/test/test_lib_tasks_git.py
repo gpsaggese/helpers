@@ -77,6 +77,30 @@ class Test_git_pull(hunitest.TestCase):
         actual = _get_ctx_run_calls(ctx)
         self.assertEqual(actual, "")
 
+    def test3(self) -> None:
+        """
+        Test that a broken symlink in the repo does not make `git_pull()` fail.
+        """
+        # Prepare inputs.
+        ctx = httestlib._build_mock_context_returning_ok()
+        scratch_dir = self.get_scratch_space()
+        # Create a symlink pointing to a missing target.
+        broken_link = os.path.join(scratch_dir, "broken_link.sh")
+        os.symlink(os.path.join(scratch_dir, "missing_target.sh"), broken_link)
+        # Prepare outputs.
+        expected = """
+        call('git pull --autostash', echo=False)
+        call("git submodule foreach 'git pull --autostash'", echo=False)
+        """
+        # Run test.
+        with umock.patch.object(
+            hgit, "get_client_root", return_value=scratch_dir
+        ):
+            hltltagi.git_pull(ctx)
+        # Check outputs.
+        actual = _get_ctx_run_calls(ctx)
+        self.assert_equal(actual, expected, fuzzy_match=True, dedent=True)
+
 
 # #############################################################################
 # Test_git_fetch_master
