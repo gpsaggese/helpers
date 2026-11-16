@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional
 import tqdm
 from invoke.tasks import task
 
-import dev_scripts_helpers.git.git_branch_create as dsggibrc
 import helpers.hdbg as hdbg
 
 # We want to minimize the dependencies from non-standard Python packages since
@@ -26,6 +25,8 @@ import helpers.hsystem as hsystem
 import helpers.hunit_test_utils as hunteuti
 import helpers.lib_tasks.lib_tasks_gh as hltltagh
 import helpers.lib_tasks.lib_tasks_utils as hltltaut
+
+import dev_scripts_helpers.git.git_branch_create as dsggibrc
 
 _LOG = logging.getLogger(__name__)
 
@@ -556,7 +557,6 @@ def git_branch_create(  # type: ignore
     check_branch_name=True,
     create_pr=True,
     abort_if_not_clean=True,
-    abort_if_not_master=True,
     dry_run=False,
 ):
     """
@@ -565,10 +565,14 @@ def git_branch_create(  # type: ignore
 
     Optionally creates a draft PR for the new branch.
 
+    The branch is created from `origin/master`, so it works also when `master`
+    is checked out in another Git worktree.
+
     E.g.,
     ```
-    > git checkout -b LemTask169_Get_GH_actions
-    > git push --set- upstream origin LemTask169_Get_GH_actions
+    > git fetch origin master
+    > git checkout --no-track -b LemTask169_Get_GH_actions origin/master
+    > git push --set-upstream origin LemTask169_Get_GH_actions
     > gh pr create --draft  # if create_pr=True
     ```
 
@@ -582,14 +586,13 @@ def git_branch_create(  # type: ignore
         - short name (e.g., "amp", "lm") of the branch
     :param suffix: suffix (e.g., "02") to add to the branch name when using
         `issue_id`
-    :param only_branch_from_master: only allow to branch from master
+    :param only_branch_from_master: branch from `origin/master` (default: True)
+        instead of the current `HEAD`
     :param check_branch_name: make sure the name of the branch is valid like
         `{Amp,...}TaskXYZ_...`
     :param create_pr: create a draft PR for the new branch (default: True)
     :param abort_if_not_clean: abort if the client has uncommitted changes
         (default: True)
-    :param abort_if_not_master: abort if not on master branch
-        (default: True, only used if only_branch_from_master is True)
     :param dry_run: if True, log the actions the script would take without
         creating or pushing the branch
     """
@@ -612,8 +615,6 @@ def git_branch_create(  # type: ignore
         cmd += " --no_create_pr"
     if not abort_if_not_clean:
         cmd += " --no_abort_if_not_clean"
-    if not abort_if_not_master:
-        cmd += " --no_abort_if_not_master"
     if dry_run:
         cmd += " --dry_run"
     hltltaut.run(ctx, cmd)

@@ -125,7 +125,6 @@ def _create_branch(
     check_branch_name: bool = True,
     create_pr: bool = True,
     abort_if_not_clean: bool = True,
-    abort_if_not_master: bool = True,
     dry_run: bool = False,
 ) -> None:
     """
@@ -133,6 +132,10 @@ def _create_branch(
     to `issue_id` in repo `repo_short_name`.
 
     Same parameters as `invoke git_branch_create`.
+
+    The branch is created from `origin/master` (or from `HEAD` when
+    `only_branch_from_master=False`), without checking out a local `master`.
+    This works even when `master` is checked out in another Git worktree.
     """
     hdbg.dassert(
         not any(suffix.startswith(char) for char in "_-."),
@@ -158,35 +161,24 @@ def _create_branch(
         _dassert_valid_branch_name(branch_name)
     # Prevent accidental duplicate branches.
     _dassert_branch_available(branch_name)
-    # Ensure we are branching from master if required.
-    if only_branch_from_master:
-        curr_branch = hgit.get_branch_name()
-        if curr_branch != "master":
-            hdbg.dassert(
-                not abort_if_not_master,
-                "Must be on 'master' branch to create new branch; "
-                "currently on '%s'",
-                curr_branch,
-            )
-            _LOG.info(
-                "Switching from '%s' to 'master' to create branch",
-                curr_branch,
-            )
-            if dry_run:
-                _LOG.warning("Skipping 'git checkout master' (dry run)")
-            else:
-                hsystem.system("git checkout master", suppress_output=False)
+    # Branch from the remote `master` instead of switching to a local
+    # `master`: Git refuses `git checkout master` when `master` is checked out
+    # in another worktree.
+    start_point = "origin/master" if only_branch_from_master else "HEAD"
     if dry_run:
         _LOG.warning(
-            "Skipping branch creation/push for '%s' (dry run)", branch_name
+            "Skipping branch creation/push for '%s' from '%s' (dry run)",
+            branch_name,
+            start_point,
         )
         if create_pr:
             _LOG.warning("Skipping draft PR creation (dry run)")
         return
-    # Fetch latest master to ensure we have the most recent changes.
-    hsystem.system("git pull --autostash --rebase", suppress_output=False)
-    # git checkout -b LmTask169_Get_GH_actions_working_on_lm
-    cmd = f"git checkout -b {shlex.quote(branch_name)}"
+    if only_branch_from_master:
+        # Fetch latest master to ensure we branch from the most recent changes.
+        hsystem.system("git fetch origin master", suppress_output=False)
+    # git checkout --no-track -b LmTask169_Get_GH_actions_working_on_lm origin/master
+    cmd = f"git checkout --no-track -b {shlex.quote(branch_name)} {start_point}"
     hsystem.system(cmd, suppress_output=False)
     cmd = f"git push --set-upstream origin {shlex.quote(branch_name)}"
     hsystem.system(cmd, suppress_output=False)
@@ -223,8 +215,7 @@ def _parse() -> argparse.ArgumentParser:
         "--issue_id",
         type=int,
         default=0,
-        help="Use the canonical name for the branch corresponding to that "
-        "issue",
+        help="Use the canonical name for the branch corresponding to that issue",
     )
     parser.add_argument(
         "--repo_short_name",
@@ -242,13 +233,12 @@ def _parse() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no_only_branch_from_master",
         action="store_true",
-        help="Allow branching from a branch other than 'master'",
+        help="Branch from the current `HEAD` instead of `origin/master`",
     )
     parser.add_argument(
         "--no_check_branch_name",
         action="store_true",
-        help="Skip checking that the branch name follows the naming "
-        "convention",
+        help="Skip checking that the branch name follows the naming convention",
     )
     parser.add_argument(
         "--no_create_pr",
@@ -259,12 +249,6 @@ def _parse() -> argparse.ArgumentParser:
         "--no_abort_if_not_clean",
         action="store_true",
         help="Do not abort if the client has uncommitted changes",
-    )
-    parser.add_argument(
-        "--no_abort_if_not_master",
-        action="store_true",
-        help="Do not abort if not on master branch; switch to master "
-        "instead",
     )
     parser.add_argument(
         "--dry_run",
@@ -287,7 +271,6 @@ def _main(parser: argparse.ArgumentParser) -> None:
         check_branch_name=not args.no_check_branch_name,
         create_pr=not args.no_create_pr,
         abort_if_not_clean=not args.no_abort_if_not_clean,
-        abort_if_not_master=not args.no_abort_if_not_master,
         dry_run=args.dry_run,
     )
 
