@@ -39,8 +39,9 @@ model: opus
     - Default: a placeholder logo (see `## Add Logo`)
 - Use only facts present in the input
   - Do not invent market sizes, revenue, customers, growth rates, or biographies
-  - For each missing fact, write a placeholder and a TODO (see `## Flag Doubts` and
-    `## Placeholders and Special Characters`)
+  - For each missing quantity, write only a placeholder, with no TODO
+  - For each other missing fact, write a placeholder and a TODO
+  - See `## Flag Doubts` and `## Placeholders and Special Characters`
 
 ## Plan Deck
 - Write a one-line pitch `<TAGLINE>` of at most 15 words: the customer, the pain,
@@ -60,7 +61,7 @@ model: opus
   - Team slide
   - Ask slide: includes the reasons to invest
 - Add the Traction slide when `<NUM_SLIDES>` is 10
-  - When `<NUM_SLIDES>` is 9, put the traction in one **Traction** lead-in on
+  - When `<NUM_SLIDES>` is 9, put the traction in one @Traction@ lead-in on
     `* Cover / Company Purpose`
 - Do not add a slide for the product, why now, existing alternatives, or
   financials, since the slides above already carry them
@@ -118,6 +119,24 @@ model: opus
   ```
 - Never indent the comment. The preprocessor strips only lines that start with `//`,
   so an indented comment renders inside the slide
+- Do not add a TODO for a quantity that is already a placeholder
+  - A quantity is a number, an amount, a percentage, a count, or a date
+  - The placeholder, e.g., `\<N\>` or `\$\<ACV\>`, is the flag
+  - Add a TODO only for a quantity that has a real value from memory or an estimate
+    - **Bad** (the placeholder already flags the gap)
+      ```markdown
+      // TODO(gp): Provide <N> : not in the input
+      - @TAM \$\<TAM\> a year@: \<N\> customers $\times$ \$\<ACV\> a year each
+      ```
+    - **Good** (the placeholder is the only flag)
+      ```markdown
+      - @TAM \$\<TAM\> a year@: \<N\> customers $\times$ \$\<ACV\> a year each
+      ```
+    - **Good** (a real value from memory needs a TODO)
+      ```markdown
+      // TODO(gp): Check 40K carriers : from memory, find a cited source
+      - @40K carriers@: in the US trucking market
+      ```
 
 ## Save Result
 - Save the deck to `<OUTPUT_FILE>`
@@ -251,43 +270,50 @@ model: opus
   ```
 
 ## Pitch Style
-- Do not use `@Tag@` labels (e.g., `@Definition@`, `@Fact@`, `@Naive Solution@`).
-  They render as colored lecture labels
-- Start every top-level bullet with a bold lead-in of 1-5 words and a colon
+- Start every top-level bullet with an `@...@` lead-in of 1-5 words and a colon,
+  per `.claude/skills/slides.rules.md` `## Use Tags for Slide Sections`
+  - Do not use `**...**` for the lead-in
   - Put the number in the lead-in when the bullet has one
+  - Write a pitch phrase, not a lecture tag (e.g., not `@Definition@`, `@Fact@`,
+    `@Naive Solution@`)
   - Separate top-level bullets with a blank line
 - Use plain English: no formal definitions, no `\triangleq`, no symbols bound to
   quoted meanings
   - Use `$\times$` for a product in a sizing or cost line
 - Write about customers in the third person, and name the company
-- **Bad** (lecture style: tag and definition vocabulary)
+- **Bad** (lecture tag vocabulary)
   ```markdown
   - @Fact@: the hit rate of cold outreach is often below 1%
   ```
-- **Good** (pitch style: bold lead-in that carries the number)
+- **Bad** (bold lead-in instead of `@...@`)
   ```markdown
   - **Under 1% hit rate**: hundreds of cold emails yield a handful of replies
   ```
+- **Good** (pitch style: `@...@` lead-in that carries the number)
+  ```markdown
+  - @Under 1% hit rate@: hundreds of cold emails yield a handful of replies
+  ```
 - Use these lead-ins per slide
-  - `* Cover / Company Purpose`: **What**, **Who pays**, **Model**, **Edge**,
-    **Raising**, plus **Traction** when the deck has no Traction slide
+  - `* Cover / Company Purpose`: @What@, @Who pays@, @Model@, @Edge@,
+    @Raising@, plus @Traction@ when the deck has no Traction slide
   - Problem slide: one lead-in per quantified pain (rate, hours, dollars, risk),
-    then **Typical case** for one customer scenario
-  - Solution slide: **Today** (how customers cope), **With <COMPANY>** (the
-    outcome), then 2-3 benefits (e.g., **Pay on outcome**), then **How it
-    works** with one user flow as an `E.g.,` sub-bullet
-  - Market slide: **TAM**, **SAM**, **SOM**, **Cross-check**, then **Why now**
+    then @Typical case@ for one customer scenario
+  - Solution slide: @Today@ (how customers cope), @With <COMPANY>@ (the
+    outcome), then 2-3 benefits (e.g., @Pay on outcome@), then @How it
+    works@ with one user flow as an `E.g.,` sub-bullet
+  - Market slide: @TAM@, @SAM@, @SOM@, @Cross-check@, then @Why now@
     with one dated trend per sub-bullet
-  - Go-to-market slide: **Beachhead**, one lead-in per phase (e.g.,
-    **Months 0-12**), **Target CAC**
-  - Competition slide: the table, then **<COMPANY>'s edge**
-  - Business model slide: **Pricing**, **Repeat buying**, **Cost driver**,
-    **Unit economics** (table), **Revenue path** with one sub-bullet per year
-    for 3 years, then **Assumptions**
-  - Traction slide: **Commercial** first, then one lead-in per validation signal
-  - Team slide: the founder name in bold, then the role and one credential
-  - Ask slide: **The round**, **Milestones**, **Use of funds** (table), then
-    **Why invest** with 3 sub-bullets, one reason each, each backed by a slide
+  - Go-to-market slide: @Beachhead@, one lead-in per phase (e.g.,
+    @Months 0-12@), @Target CAC@
+  - Competition slide: the table, then @<COMPANY>'s edge@
+  - Business model slide: @Pricing@, @Repeat buying@, @Cost driver@,
+    @Unit economics@ (table), @Revenue path@ with one sub-bullet per year
+    for 3 years, then @Assumptions@
+  - Traction slide: @Commercial@ first, then one lead-in per validation signal
+  - Team slide: the founder name as the `@...@` lead-in, then the role and one
+    credential
+  - Ask slide: @The round@, @Milestones@, @Use of funds@ (table), then
+    @Why invest@ with 3 sub-bullets, one reason each, each backed by a slide
 
 ## Placeholders and Special Characters
 - Escape a placeholder in slide text as `\<PLACEHOLDER\>`. Pandoc drops a bare
@@ -301,11 +327,11 @@ model: opus
 - Write a dollar sign in slide text as `\$`, so pandoc never reads it as math
 - **Bad** (the placeholder vanishes and `$` can open math)
   ```markdown
-  - **Pricing**: $<PRICE> per meeting
+  - @Pricing@: $<PRICE> per meeting
   ```
 - **Good**
   ```markdown
-  - **Pricing**: \$\<PRICE\> per meeting
+  - @Pricing@: \$\<PRICE\> per meeting
   ```
 
 ## Problem and Solution
@@ -314,22 +340,22 @@ model: opus
   - Name the customer persona that feels the pain
   - Do not mention the product on the problem slide
 - Show the solution as a customer outcome, not a feature list
-  - Contrast **Today** with **With <COMPANY>** to show why current tools fail
-  - Add at most 3 benefits after **With <COMPANY>**
+  - Contrast @Today@ with @With <COMPANY>@ to show why current tools fail
+  - Add at most 3 benefits after @With <COMPANY>@
 - **Bad** (product on the problem slide, no number, no persona)
   ```markdown
   * Problem
 
-  - **Problem**: finance is hard and our AI platform makes it easy
+  - @Problem@: finance is hard and our AI platform makes it easy
   ```
 - **Good** (one pain, one persona, numbers in the lead-ins)
   ```markdown
   * Problem
 
-  - **\<DAYS\> days to close**: mid-size finance teams close the books in
+  - @\<DAYS\> days to close@: mid-size finance teams close the books in
     \<DAYS\> days each month
 
-  - **\<HOURS\> analyst hours**: go to manual reconciliation in each close
+  - @\<HOURS\> analyst hours@: go to manual reconciliation in each close
   ```
 
 ## Addressable Market
@@ -345,22 +371,21 @@ model: opus
 - Attach a source to every number in the slide text, and list it on `* Sources`
 - **Bad** (top-down, no source, no SAM or SOM)
   ```markdown
-  - **Huge market**: the global logistics software market is worth \$50B
+  - @Huge market@: the global logistics software market is worth \$50B
 
-  - **1% share**: is enough to reach \$500M
+  - @1% share@: is enough to reach \$500M
   ```
-- **Good** (bottom-up, plain arithmetic, doubts flagged)
+- **Good** (bottom-up, plain arithmetic, quantities left as placeholders)
   ```markdown
   * Market Size and Why Now
 
-  // TODO(gp): Check <N> and <ACV> : not in the input, find a cited source
-  - **TAM \$\<TAM\> a year**: \<N\> \<CUSTOMER_TYPE\> in \<REGION\> $\times$
+  - @TAM \$\<TAM\> a year@: \<N\> \<CUSTOMER_TYPE\> in \<REGION\> $\times$
     \$\<ACV\> a year each
 
-  - **SAM \$\<SAM\> a year**: \<N_REACH\> customers reachable with today's
+  - @SAM \$\<SAM\> a year@: \<N_REACH\> customers reachable with today's
     product and channel
 
-  - **SOM \$\<SOM\> in \<YEARS\> years**: \<SHARE\>% of SAM, starting from the
+  - @SOM \$\<SOM\> in \<YEARS\> years@: \<SHARE\>% of SAM, starting from the
     beachhead
   ```
 
@@ -375,21 +400,21 @@ model: opus
 - Show the phases in a left-to-right Graphviz diagram, beachhead first
 - **Bad** (no segment, no channel, no milestone)
   ```markdown
-  - **Growth**: leverage partnerships and digital marketing to scale
+  - @Growth@: leverage partnerships and digital marketing to scale
   ```
 - **Good**
   ```markdown
-  - **Beachhead**: \<SEGMENT\>, bought by the \<BUYER_TITLE\>, sold through
+  - @Beachhead@: \<SEGMENT\>, bought by the \<BUYER_TITLE\>, sold through
     \<CHANNEL\> with \<MOTION\>
 
-  - **Months 0-12**: win \<SEGMENT\>, reach \<N\> paying customers
+  - @Months 0-12@: win \<SEGMENT\>, reach \<N\> paying customers
 
-  - **Months 12-30**: expand to \<ADJACENT_SEGMENT\> via \<CHANNEL_2\>, reach
+  - @Months 12-30@: expand to \<ADJACENT_SEGMENT\> via \<CHANNEL_2\>, reach
     \$\<ARR_1\> ARR
 
-  - **Months 30-60**: scale through \<NEW_CHANNEL\>, reach \$\<ARR_2\> ARR
+  - @Months 30-60@: scale through \<NEW_CHANNEL\>, reach \$\<ARR_2\> ARR
 
-  - **Target CAC**: \$\<CAC\> per customer, paid back in \<MONTHS\> months
+  - @Target CAC@: \$\<CAC\> per customer, paid back in \<MONTHS\> months
   ```
 
 ## Competition
@@ -399,10 +424,10 @@ model: opus
 - Use a `styled-table` with the company in the last row and `bold-first-col: true`
   - Put the table at the top level of the slide, with no bullet above it
   - Choose 3-4 columns that matter to the customer
-- Follow the table with one **<COMPANY>'s edge** bullet: the durable difference
+- Follow the table with one @<COMPANY>'s edge@ bullet: the durable difference
 - **Bad** (no competitors)
   ```markdown
-  - **Competition**: \<COMPANY\> has no direct competitors
+  - @Competition@: \<COMPANY\> has no direct competitors
   ```
 - **Good**
   ````markdown
@@ -418,7 +443,7 @@ model: opus
   )
   ```
 
-  - **\<COMPANY\>'s edge**: \<DURABLE_DIFFERENCE\>
+  - @\<COMPANY\>'s edge@: \<DURABLE_DIFFERENCE\>
   ````
 
 ## Business Model, Traction, Team, Ask
@@ -434,8 +459,8 @@ model: opus
   intent), each with a value and date, e.g., `\<N\> customers as of \<MONTH_YEAR\>`
   - If there is no traction, write the strongest validation signal (pilots, letters
     of intent, waitlist size) and flag it
-- **Team**: one bullet per founder, with the name in bold, a role, and one
-  verifiable credential related to the problem
+- **Team**: one bullet per founder, with the name as the `@...@` lead-in, a role,
+  and one verifiable credential related to the problem
 - Ask: state the amount `<ASK>`, the round, and the runway in months
   - List 2-3 milestones the round reaches, ending with the one that justifies the
     next round
@@ -487,8 +512,9 @@ model: opus
 - Do not join two clauses with a dash inside a bullet. Use a sub-bullet or a colon
 - Do not use `\text{...}` in math mode
 - Do not write `// From:` lines, since a pitch has no source slides
-- Do not invent facts. Every figure comes from the input, or is a placeholder with a
-  TODO comment
+- Do not invent facts. Every figure comes from the input, or is a placeholder
+  - Add a TODO comment for a missing non-quantity fact
+  - Do not add a TODO for a quantity that is already a placeholder
 
 # Verification
 - [ ] Count the slides. The output must have at most 10
@@ -506,7 +532,9 @@ model: opus
   ```bash
   > grep -n '^ \+// TODO' <OUTPUT_FILE>
   ```
-- [ ] Confirm each number that has no source has a `// TODO(gp)` line above it
+- [ ] Confirm each real number that has no source has a `// TODO(gp)` line above it
+- [ ] Confirm no `// TODO(gp)` line covers only a quantity that is already a
+      placeholder
 - [ ] Confirm the deck has at least 3 figures and at least one `styled-table`
 - [ ] Confirm `// logo=` points to an existing file and `// Authors=` lists the
       founders in alphabetical order
