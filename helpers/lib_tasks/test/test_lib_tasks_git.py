@@ -378,12 +378,11 @@ class Test_git_branch_create(hunitest.TestCase):
             "check_branch_name": False,
             "create_pr": False,
             "abort_if_not_clean": False,
-            "abort_if_not_master": False,
             "dry_run": True,
         }
         # Prepare outputs.
         expected = """
-        call('/repo/git_branch_create.py --branch_name HelpersTask999_Foo --issue_id 999 --repo_short_name amp --suffix 02 --no_only_branch_from_master --no_check_branch_name --no_create_pr --no_abort_if_not_clean --no_abort_if_not_master --dry_run', echo=False)
+        call('/repo/git_branch_create.py --branch_name HelpersTask999_Foo --issue_id 999 --repo_short_name amp --suffix 02 --no_only_branch_from_master --no_check_branch_name --no_create_pr --no_abort_if_not_clean --dry_run', echo=False)
         """
         # Run test.
         self.helper(kwargs, expected)
