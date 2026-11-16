@@ -11,14 +11,17 @@
 - The skill `.claude/skills/github.cosmetic_check_PR/SKILL.md` has deterministic
   checks, but no script runs them
 - Goal: scripts that run these checks, so that:
-  - One script creates a worktree from a PR URL
   - One script per check returns `PASS`, `FAIL`, or `N/A`, with a `Why` and a `Fix`
     per finding
-  - The same check works on a PR (`--pr_url` or `--branch`, in a worktree) and on
+  - The same check works on a PR (`--branch`, in a worktree) and on
     the code in a dir (`--all_files`, `--files`, `--from_file`)
   - The skill and the command line both call the scripts
 - Design:
-  `HelpersTask1451_Implement_tools_to_automate_PR_review_1.design.md`
+  [`02-design.architecture.md`](/helpers_root/dev_scripts_helpers/repo_checks/docs/02-design.architecture.md)
+  and
+  [`02.1-design.checks.md`](/helpers_root/dev_scripts_helpers/repo_checks/docs/02.1-design.checks.md)
+- Decisions:
+  [`03-decisions.md`](/helpers_root/dev_scripts_helpers/repo_checks/docs/03-decisions.md)
 - Out of scope:
   - The `--modified` and `--last_commit` selectors
   - Change of `check_file_size()` in the pre-commit hook
@@ -37,81 +40,68 @@
 
 * Solution
 
-- [ ] PR1: Shared module with `FileSet`, the selectors, the common flags, and the
-      report
+- [ ] PR1: Shared module with the selectors, the queries to git, the common flags,
+      and the report
   - Repo: helpers
   - Depends on: none
   - Add `helpers_root/dev_scripts_helpers/repo_checks/repo_check_utils.py`
-    - `FileInfo`, `FileSet` (with `deleted`), `Finding`
-    - Selectors `--files`, `--from_file`, `--all_files`, `--branch`, `--pr_url`
-    - `add_selector_args(parser)` for `--dir`, the selectors, `--base`, `--head`,
-      `--branch_name`
-    - `get_file_set(args)` to run the selector
-    - `--branch` uses `git diff --no-renames --raw <BASE>...<HEAD>`
-    - `--pr_url` gets the base and head SHAs from `gh` behind one thin function
+    - `Finding`
+    - Selectors `--files`, `--from_file`, `--all_files`, `--branch`
+    - `add_selector_args(parser)` for `--dir` and the selectors
+    - `get_paths(args)` to run the selector
+    - `--branch` uses `git diff --no-renames --name-status <BASE>...HEAD`
+    - Queries to git: `get_mode()`, `get_branch()`, `get_pr()`, `get_deleted_files()`
+    - `get_pr()` is the only call to `gh`
     - Report formatter (text of `github_PR_check.template.md` and `--json`)
   - Add `test/test_repo_check_utils.py`
     - Selectors on real temporary git repos, no mock
-    - `--branch` returns added, modified, and deleted files and a submodule pointer
+    - `--branch` returns added and modified files and a submodule pointer
     - `--branch` ignores a commit added to the base after the branch point
     - `--all_files` honors `.gitignore`, includes untracked files, and works outside
       a git repo
-    - `--files` and `--from_file` give the same `FileInfo` as `--all_files`
-    - `--pr_url` stops when `HEAD` of `--dir` is not the PR head
+    - `--files` and `--from_file` give the same paths as `--all_files`
+    - `get_deleted_files()` and `get_mode()` (`160000` for a submodule pointer)
     - Report format for `PASS`, `FAIL`, `N/A`
 
 - [ ] PR2: CHK1, file size and binary files
   - Repo: helpers
   - Depends on: PR1
   - Add `helpers_root/dev_scripts_helpers/repo_checks/check_files.py`
-    - `check_files(file_set, max_size_kb)`
+    - `check_files(dir_name, paths, max_size_kb)`
     - Flag `--max_size_kb`, default 512
     - Fail files over the limit and binaries, count notebooks
     - Print a `git rm --cached` fix per failing file
   - Add `test/test_check_files.py`
-    - `FileSet` built by hand: size limit, binary by flag, extension, `.DS_Store`,
+    - Real files in a temporary dir: size limit, NUL byte, extension, `.DS_Store`,
       notebook count
 
-- [ ] PR3: Worktree script
-  - Repo: helpers
-  - Depends on: none
-  - Add `helpers_root/dev_scripts_helpers/github/gh_pr_worktree.py`
-    - Flags `--pr_url`, `--pr_num`, `--worktree_dir`, `--dry_run`
-    - Fetch the PR head and the base branch (`baseRefName`, not always `master`),
-      compute the merge-base
-    - Create or reuse a detached worktree, never delete an existing dir
-    - Print `worktree`, `head_sha`, `base_sha`, `merge_base`, the branches, and the
-      `git worktree remove` command
-  - Add `test/test_gh_pr_worktree.py`
-    - URL parsing, with the `/changes`, `/files`, `/commits` suffixes
-    - Local bare repo as the fake `pull/<N>/head` source
-    - Reuse when `HEAD` matches, stop when it differs
-
-- [ ] PR4: CHK3 PR title and CHK2 project directory
+- [ ] PR3: CHK3 PR title and CHK2 project directory
   - Repo: helpers (`gh_pr_check_title.py`) and umd_classes (`check_project_dir.py`)
   - Depends on: PR1
   - Add `helpers_root/dev_scripts_helpers/github/gh_pr_check_title.py`
-    - Branch name rules for all selectors, PR metadata rules only with `--pr_url`
-    - Flags `--title`, `--branch_name`, `--body_file` for offline use
-    - `gh` calls behind one thin function
+    - Branch name rules for all selectors, PR metadata rules only when `get_pr()`
+      finds a PR
+    - Rules in small functions of plain values, so the tests need no `gh`
     - Print a `gh pr edit` fix, never run it
   - Add `class_project/check_project_dir.py`
-    - Detect a class PR, build `<PROJECT_PATH>` from `--branch_name` or `--pr_url`
-    - List the touched paths outside it, from `files` and `deleted`
+    - Detect a class PR, build `<PROJECT_PATH>` from the branch checked out in
+      `--dir`
+    - List the touched paths outside it, from `paths` and `get_deleted_files()`
     - Print a `git mv` fix per path
   - Add tests for both scripts
     - Title parsing, allowed characters, `Closes #N` and `Related to #N`
-    - Expected path, paths outside it, `--all_files` with and without `--branch_name`
+    - Expected path, paths outside it, `--all_files` on a class PR branch and on
+      another branch
 
-- [ ] PR5: CHK4a junk and secrets, CHK4b class project layout
+- [ ] PR4: CHK4a junk and secrets, CHK4b class project layout
   - Repo: helpers (`check_risky.py`) and umd_classes (`check_project_layout.py`,
     `create_project.py`)
   - Depends on: PR1
   - Add `helpers_root/dev_scripts_helpers/repo_checks/check_risky.py`
     - Find `tmp.*`, `*.log`, `__pycache__/`, `.ipynb_checkpoints/`, `.env`, and
       submodule pointers (mode `160000`)
-    - Run `gitleaks` per selector (`git --log-opts <BASE>..<HEAD>` for `--branch`
-      and `--pr_url`, `dir` for the others), print `unknown` when it is missing
+    - Run `gitleaks` per selector (`git --log-opts <BASE>..HEAD` for `--branch`,
+      `dir` for the others), print `unknown` when it is missing
     - Flag `--skip_gitleaks`
   - Add public `compare_docker_files()` to `class_project/create_project.py`
   - Add `class_project/check_project_layout.py`
@@ -122,9 +112,9 @@
     - Junk file patterns, submodule pointer, `unknown` without `gitleaks`
     - Missing and present layout files
 
-- [ ] PR6: Runner, new `SKILL.md`, and README
+- [ ] PR5: Runner, new `SKILL.md`, and README
   - Repo: umd_classes (`check_all.py`) and helpers (`SKILL.md`, README)
-  - Depends on: PR2, PR3, PR4, PR5
+  - Depends on: PR2, PR3, PR4
   - Add `class_project/check_all.py`
     - Run the checks in order, print the full report with the four verdicts
   - Update `helpers_root/.claude/skills/github.cosmetic_check_PR/SKILL.md`
