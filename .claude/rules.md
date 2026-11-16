@@ -57,6 +57,12 @@ Based on the files that you need to operate, read and follow the corresponding r
 - For executing a sequence of ready tasks as a stack of branches and PRs you MUST
   follow `.claude/skills/auto_task.execute_with_stacked_prs/SKILL.md`
 
+## Asana
+
+- For Asana tasks you MUST follow:
+  - The rules `.claude/skills/asana.rules.md`
+  - For the plan: the template `.claude/templates/asana_plan.template.md`
+
 ## TODO Files
 
 - For a TODO / task queue file organized by execution stage (e.g.,
