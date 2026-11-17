@@ -5,6 +5,9 @@ Build a thin virtual environment to run workflows on the dev container.
 The environment is built with `pip` by default, or with `uv` using
 `--installer uv`.
 
+The Python version is read from `.python-version` in the root of `helpers`, which
+is also used by the CI. The script fails if the environment does not use it.
+
 # Usage Example
 
 - Build the thin environment with `pip`:
@@ -40,21 +43,44 @@ def _system(cmd: str) -> None:
     hsystem.system(cmd, suppress_output=False)
 
 
-def _create_venv(installer: str, venv_dir: str) -> None:
+def _create_venv(installer: str, venv_dir: str, python_version: str) -> None:
     """
     Create the virtual environment with the selected installer.
 
     :param installer: tool used to build the env (`pip` or `uv`)
     :param venv_dir: dir of the virtual environment
+    :param python_version: Python version of the env, from `.python-version`
     """
     if installer == "uv":
         # `--seed` installs `pip` in the venv, so that the `uv` env has the
         # same tools as the `pip` one.
-        _system(f"uv venv --seed --python python3 {venv_dir}")
+        _system(f"uv venv --seed --python {python_version} {venv_dir}")
     else:
-        _system(f"python3 -m venv {venv_dir}")
+        python_exec = tcu.get_python_exec(python_version)
+        _system(f"{python_exec} -m venv {venv_dir}")
         # Test activating the environment.
         _system(f"source {venv_dir}/bin/activate")
+
+
+def _check_venv_python_version(venv_dir: str, python_version: str) -> None:
+    """
+    Check that the virtual environment uses the required Python version.
+
+    :param venv_dir: dir of the virtual environment
+    :param python_version: Python version required by `.python-version`
+    """
+    _, output = hsystem.system_to_string(f"{venv_dir}/bin/python --version")
+    # E.g., `Python 3.14.7`.
+    actual_version = output.split()[-1]
+    _LOG.info("# venv python='%s'", actual_version)
+    hdbg.dassert(
+        tcu.python_version_matches(python_version, actual_version),
+        "The virtual environment in '%s' uses Python '%s' instead of '%s' "
+        "required by '.python-version'",
+        venv_dir,
+        actual_version,
+        python_version,
+    )
 
 
 def _install_requirements(
@@ -84,8 +110,9 @@ def _main(parser: argparse.ArgumentParser) -> None:
     print(f"##> {SCRIPT_PATH}")
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
-    _, python_version = hsystem.system_to_string("python3 --version")
-    _LOG.info("# python=%s", python_version)
+    # The Python version is the same for the thin env and the CI.
+    python_version = tcu.get_python_version()
+    _LOG.info("# python required='%s'", python_version)
     try:
         _, aws_version = hsystem.system_to_string("aws --version")
         _LOG.info("# aws=%s", aws_version)
@@ -103,6 +130,19 @@ def _main(parser: argparse.ArgumentParser) -> None:
         )
         _, uv_version = hsystem.system_to_string("uv --version")
         _LOG.info("# uv=%s", uv_version)
+    else:
+        # `uv` downloads the required Python if needed, while `venv` needs the
+        # interpreter in `PATH`. Fail before deleting the old virtual
+        # environment.
+        python_exec = tcu.get_python_exec(python_version)
+        hdbg.dassert_is_not(
+            shutil.which(python_exec),
+            None,
+            "'%s' is not installed: install it (e.g., 'brew install "
+            "python@%s') or use '--installer uv'",
+            python_exec,
+            python_version,
+        )
     dir_suffix = hrecouti.get_repo_config().get_dir_suffix()
     # Create the virtual environment.
     venv_dir = tcu.get_venv_dir(dir_suffix)
@@ -124,7 +164,8 @@ def _main(parser: argparse.ArgumentParser) -> None:
     _LOG.info(
         "Creating virtual environment in %s with %s", venv_dir, args.installer
     )
-    _create_venv(args.installer, venv_dir)
+    _create_venv(args.installer, venv_dir, python_version)
+    _check_venv_python_version(venv_dir, python_version)
     # Install the requirements.
     thin_environ_dir = tcu.get_thin_environment_dir(dir_suffix)
     requirements_path = os.path.join(thin_environ_dir, "requirements.txt")

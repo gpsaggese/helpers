@@ -61,6 +61,12 @@ This directory has no subdirectories.
 - Configures Python packages and system requirements
 - Prepares development environment for thin client workflows
 - Builds the virtual environment with `pip` (default) or with `uv`
+- Uses the Python version in `.python-version` in the root of `helpers`
+  - The CI workflows read the same file, so changing it is the only edit needed
+    to move the thin env and the CI to a new version
+  - Fails if the virtual environment does not use this version
+  - With `pip` the interpreter `python<major>.<minor>` must be in `PATH`
+  - With `uv` the interpreter is downloaded if missing
 
 ### Examples
 

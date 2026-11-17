@@ -7,6 +7,7 @@ import dev_scripts_helpers.thin_client.thin_client_utils as dshtctcut
 import argparse
 import logging
 import os
+import re
 import sys
 
 # We need to tweak `PYTHONPATH` directly since we are bootstrapping the system.
@@ -19,12 +20,19 @@ sys.path.insert(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
 import helpers.hdbg as hdbg
+import helpers.hgit as hgit
+import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 
 _LOG = logging.getLogger(__name__)
+
+# File in the root of `helpers` with the Python version used by the thin env and
+# by the CI. The CI workflows read the same file (through
+# `python-version-file`), so that changing it moves both to a new version.
+_PYTHON_VERSION_FILE = ".python-version"
 
 # Unfortunatelly, we need to hardcode this because
 # of the inconsistent naming of the repos.
@@ -59,6 +67,58 @@ def get_venv_dir(dir_suffix: str) -> str:
     home_dir = get_home_dir()
     venv_dir = f"{home_dir}/src/venv/client_venv.{dir_suffix}"
     return venv_dir
+
+
+def get_python_version() -> str:
+    """
+    Get the Python version required by the thin env and by the CI.
+
+    The version is stored in `.python-version` in the root of `helpers`.
+
+    :return: version as `<major>.<minor>` or `<major>.<minor>.<patch>`
+        (e.g., `3.14`)
+    """
+    helpers_root = hgit.find_helpers_root()
+    file_name = os.path.join(helpers_root, _PYTHON_VERSION_FILE)
+    hdbg.dassert_file_exists(file_name)
+    version = hio.from_file(file_name).strip()
+    hdbg.dassert(
+        re.fullmatch(r"\d+\.\d+(\.\d+)?", version) is not None,
+        "Invalid version '%s' in '%s': expected <major>.<minor>[.<patch>]",
+        version,
+        file_name,
+    )
+    return version
+
+
+def get_python_exec(version: str) -> str:
+    """
+    Get the name of the Python interpreter for a version.
+
+    E.g., `3.14` and `3.14.7` -> `python3.14`
+
+    :param version: Python version (e.g., `3.14`)
+    :return: name of the interpreter to look for in `PATH`
+    """
+    major, minor = version.split(".")[:2]
+    return f"python{major}.{minor}"
+
+
+def python_version_matches(required_version: str, actual_version: str) -> bool:
+    """
+    Check if a Python version satisfies the required one.
+
+    The required version can be less specific than the actual one. E.g.,
+    `3.14` is satisfied by `3.14.7` but not by `3.13.2`, while `3.14.7` is
+    satisfied only by `3.14.7`.
+
+    :param required_version: version from `.python-version`
+    :param actual_version: version of the interpreter (e.g., `3.14.7`)
+    :return: whether the actual version satisfies the required one
+    """
+    required = required_version.split(".")
+    actual = actual_version.split(".")
+    return actual[: len(required)] == required
 
 
 def get_tmux_session() -> str:
