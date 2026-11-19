@@ -135,6 +135,7 @@ import helpers.hdbg as hdbg
 import helpers.hgoogle_drive_api as hgodrapi
 import helpers.hparser as hparser
 import helpers.hprint as hprint
+import helpers.htimer as htimer
 
 _LOG = logging.getLogger(__name__)
 
@@ -212,15 +213,16 @@ def _write_tab(
         len(df.columns),
         tab_name,
     )
-    hgodrapi.to_gsheet(
-        df,
-        url,
-        tab_name=tab_name,
-        freeze_rows=freeze_header,
-        bold_header=bold_header,
-        cell_style=cell_style,
-        credentials=credentials,
-    )
+    with htimer.TimedScope(logging.INFO, f"Writing tab '{tab_name}'"):
+        hgodrapi.to_gsheet(
+            df,
+            url,
+            tab_name=tab_name,
+            freeze_rows=freeze_header,
+            bold_header=bold_header,
+            cell_style=cell_style,
+            credentials=credentials,
+        )
 
 
 def _write_all_tabs(
@@ -265,25 +267,34 @@ def _write_all_tabs(
             "Tabs already exist in the Google Sheet: use --overwrite to replace "
             "them",
         )
-    # Write the tabs in order. The tabs that do not exist are added at the end.
     for tab_name, df in tab_name_to_df.items():
-        _write_tab(
-            df,
-            url,
+        _LOG.info(
+            "Writing %d rows and %d columns to tab '%s' in Google Sheet",
+            len(df),
+            len(df.columns),
             tab_name,
-            freeze_header=freeze_header,
-            bold_header=bold_header,
-            cell_style=cell_style,
-            credentials=credentials,
         )
+    # Write the tabs in order. The tabs that do not exist are added at the end.
+    # The Google Sheet is opened only once for all the tabs.
+    hgodrapi.to_gsheet_tabs(
+        tab_name_to_df,
+        url,
+        freeze_rows=freeze_header,
+        bold_header=bold_header,
+        cell_style=cell_style,
+        credentials=credentials,
+    )
     # Make the tabs of the new Google Sheet match the passed tabs.
     if is_tmp_gsheet:
-        default_tab = existing_tabs[0]
-        if default_tab not in tab_names:
-            hgodrapi.delete_tab_from_gsheet(
-                url, default_tab, credentials=credentials
+        with htimer.TimedScope(logging.INFO, "Cleaning up the tabs"):
+            default_tab = existing_tabs[0]
+            if default_tab not in tab_names:
+                hgodrapi.delete_tab_from_gsheet(
+                    url, default_tab, credentials=credentials
+                )
+            hgodrapi.reorder_tabs_in_gsheet(
+                url, tab_names, credentials=credentials
             )
-        hgodrapi.reorder_tabs_in_gsheet(url, tab_names, credentials=credentials)
 
 
 # #############################################################################
@@ -364,6 +375,8 @@ def _parse() -> argparse.ArgumentParser:
 def _main(parser: argparse.ArgumentParser) -> None:
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
+    # Measure the total time, to see which phase is slow.
+    total_timer = htimer.Timer()
     write_all_tabs = args.tabname == _ALL_TABS
     hdbg.dassert_imply(
         write_all_tabs,
@@ -376,7 +389,8 @@ def _main(parser: argparse.ArgumentParser) -> None:
     tab_name_to_df: Dict[str, pd.DataFrame] = {}
     df = pd.DataFrame()
     if write_all_tabs:
-        tab_name_to_df = _read_all_tab_files(args.input_file)
+        with htimer.TimedScope(logging.INFO, "Reading the CSV files"):
+            tab_name_to_df = _read_all_tab_files(args.input_file)
     else:
         # Validate input file exists.
         hdbg.dassert_path_exists(args.input_file)
@@ -385,8 +399,8 @@ def _main(parser: argparse.ArgumentParser) -> None:
         df = _read_csv(args.input_file)
         _LOG.info("Loaded %d rows and %d columns", len(df), len(df.columns))
     # Get credentials.
-    _LOG.info("Loading Google API credentials")
-    credentials = hgodrapi.get_credentials()
+    with htimer.TimedScope(logging.INFO, "Loading Google API credentials"):
+        credentials = hgodrapi.get_credentials()
     # Without a URL, create a new temporary Google Sheet.
     url = args.url
     is_tmp_gsheet = url == ""
@@ -396,25 +410,29 @@ def _main(parser: argparse.ArgumentParser) -> None:
         "Cannot use --use_gid flag without --url",
     )
     if is_tmp_gsheet:
-        url = hgodrapi.create_tmp_gsheet(credentials=credentials)
+        with htimer.TimedScope(logging.INFO, "Creating temporary Google Sheet"):
+            url = hgodrapi.create_tmp_gsheet(credentials=credentials)
         _LOG.info("Created temporary Google Sheet: '%s'", url)
     # Print information about the Google Sheet.
-    _LOG.info("Google Sheet information:")
-    hgodrapi.print_info_about_google_url(url, credentials=credentials)
-    existing_tabs = hgodrapi.get_tabs_from_gsheet(url, credentials=credentials)
+    with htimer.TimedScope(logging.INFO, "Getting Google Sheet information"):
+        hgodrapi.print_info_about_google_url(url, credentials=credentials)
+        existing_tabs = hgodrapi.get_tabs_from_gsheet(
+            url, credentials=credentials
+        )
     if write_all_tabs:
         # Write one tab for each file.
-        _write_all_tabs(
-            tab_name_to_df,
-            url,
-            existing_tabs,
-            is_tmp_gsheet=is_tmp_gsheet,
-            overwrite=args.overwrite,
-            freeze_header=args.freeze_header,
-            bold_header=args.bold_header,
-            cell_style=args.cell_style,
-            credentials=credentials,
-        )
+        with htimer.TimedScope(logging.INFO, "Writing all the tabs"):
+            _write_all_tabs(
+                tab_name_to_df,
+                url,
+                existing_tabs,
+                is_tmp_gsheet=is_tmp_gsheet,
+                overwrite=args.overwrite,
+                freeze_header=args.freeze_header,
+                bold_header=args.bold_header,
+                cell_style=args.cell_style,
+                credentials=credentials,
+            )
         # Open the first tab, if requested.
         tab_name = next(iter(tab_name_to_df))
     else:
@@ -463,6 +481,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
             credentials=credentials,
         )
     _LOG.info("Successfully wrote data to Google Sheet")
+    _LOG.info("Total time: %s", htimer.stop_timer(total_timer))
     if args.open:
         tab_url = hgodrapi.get_gsheet_tab_url(
             url, tab_name, credentials=credentials
