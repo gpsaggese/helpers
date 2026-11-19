@@ -6,6 +6,7 @@ Import as:
 import helpers.hmarkdown_coloring as hmarcolo
 """
 
+import functools
 import logging
 import re
 from typing import Dict, List, Match, Optional
@@ -188,7 +189,9 @@ def process_color_commands(in_line: str, output_format: str) -> str:
 
         # Replace the color command with the output-format-specific color command.
         in_line = re.sub(
-            pattern, lambda m: _replacement(m, output_color), in_line
+            pattern,
+            functools.partial(_replacement, output_color=output_color),
+            in_line,
         )
     return in_line
 
@@ -203,7 +206,7 @@ def has_color_command(text: str) -> bool:
     hdbg.dassert_isinstance(text, str)
     # hdbg.dassert_not_in("\n", line)
     latex_mapping = get_md_colors_mapping("latex")
-    for color in latex_mapping.keys():
+    for color in latex_mapping:
         # This regex matches LaTeX color commands like \red{content},
         # \blue{content}, etc.
         pattern = re.compile(
@@ -251,13 +254,20 @@ _COLOR_MARKER_REGEX = re.compile(
 # allowed, but a paragraph break (blank line) or the start of a new bullet
 # or header is not, so bold text is never merged across two unrelated
 # bullets/paragraphs that each happen to contain an (unmatched) `**`.
+# An inline code span (e.g., `` `**kwargs` ``) is matched first, as the `code`
+# group, so that a `**` inside it is consumed as code and never taken as a bold
+# delimiter. Without this, two `` `**kwargs` `` spans on one line were paired as
+# a single bold span, which produced invalid Typst. The caller leaves a `code`
+# match unchanged.
 _PLAIN_BOLD_REGEX = re.compile(
     r"""
+    (?P<code>`[^`\n]*`)              # An inline code span, left untouched.
+    |                                # OR
     \*\*                             # Match the opening `**`.
     (?!\\|`)                         # Negative lookahead: skip marker-produced
                                      # `**\color{...}**` and already-converted
                                      # `` **`#text(...)`{=typst}** ``.
-    (                                # Start capture group.
+    (?P<bold>                        # Start capture group.
       (?:
         (?!\*\*)                     # Don't consume the closing `**`.
         (?!\n[ \t]*(?:\n|[-*]\s|\#)) # Don't cross a paragraph break, a new
@@ -292,7 +302,7 @@ def _wrap_typst_text(text: str, fill: str, weight: str) -> str:
     raw span(s), so Pandoc still translates it from LaTeX to Typst math on
     its own.
 
-    E.g., 
+    E.g.,
     ```
     text = r"$\eta$ is too small"
     ```
@@ -438,23 +448,31 @@ def colorize_bullet_points_in_slide(
     hdbg.dassert_lte(
         num_bolds, len(colors), "Number of bold items exceeds available colors"
     )
+
     def semibold_replacer(match: Match[str]) -> str:
         """
         Replace a plain `**text**` bold with Typst semibold, gray-black.
 
         LaTeX has no semibold series set up, so the match is returned
         unchanged (plain markdown bold).
+
+        A match of an inline code span (e.g., `` `**kwargs` ``) is also
+        returned unchanged, since a `**` inside code is not a bold delimiter.
         """
-        # The captured text may span a soft-wrapped continuation line;
-        # collapse that newline (and the continuation's leading indentation)
-        # into a single space, like a normal markdown soft line break.
-        text = re.sub(r"\n[ \t]*", " ", match.group(1))
-        if output_format == "latex":
-            ret = f"**{text}**"
-        else:  # typst
-            ret = _wrap_typst_text(
-                text, _PLAIN_BOLD_FILL_TYPST, _PLAIN_BOLD_WEIGHT_TYPST
-            )
+        if match.group("code"):
+            ret = match.group(0)
+        else:
+            # The captured text may span a soft-wrapped continuation line;
+            # collapse that newline (and the continuation's leading
+            # indentation) into a single space, like a normal markdown soft
+            # line break.
+            text = re.sub(r"\n[ \t]*", " ", match.group("bold"))
+            if output_format == "latex":
+                ret = f"**{text}**"
+            else:  # typst
+                ret = _wrap_typst_text(
+                    text, _PLAIN_BOLD_FILL_TYPST, _PLAIN_BOLD_WEIGHT_TYPST
+                )
         return ret
 
     # Apply semibold weight to plain `**text**` bold first, while `**` still
