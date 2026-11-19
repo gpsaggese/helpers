@@ -1622,7 +1622,7 @@ def save_df_to_tmp_gsheet(
     if tab_name == "":
         # Find the first tab name that is not empty.
         tab_names = get_tabs_from_gsheet(url, credentials=credentials)
-        for i in range(0, 100):
+        for i in range(100):
             tab_name = "Sheet" + str(i)
             if tab_name not in tab_names:
                 break
