@@ -67,6 +67,10 @@ def _add_write_perm_to_symlink(dir: str) -> None:
     """
     _LOG.info("Adding write permission for all on each symlink under %s", dir)
     for path in _collect_symlinks(dir):
+        # `os.chmod()` follows the symlink and fails on a broken one.
+        if not os.path.exists(path):
+            _LOG.warning("Skipping broken symlink: %s", path)
+            continue
         try:
             mode = os.lstat(path).st_mode
             os.chmod(
