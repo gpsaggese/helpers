@@ -83,9 +83,10 @@ def _colorize_backticks(
     E.g., `store` into `\textcolor{blue}{\texttt{store}}`
     E.g., `weeks_to_xmas` into `\textcolor{blue}{\texttt{weeks\_to\_xmas}}`
 
-    For Typst output, converts backticks to `#text(fill: color)[content]`
-    E.g., `store` into `#text(fill: blue)[store]`
-    E.g., `weeks_to_xmas` into `#text(fill: blue)[weeks\_to\_xmas]`
+    For Typst output, converts backticks to `#text(fill: color)[#raw("content")]`
+    (colored monospace text)
+    E.g., `store` into `#text(fill: blue)[#raw("store")]`
+    E.g., `weeks_to_xmas` into `#text(fill: blue)[#raw("weeks_to_xmas")]`
 
     :param in_line: input line to process
     :param color: color name
@@ -122,44 +123,16 @@ def _colorize_backticks(
             escaped_text = matched_text.replace("_", r"\_").replace("^", r"\^{}")
             txt = rf"\textcolor{{{color}}}{{\texttt{{{escaped_text}}}}}"
         else:  # typst
-            # For Typst, use #text with the content directly (no inner backticks).
-            # The content is rendered as monospace colored text via #text(fill:
-            # color)[content].
-            # Wrap in backticks with {=typst} so pandoc treats it as raw typst code.
-            # Escape each Typst special character, in this exact order (order
-            # matters: an earlier substitution's output must not be re-matched
-            # by a later rule).
-            _TYPST_ESCAPE_CHARS = [
-                # `~`: has special meaning in Typst.
-                ("~", r"\~"),
-                # `_`: triggers underscore-emphasis markup and can leave an
-                # "unclosed delimiter" (e.g., `lint_*`, `dev_scripts_<repo>`),
-                # so it is escaped unconditionally even where it is safe
-                # unescaped (e.g., `weeks_to_xmas`).
-                ("_", r"\_"),
-                # `<`: parsed as a label reference `<name>` (e.g., `<prompt>`),
-                # silently dropping the text.
-                ("<", r"\<"),
-                # `*`: parsed as strong-emphasis markup (e.g., `lint_*` left an
-                # unclosed `*` delimiter and broke compilation).
-                ("*", r"\*"),
-                # `//`: treated as a line comment, swallowing the rest of the
-                # line including the closing `]` (e.g., `//helpers`).
-                ("//", r"\//"),
-                # `#`: starts code mode (e.g., `# nosemgrep` fails with
-                # "expected expression").
-                ("#", r"\#"),
-                # `$`: starts math-mode delimiters (e.g., `$FILE` fails with
-                # "unknown variable: FILE").
-                ("$", r"\$"),
-                # `@`: parsed as a citation/reference (e.g., `@task` fails with
-                # "label `<task>` does not exist").
-                ("@", r"\@"),
-            ]
-            escaped_text = matched_text
-            for char, escaped in _TYPST_ESCAPE_CHARS:
-                escaped_text = escaped_text.replace(char, escaped)
-            txt = f"`#text(fill: {color})[{escaped_text}]`{{=typst}}"
+            # For Typst, wrap the content in a `raw` element so it keeps the
+            # monospace font and the `#show raw.where(block: false)` rules of
+            # the template, and color it with `#text(fill: color)`.
+            # Pass the content as a Typst string, so the only characters to
+            # escape are the backslash and the double quote (no markup
+            # escaping is needed, since a string is not parsed as markup).
+            # Wrap in backticks with {=typst} so pandoc treats it as raw typst
+            # code.
+            escaped_text = matched_text.replace("\\", r"\\").replace('"', r"\"")
+            txt = f'`#text(fill: {color})[#raw("{escaped_text}")]`{{=typst}}'
         return txt
 
     line = pattern.sub(replace_func, line)

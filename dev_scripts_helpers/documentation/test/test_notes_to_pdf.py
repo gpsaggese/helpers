@@ -354,7 +354,6 @@ class Test_notes_to_pdf_py(hunitest.TestCase):
         # Check outputs.
         txt = f"script_txt:\n{script_txt}\n"
         txt += f"output_txt:\n{output_txt}\n"
-        #
         tag = _get_arch_tag()
         self.check_string(txt, purify_text=True, tag=tag, fuzzy_match=True)
 
@@ -1393,7 +1392,7 @@ class Test_notes_to_pdf_errors(hunitest.TestCase):
         cmd = " ".join(cmd)
         _LOG.debug("cmd=%s", cmd)
         # Run test: expect error
-        with self.assertRaises(Exception):
+        with self.assertRaises(RuntimeError):
             hsystem.system(cmd)
 
     def test1(self) -> None:
@@ -2268,7 +2267,6 @@ class Test_notes_to_pdf_latex_colors(hunitest.TestCase):
             raise ValueError(
                 "Invalid inputs: " + hprint.to_str("type_ slides_engine no_pdf")
             )
-        #
         out_dir = self.get_scratch_space()
         out_file = os.path.join(out_dir, f"output.{out_ext}")
         script_file = os.path.join(out_dir, "script.sh")
@@ -2659,12 +2657,13 @@ class Test_notes_to_pdf_tilde_in_code(hunitest.TestCase):
         actual = _to_output_str(script_txt, out_txt)
         self.check_string(actual, purify_text=True, fuzzy_match=True)
         # Check outputs: tildes must survive, not be dropped or mangled.
-        # Tildes are escaped as \~ in typst since they have special meaning in
-        # #text()[...] blocks.
+        # Inline code is emitted as a Typst string inside `raw()`, so tildes
+        # are kept literal and need no escaping.
         self.assertIn(
-            r"default \~ credit\_limit + credit\_score + account\_age", out_txt
+            r'#raw("default ~ credit_limit + credit_score + account_age")',
+            out_txt,
         )
-        self.assertIn(r"a \~ b \~ c", out_txt)
+        self.assertIn(r'#raw("a ~ b ~ c")', out_txt)
 
 
 # #############################################################################
