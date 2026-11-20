@@ -1376,3 +1376,389 @@ class Test_is_git_worktree(hunitest.TestCase):
         root_result = hgit.is_git_worktree()
         subdir_result = hgit.is_git_worktree(scratch_dir)
         self.assertEqual(root_result, subdir_result)
+
+
+# #############################################################################
+# Test_parse_worktree_list
+# #############################################################################
+
+
+class Test_parse_worktree_list(hunitest.TestCase):
+    def helper(self, branch: str, expected: object) -> None:
+        # Prepare inputs.
+        txt = """
+        worktree /src/repo
+        HEAD 1111111111111111111111111111111111111111
+        branch refs/heads/master
+
+        worktree /src/repo_788
+        HEAD 2222222222222222222222222222222222222222
+        branch refs/heads/UmdTask788_Racket_sports
+
+        worktree /src/repo_detached
+        HEAD 3333333333333333333333333333333333333333
+        detached
+        """
+        txt = "\n".join(line.strip() for line in txt.split("\n"))
+        # Run test.
+        actual = hgit.parse_worktree_list(txt, branch)
+        # Check outputs.
+        self.assert_equal(str(actual), str(expected))
+
+    def test1(self) -> None:
+        """
+        Test that the worktree of a branch is found.
+        """
+        self.helper("UmdTask788_Racket_sports", "/src/repo_788")
+
+    def test2(self) -> None:
+        """
+        Test that the main client is found as the worktree of its branch.
+        """
+        self.helper("master", "/src/repo")
+
+    def test3(self) -> None:
+        """
+        Test that a branch without worktree returns `None`.
+        """
+        self.helper("UmdTask999_Other", None)
+
+    def test4(self) -> None:
+        """
+        Test that a branch name that is a prefix of another one is not matched.
+        """
+        self.helper("UmdTask788", None)
+
+
+# #############################################################################
+# Test_get_default_worktree_dir
+# #############################################################################
+
+
+class Test_get_default_worktree_dir(hunitest.TestCase):
+    def test1(self) -> None:
+        """
+        Test that the dir is `<repo>_<issue_id>`.
+        """
+        # Prepare inputs.
+        branch = "UmdTask788_Racket_sports_Change_color_of_heatmaps"
+        git_root = "/src/umd_classes1"
+        # Run test.
+        actual = hgit.get_default_worktree_dir(branch, git_root=git_root)
+        # Check outputs.
+        expected = "/src/umd_classes1_788"
+        self.assert_equal(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test that a branch without issue number uses the branch name.
+        """
+        # Prepare inputs.
+        branch = "feature/fix_bug"
+        git_root = "/src/umd_classes1"
+        # Run test.
+        actual = hgit.get_default_worktree_dir(branch, git_root=git_root)
+        # Check outputs.
+        expected = "/src/umd_classes1_feature_fix_bug"
+        self.assert_equal(actual, expected)
+
+
+# #############################################################################
+# Git repos with a remote
+# #############################################################################
+
+
+def _git(git_dir: str, args: str) -> str:
+    """
+    Run a git command in a dir and return its output.
+
+    :param git_dir: dir of the git repo
+    :param args: arguments of the git command
+    :return: output of the command, without trailing newline
+    """
+    cmd = (
+        f"git -C {git_dir} -c user.name=test -c user.email=test@example.com "
+        f"{args}"
+    )
+    _, txt = hsystem.system_to_string(cmd)
+    return txt.strip()
+
+
+class _GitRepoWithRemoteTestCase(hunitest.TestCase):
+    """
+    Create a client cloned from a bare `origin`, with `master` pushed.
+    """
+
+    def set_up_test(self) -> None:
+        scratch_dir = self.get_scratch_space()
+        self.origin_dir = os.path.join(scratch_dir, "origin.git")
+        self.client_dir = os.path.join(scratch_dir, "client")
+        hsystem.system(f"git init --bare -b master {self.origin_dir}")
+        hsystem.system(f"git clone {self.origin_dir} {self.client_dir}")
+        _git(self.client_dir, "checkout -b master")
+        _git(self.client_dir, "commit --allow-empty -m init")
+        _git(self.client_dir, "push origin master")
+
+    def push_branch(self, branch: str) -> str:
+        """
+        Create a branch with one commit, push it, and return to master.
+
+        :param branch: name of the branch
+        :return: hash of the tip of the branch
+        """
+        _git(self.client_dir, f"checkout -b {branch}")
+        _git(self.client_dir, f"commit --allow-empty -m {branch}")
+        _git(self.client_dir, f"push origin {branch}")
+        tip = _git(self.client_dir, "rev-parse HEAD")
+        _git(self.client_dir, "checkout master")
+        return tip
+
+    def get_worktree_dir(self, suffix: str) -> str:
+        worktree_dir = os.path.join(self.get_scratch_space(), f"client_{suffix}")
+        return worktree_dir
+
+
+# #############################################################################
+# Test_exists_on_ref
+# #############################################################################
+
+
+class Test_exists_on_ref(_GitRepoWithRemoteTestCase):
+    def test1(self) -> None:
+        """
+        Test that a path tracked on the ref exists.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        hio.to_file(os.path.join(self.client_dir, "a.txt"), "a")
+        _git(self.client_dir, "add a.txt")
+        _git(self.client_dir, "commit -m add_a")
+        # Run test.
+        actual = hgit.exists_on_ref("master", "a.txt", git_root=self.client_dir)
+        # Check outputs.
+        self.assertTrue(actual)
+
+    def test2(self) -> None:
+        """
+        Test that a path not in the tree of the ref does not exist.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        # Run test.
+        actual = hgit.exists_on_ref("master", "a.txt", git_root=self.client_dir)
+        # Check outputs.
+        self.assertFalse(actual)
+
+    def test3(self) -> None:
+        """
+        Test that a path is looked up on the passed ref, not on the checkout.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        hio.to_file(os.path.join(self.client_dir, "a.txt"), "a")
+        _git(self.client_dir, "add a.txt")
+        _git(self.client_dir, "commit -m add_a")
+        # Run test.
+        actual = hgit.exists_on_ref(
+            "origin/master", "a.txt", git_root=self.client_dir
+        )
+        # Check outputs.
+        self.assertFalse(actual)
+
+
+# #############################################################################
+# Test_create_worktree
+# #############################################################################
+
+
+class Test_create_worktree(_GitRepoWithRemoteTestCase):
+    def test1(self) -> None:
+        """
+        Test creating the worktree of a branch that exists only on the remote.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask1_Remote_only"
+        tip = self.push_branch(branch)
+        _git(self.client_dir, f"branch -D {branch}")
+        worktree_dir = self.get_worktree_dir("1")
+        # Run test.
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+        )
+        # Check outputs.
+        self.assert_equal(hgit.get_branch_name(worktree_dir), branch)
+        self.assert_equal(_git(worktree_dir, "rev-parse HEAD"), tip)
+        # The local branch tracks the remote one.
+        actual = _git(worktree_dir, "rev-parse --abbrev-ref @{upstream}")
+        self.assert_equal(actual, f"origin/{branch}")
+
+    def test2(self) -> None:
+        """
+        Test creating the worktree of a branch that exists locally and on the
+        remote.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask2_Local_and_remote"
+        tip = self.push_branch(branch)
+        worktree_dir = self.get_worktree_dir("2")
+        # Run test.
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+        )
+        # Check outputs.
+        self.assert_equal(hgit.get_branch_name(worktree_dir), branch)
+        self.assert_equal(_git(worktree_dir, "rev-parse HEAD"), tip)
+
+    def test3(self) -> None:
+        """
+        Test that a local branch behind the remote one is fast-forwarded.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask3_Behind"
+        old_tip = self.push_branch(branch)
+        _git(self.client_dir, f"checkout {branch}")
+        _git(self.client_dir, "commit --allow-empty -m new_commit")
+        _git(self.client_dir, f"push origin {branch}")
+        new_tip = _git(self.client_dir, "rev-parse HEAD")
+        _git(self.client_dir, "checkout master")
+        _git(self.client_dir, f"branch -f {branch} {old_tip}")
+        worktree_dir = self.get_worktree_dir("3")
+        # Run test.
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+        )
+        # Check outputs.
+        self.assert_equal(_git(worktree_dir, "rev-parse HEAD"), new_tip)
+
+    def test4(self) -> None:
+        """
+        Test creating the worktree of a branch that was not pushed yet.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask4_Not_pushed"
+        _git(self.client_dir, f"checkout -b {branch}")
+        _git(self.client_dir, "commit --allow-empty -m local_commit")
+        tip = _git(self.client_dir, "rev-parse HEAD")
+        _git(self.client_dir, "checkout master")
+        worktree_dir = self.get_worktree_dir("4")
+        # Run test.
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+        )
+        # Check outputs.
+        self.assert_equal(hgit.get_branch_name(worktree_dir), branch)
+        self.assert_equal(_git(worktree_dir, "rev-parse HEAD"), tip)
+
+    def test5(self) -> None:
+        """
+        Test that a dry run does not create the worktree.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask5_Dry_run"
+        self.push_branch(branch)
+        worktree_dir = self.get_worktree_dir("5")
+        # Run test.
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+            dry_run=True,
+        )
+        # Check outputs.
+        self.assertFalse(os.path.exists(worktree_dir))
+
+    def test6(self) -> None:
+        """
+        Test that a branch that exists neither locally nor on the remote
+        asserts.
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        worktree_dir = self.get_worktree_dir("6")
+        # Run test.
+        with self.assertRaises(AssertionError) as cm:
+            hgit.create_worktree(
+                "UmdTask6_Missing",
+                worktree_dir,
+                git_root=self.client_dir,
+                submodule_paths=[],
+            )
+        # Check outputs.
+        self.assertIn("doesn't exist locally or on 'origin'", str(cm.exception))
+
+
+# #############################################################################
+# Test_sync_worktree
+# #############################################################################
+
+
+class Test_sync_worktree(_GitRepoWithRemoteTestCase):
+    def helper(self, *, is_dirty: bool) -> str:
+        """
+        Make a worktree fall behind its remote branch, then sync it.
+
+        :param is_dirty: whether the worktree has uncommitted changes
+        :return: hash of the tip of the remote branch
+        """
+        # Prepare inputs.
+        self.set_up_test()
+        branch = "UmdTask7_Sync"
+        self.push_branch(branch)
+        worktree_dir = self.get_worktree_dir("7")
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=self.client_dir,
+            submodule_paths=[],
+        )
+        # Push a new commit to the remote branch from another clone.
+        other_dir = os.path.join(self.get_scratch_space(), "other")
+        hsystem.system(f"git clone {self.origin_dir} {other_dir}")
+        _git(other_dir, f"checkout {branch}")
+        _git(other_dir, "commit --allow-empty -m new_commit")
+        _git(other_dir, f"push origin {branch}")
+        new_tip = _git(other_dir, "rev-parse HEAD")
+        _git(worktree_dir, "fetch origin")
+        if is_dirty:
+            hio.to_file(os.path.join(worktree_dir, "dirty.txt"), "dirty")
+            _git(worktree_dir, "add dirty.txt")
+        # Run test.
+        hgit.sync_worktree(branch, worktree_dir)
+        self.worktree_dir = worktree_dir
+        return new_tip
+
+    def test1(self) -> None:
+        """
+        Test that a clean worktree is fast-forwarded to the remote branch.
+        """
+        # Run test.
+        new_tip = self.helper(is_dirty=False)
+        # Check outputs.
+        self.assert_equal(_git(self.worktree_dir, "rev-parse HEAD"), new_tip)
+
+    def test2(self) -> None:
+        """
+        Test that a worktree with local changes is left as it is.
+        """
+        # Run test.
+        new_tip = self.helper(is_dirty=True)
+        # Check outputs.
+        self.assertNotEqual(_git(self.worktree_dir, "rev-parse HEAD"), new_tip)

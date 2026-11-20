@@ -25,6 +25,7 @@
   | Slot   | Document                       | Question it answers                                 | Cluster    |
   | :----- | :----------------------------- | :-------------------------------------------------- | :--------- |
   | `01`   | `01-prd.md`                    | What the product must do and must not do            | Specs      |
+  | `01.1` | `01.1-milestones.md`           | Which requirements each version implements          | Plans      |
   | `02`   | `02-design.architecture.md`    | How the whole code is built                         | Design     |
   | `02.N` | `02.<N>-design.<component>.md` | How one component is built                          | Design     |
   | `03`   | `03-decisions.md`              | Why it is built this way                            | Specs      |

@@ -150,6 +150,8 @@ testing workflows.
 ### `open_notebook_from_branch.py`
 
 - **What It Does**:
+  - Accepts a branch name or a GitHub PR URL, and resolves the URL to the head
+    branch of the PR with `gh`
   - Fetches a branch and creates (or reuses and fast-forwards) a git worktree
     for it, leaving the current client untouched
   - Finds the project dir with `docker_jupyter.sh` above the notebook
@@ -167,6 +169,14 @@ testing workflows.
     > ./open_notebook_from_branch.py \
         -i research/Optimal_strategy_for_racket_sports/notebooks/racket_shot_probability.ipynb \
         --branch UmdTask788_Racket_sports_Change_color_of_heatmaps
+    ```
+
+  - Open a notebook from the branch of a PR, passing the PR URL:
+
+    ```bash
+    > ./open_notebook_from_branch.py \
+        -i tutorials/AutoGluon/AutoGluon.API.ipynb \
+        --branch https://github.com/gpsaggese/gpsaggese.github.io/pull/895
     ```
 
   - Show the commands without running them:

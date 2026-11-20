@@ -7,15 +7,16 @@ import dev_scripts_helpers.git.test.test_git_create_issue_and_branch as dsggtgia
 """
 
 import json
-from typing import Any, List, Optional
+from typing import Any, List
 
 # TODO(ai_gp): use import unittest
 from unittest import mock
 
-import dev_scripts_helpers.git.git_create_issue_and_branch as dshggciab
 import helpers.hunit_test as hunitest
 import helpers.hunit_test_utils as hunteuti
 from helpers import hprint
+
+import dev_scripts_helpers.git.git_create_issue_and_branch as dshggciab
 
 
 def _make_is_clean_side_effect(clean_dir_name: str):
@@ -535,9 +536,7 @@ class Test_create_worktree(hunitest.TestCase):
     Tests for `_create_worktree()` function.
     """
 
-    def _helper(
-        self, submodule_paths: Optional[List[str]], expected: str
-    ) -> None:
+    def _helper(self, submodule_paths: List[str], expected: str) -> None:
         """
         Run `_create_worktree()` and check the captured system calls and the
         returned worktree path.
@@ -547,7 +546,6 @@ class Test_create_worktree(hunitest.TestCase):
         """
         # Prepare inputs.
         branch_name = "HelpersTask1290_Test_Branch"
-        issue_id = 1290
         original_branch = "master"
         # Run test and capture system calls.
         with (
@@ -555,21 +553,22 @@ class Test_create_worktree(hunitest.TestCase):
             mock.patch("os.getcwd", return_value="/home/user/helpers1"),
         ):
             worktree_path = dshggciab._create_worktree(
-                branch_name, issue_id, original_branch, submodule_paths
+                branch_name, original_branch, submodule_paths
             )
         # Check outputs.
         expected = hprint.dedent(expected)
         hunteuti.assert_sys_calls(self, invocations, expected)
         # Verify returned worktree path.
-        expected_path = "/home/user/helpers1_worktree_1290"
+        expected_path = "/home/user/helpers1_1290"
         self.assertEqual(worktree_path, expected_path)
 
     def test1(self) -> None:
         """
-        Test creating a worktree.
+        Test creating a worktree of a branch that exists locally and on the
+        remote, without submodules to check out.
         """
         # Prepare inputs.
-        submodule_paths = None
+        submodule_paths: List[str] = []
         # Prepare outputs.
         expected = r"""[
         {
@@ -578,9 +577,34 @@ class Test_create_worktree(hunitest.TestCase):
         'kwargs': {'log_level': 20},
         },
         {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/heads/HelpersTask1290_Test_Branch',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/remotes/origin/HelpersTask1290_Test_Branch',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
         'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1 worktree add /home/user/helpers1_1290 HelpersTask1290_Test_Branch',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 merge --ff-only origin/HelpersTask1290_Test_Branch',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 cat-file -e HelpersTask1290_Test_Branch:.gitmodules',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 submodule update --init --recursive',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         ]"""
         # Run test.
@@ -602,23 +626,93 @@ class Test_create_worktree(hunitest.TestCase):
         'kwargs': {'log_level': 20},
         },
         {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/heads/HelpersTask1290_Test_Branch',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/remotes/origin/HelpersTask1290_Test_Branch',),
+        'kwargs': {'abort_on_error': False},
         },
         {
         'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290 submodule update --init --recursive',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1 worktree add /home/user/helpers1_1290 HelpersTask1290_Test_Branch',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         {
         'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290/helpers_root checkout HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1_1290 merge --ff-only origin/HelpersTask1290_Test_Branch',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 cat-file -e HelpersTask1290_Test_Branch:.gitmodules',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 submodule update --init --recursive',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290/helpers_root checkout HelpersTask1290_Test_Branch',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         ]"""
         # Run test.
         self._helper(submodule_paths, expected)
+
+
+# #############################################################################
+# Test_get_tmux_index
+# #############################################################################
+
+
+class Test_get_tmux_index(hunitest.TestCase):
+    """
+    Tests for `_get_tmux_index()` function.
+    """
+
+    def test1(self) -> None:
+        """
+        Test that the repo `dir_suffix` prefix is stripped from the dir name.
+        """
+        # Prepare inputs.
+        worktree_path = "/home/user/src/helpers1_1325"
+        dir_suffix = "helpers"
+        # Run test.
+        actual = dshggciab._get_tmux_index(worktree_path, dir_suffix)
+        # Check outputs.
+        expected = "1_1325"
+        self.assert_equal(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test a repo whose `dir_suffix` differs from its dir name.
+        """
+        # Prepare inputs.
+        worktree_path = "/home/user/src/umd_classes1_891"
+        dir_suffix = "umd_classes"
+        # Run test.
+        actual = dshggciab._get_tmux_index(worktree_path, dir_suffix)
+        # Check outputs.
+        expected = "1_891"
+        self.assert_equal(actual, expected)
+
+    def test3(self) -> None:
+        """
+        Test that a dir name without the `dir_suffix` prefix is kept as is.
+        """
+        # Prepare inputs.
+        worktree_path = "/home/user/src/other_repo_7"
+        dir_suffix = "helpers"
+        # Run test.
+        actual = dshggciab._get_tmux_index(worktree_path, dir_suffix)
+        # Check outputs.
+        expected = "other_repo_7"
+        self.assert_equal(actual, expected)
 
 
 # #############################################################################
@@ -781,6 +875,12 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
             mock.patch("helpers.hgit.does_branch_exist", return_value=False),
             mock.patch("os.getcwd", return_value="/home/user/helpers1"),
             mock.patch(
+                "helpers.repo_config_utils.get_repo_config",
+                return_value=mock.Mock(
+                    **{"get_dir_suffix.return_value": "helpers"}
+                ),
+            ),
+            mock.patch(
                 "dev_scripts_helpers.git.git_create_issue_and_branch._commit_issue_files"
             ),
             mock.patch("shutil.copy"),
@@ -800,9 +900,34 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
         'kwargs': {'log_level': 20},
         },
         {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/heads/HelpersTask1290_Test',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/remotes/origin/HelpersTask1290_Test',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
         'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1 worktree add /home/user/helpers1_1290 HelpersTask1290_Test',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 merge --ff-only origin/HelpersTask1290_Test',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 cat-file -e HelpersTask1290_Test:.gitmodules',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 submodule update --init --recursive',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         {
         'function': hsystem.system,
@@ -858,6 +983,12 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
             mock.patch("helpers.hgit.does_branch_exist", return_value=False),
             mock.patch("os.getcwd", return_value="/home/user/helpers1"),
             mock.patch(
+                "helpers.repo_config_utils.get_repo_config",
+                return_value=mock.Mock(
+                    **{"get_dir_suffix.return_value": "helpers"}
+                ),
+            ),
+            mock.patch(
                 "dev_scripts_helpers.git.git_create_issue_and_branch._commit_issue_files"
             ),
             mock.patch("shutil.copy"),
@@ -883,19 +1014,39 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
         'kwargs': {'log_level': 20},
         },
         {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/heads/HelpersTask1290_Test',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 show-ref --verify --quiet refs/remotes/origin/HelpersTask1290_Test',),
+        'kwargs': {'abort_on_error': False},
         },
         {
         'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290 submodule update --init --recursive',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1 worktree add /home/user/helpers1_1290 HelpersTask1290_Test',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         {
         'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290/helpers_root checkout HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
+        'args': ('git -C /home/user/helpers1_1290 merge --ff-only origin/HelpersTask1290_Test',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system_to_string,
+        'args': ('git -C /home/user/helpers1 cat-file -e HelpersTask1290_Test:.gitmodules',),
+        'kwargs': {'abort_on_error': False},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290 submodule update --init --recursive',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
+        },
+        {
+        'function': hsystem.system,
+        'args': ('git -C /home/user/helpers1_1290/helpers_root checkout HelpersTask1290_Test',),
+        'kwargs': {'suppress_output': False, 'dry_run': False, 'log_level': 20},
         },
         {
         'function': hsystem.system_to_string,

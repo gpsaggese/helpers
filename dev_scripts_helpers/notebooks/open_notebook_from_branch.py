@@ -4,6 +4,7 @@ r"""
 Open a notebook from a git branch in a live Jupyter Lab, in a git worktree.
 
 The current client is not touched. The script:
+- resolves a PR URL passed as `--branch` to the head branch of the PR with `gh`
 - fetches the branch from `origin`
 - creates a git worktree for the branch, or reuses and fast-forwards the existing
   one
@@ -23,6 +24,11 @@ Stop Jupyter Lab with Ctrl+C. The worktree is left in place, remove it with
     -i research/Optimal_strategy_for_racket_sports/notebooks/racket_shot_probability.ipynb \
     --branch UmdTask788_Racket_sports_Change_color_of_heatmaps
 
+- Open a notebook from the branch of a PR, passing the PR URL:
+> open_notebook_from_branch.py \
+    -i tutorials/AutoGluon/AutoGluon.API.ipynb \
+    --branch https://github.com/gpsaggese/gpsaggese.github.io/pull/895
+
 - Print the commands that change the client or start containers without
   running them:
 > open_notebook_from_branch.py -i <notebook> --branch <branch> --dry_run
@@ -40,15 +46,17 @@ import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 """
 
 import argparse
+import json
 import logging
 import os
+import re
 import shlex
 import socket
 import threading
 import time
 import urllib.parse
 import webbrowser
-from typing import Optional
+from typing import Optional, Tuple
 
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
@@ -78,6 +86,95 @@ def _normalize_branch(branch: str) -> str:
     prefix = "origin/"
     branch = branch.removeprefix(prefix)
     return branch
+
+
+def _parse_pr_url(txt: str) -> Optional[Tuple[str, int]]:
+    """
+    Parse a GitHub PR URL into the repo full name and the PR number.
+
+    Trailing parts of the URL (e.g., `/files`, `?diff=split`, `#issuecomment-1`)
+    are ignored.
+
+    :param txt: string passed to `--branch`
+        - E.g., `https://github.com/gpsaggese/gpsaggese.github.io/pull/895`
+    :return: `(repo_full_name, pr_number)` if `txt` is a PR URL, `None` if it is
+        a branch name
+        - E.g., `("gpsaggese/gpsaggese.github.io", 895)`
+    """
+    # Match `https://github.com/<owner>/<repo>/pull/<number>` followed by
+    # nothing or by a `/`, `?` or `#` part.
+    pr_url_re = re.compile(
+        r"""
+        ^https?://github\.com/
+        (?P<repo>[^/\s]+/[^/\s]+)/
+        pull/(?P<num>\d+)
+        (?:[/?#].*)?$
+        """,
+        re.VERBOSE,
+    )
+    match = pr_url_re.match(txt.strip())
+    ret: Optional[Tuple[str, int]] = None
+    if match:
+        ret = (match.group("repo"), int(match.group("num")))
+    return ret
+
+
+def _parse_pr_head_branch(txt: str, pr_url: str) -> str:
+    """
+    Get the head branch of a PR from the JSON output of `gh pr view`.
+
+    :param txt: JSON with the keys `headRefName` and `isCrossRepository`
+        - E.g., `{"headRefName": "UmdTask1_Foo", "isCrossRepository": false}`
+    :param pr_url: PR URL, used only in the error messages
+    :return: head branch name without remote
+    """
+    info = json.loads(txt)
+    hdbg.dassert(
+        not info["isCrossRepository"],
+        "PR '%s' comes from a fork, so its branch is not on 'origin'",
+        pr_url,
+    )
+    branch = info["headRefName"]
+    return branch
+
+
+def _resolve_branch(branch: str, *, git_root: str) -> str:
+    """
+    Get the branch name from a branch name or a GitHub PR URL.
+
+    A PR URL is resolved to its head branch with `gh`. This is a read-only query,
+    so it runs also in a dry run.
+
+    :param branch: branch name, with or without the remote, or PR URL
+        - E.g., `UmdTask788_Racket_sports`, `origin/UmdTask788_Racket_sports`, or
+          `https://github.com/gpsaggese/gpsaggese.github.io/pull/895`
+    :param git_root: absolute path of the git root
+    :return: branch name without remote
+    """
+    pr_info = _parse_pr_url(branch)
+    if pr_info is None:
+        ret = _normalize_branch(branch)
+    else:
+        pr_repo, pr_num = pr_info
+        # The branch is fetched from `origin`, so the PR must belong to it.
+        origin_repo = hgit.get_repo_full_name_from_dirname(
+            git_root, include_host_name=False
+        )
+        hdbg.dassert_eq(
+            pr_repo,
+            origin_repo,
+            "PR is not in the repo of 'origin': run the script from a client "
+            "of the PR repo",
+        )
+        cmd = [
+            f"gh pr view {shlex.quote(branch.strip())}",
+            "--json headRefName,isCrossRepository",
+        ]
+        cmd = " ".join(cmd)
+        _, txt = hsystem.system_to_string(cmd, suppress_output=True)
+        ret = _parse_pr_head_branch(txt, branch)
+        _LOG.info("PR #%s is on branch '%s'", pr_num, ret)
+    return ret
 
 
 def _get_notebook_rel_path(notebook: str, git_root: str) -> str:
@@ -143,22 +240,6 @@ def _fetch_branch(branch: str, *, git_root: str) -> None:
         )
 
 
-def _exists_on_branch(branch: str, rel_path: str, *, git_root: str) -> bool:
-    """
-    Check if a path exists on the `origin/<branch>` tree.
-
-    :param branch: branch name without remote
-    :param rel_path: path relative to the git root
-    :param git_root: absolute path of the git root
-    :return: whether the path exists on the branch
-    """
-    obj = shlex.quote(f"origin/{branch}:{rel_path}")
-    cmd = f"git -C {shlex.quote(git_root)} cat-file -e {obj}"
-    rc, _ = hsystem.system_to_string(cmd, abort_on_error=False)
-    exists = rc == 0
-    return exists
-
-
 def _find_project_dir(branch: str, rel_notebook: str, *, git_root: str) -> str:
     """
     Find the closest dir above the notebook that stores `docker_jupyter.sh`.
@@ -173,7 +254,7 @@ def _find_project_dir(branch: str, rel_notebook: str, *, git_root: str) -> str:
     project_dir: Optional[str] = None
     while project_dir is None:
         script = os.path.join(dir_name, "docker_jupyter.sh")
-        if _exists_on_branch(branch, script, git_root=git_root):
+        if hgit.exists_on_ref(f"origin/{branch}", script, git_root=git_root):
             project_dir = dir_name
         else:
             hdbg.dassert_ne(
@@ -188,46 +269,8 @@ def _find_project_dir(branch: str, rel_notebook: str, *, git_root: str) -> str:
 
 
 # #############################################################################
-# Worktree
+# Run commands
 # #############################################################################
-
-
-def _parse_worktree_list(txt: str, branch: str) -> Optional[str]:
-    """
-    Find the worktree that has a branch checked out.
-
-    :param txt: output of `git worktree list --porcelain`
-    :param branch: branch name without remote
-    :return: dir of the worktree with the branch checked out, or `None`
-    """
-    worktree_dir: Optional[str] = None
-    curr_dir: Optional[str] = None
-    for line in txt.split("\n"):
-        if line.startswith("worktree "):
-            curr_dir = line[len("worktree ") :]
-        elif line == f"branch refs/heads/{branch}":
-            worktree_dir = curr_dir
-    return worktree_dir
-
-
-def _get_default_worktree_dir(branch: str, *, git_root: str) -> str:
-    """
-    Get the default dir of the worktree of a branch.
-
-    The name follows the one built by `git_create_issue_and_branch.py`, i.e.,
-    `<repo>_worktree_<issue_id>`.
-
-    :param branch: branch name without remote
-    :param git_root: absolute path of the git root
-    :return: sibling dir of the git root
-        - E.g., `/src/umd_classes1_worktree_788`
-    """
-    issue_id = hgit.extract_gh_issue_number_from_branch(branch)
-    suffix = str(issue_id) if issue_id is not None else branch.replace("/", "_")
-    repo_name = os.path.basename(git_root)
-    parent_dir = os.path.dirname(git_root)
-    worktree_dir = os.path.join(parent_dir, f"{repo_name}_worktree_{suffix}")
-    return worktree_dir
 
 
 def _run(cmd: str, *, dry_run: bool) -> None:
@@ -242,71 +285,6 @@ def _run(cmd: str, *, dry_run: bool) -> None:
     else:
         _LOG.info("Running: %s", cmd)
         hsystem.system(cmd, suppress_output=False)
-
-
-def _create_worktree(
-    branch: str, worktree_dir: str, *, git_root: str, dry_run: bool
-) -> None:
-    """
-    Create the worktree of a branch and initialize the submodules.
-
-    :param branch: branch name without remote
-    :param worktree_dir: dir of the new worktree
-    :param git_root: absolute path of the git root
-    :param dry_run: report the commands without running them
-    """
-    hdbg.dassert_path_not_exists(
-        worktree_dir,
-        "The dir is not a worktree of the branch: use another dir with --worktree_dir",
-    )
-    git_cmd = f"git -C {shlex.quote(git_root)}"
-    # Reuse the local branch, if it exists, otherwise create it to track the
-    # remote one.
-    ref = shlex.quote(f"refs/heads/{branch}")
-    rc, _ = hsystem.system_to_string(
-        f"{git_cmd} show-ref --verify --quiet {ref}", abort_on_error=False
-    )
-    has_local_branch = rc == 0
-    dir_arg = shlex.quote(worktree_dir)
-    branch_arg = shlex.quote(branch)
-    if has_local_branch:
-        cmd = f"{git_cmd} worktree add {dir_arg} {branch_arg}"
-    else:
-        cmd = (
-            f"{git_cmd} worktree add --track -b {branch_arg} {dir_arg} "
-            f"origin/{branch_arg}"
-        )
-    _run(cmd, dry_run=dry_run)
-    if has_local_branch:
-        # The local branch can be behind the remote one.
-        cmd = f"git -C {dir_arg} merge --ff-only origin/{branch_arg}"
-        _run(cmd, dry_run=dry_run)
-    # A new worktree has empty submodule dirs.
-    if _exists_on_branch(branch, ".gitmodules", git_root=git_root):
-        cmd = f"git -C {dir_arg} submodule update --init --recursive"
-        _run(cmd, dry_run=dry_run)
-
-
-def _sync_worktree(branch: str, worktree_dir: str, *, dry_run: bool) -> None:
-    """
-    Fast-forward an existing worktree to the remote branch, if it is clean.
-
-    :param branch: branch name without remote
-    :param worktree_dir: dir of the existing worktree
-    :param dry_run: report the commands without running them
-    """
-    if hgit.is_client_clean(dir_name=worktree_dir):
-        cmd = (
-            f"git -C {shlex.quote(worktree_dir)} merge --ff-only "
-            f"origin/{shlex.quote(branch)}"
-        )
-        _run(cmd, dry_run=dry_run)
-    else:
-        _LOG.warning(
-            "Worktree '%s' has local changes: not syncing it with 'origin/%s'",
-            worktree_dir,
-            branch,
-        )
 
 
 # #############################################################################
@@ -439,14 +417,16 @@ def _parse() -> argparse.ArgumentParser:
         "--branch",
         action="store",
         required=True,
-        help="Git branch with the notebook, with or without the `origin/` prefix",
+        help="Git branch with the notebook, with or without the `origin/` "
+        "prefix, or URL of a GitHub PR "
+        "(e.g., `https://github.com/<owner>/<repo>/pull/<n>`)",
     )
     parser.add_argument(
         "--worktree_dir",
         action="store",
         default=None,
         help="Dir of the new worktree, if the branch has no worktree yet "
-        "(by default a sibling of the git root named `<repo>_worktree_<issue>`)",
+        "(by default a sibling of the git root named `<repo>_<issue>`)",
     )
     parser.add_argument(
         "--port",
@@ -485,14 +465,15 @@ def _main(parser: argparse.ArgumentParser) -> None:
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
     dry_run = args.dry_run
-    branch = _normalize_branch(args.branch)
     git_root = hgit.find_git_root()
+    # Accept a branch name or a PR URL.
+    branch = _resolve_branch(args.branch, git_root=git_root)
     rel_notebook = _get_notebook_rel_path(args.input, git_root)
     # Get the branch. The fetch only updates the remote-tracking ref, so it is
     # run also in a dry run to be able to inspect the branch.
     _fetch_branch(branch, git_root=git_root)
     hdbg.dassert(
-        _exists_on_branch(branch, rel_notebook, git_root=git_root),
+        hgit.exists_on_ref(f"origin/{branch}", rel_notebook, git_root=git_root),
         "Notebook '%s' not found on branch 'origin/%s'",
         rel_notebook,
         branch,
@@ -502,20 +483,24 @@ def _main(parser: argparse.ArgumentParser) -> None:
     # Get a worktree synced with the branch.
     cmd = f"git -C {shlex.quote(git_root)} worktree list --porcelain"
     _, txt = hsystem.system_to_string(cmd)
-    worktree_dir = _parse_worktree_list(txt, branch)
+    worktree_dir = hgit.parse_worktree_list(txt, branch)
     if worktree_dir is None:
-        worktree_dir = args.worktree_dir or _get_default_worktree_dir(
+        worktree_dir = args.worktree_dir or hgit.get_default_worktree_dir(
             branch, git_root=git_root
         )
         worktree_dir = os.path.abspath(worktree_dir)
-        _create_worktree(
-            branch, worktree_dir, git_root=git_root, dry_run=dry_run
+        hgit.create_worktree(
+            branch,
+            worktree_dir,
+            git_root=git_root,
+            submodule_paths=[],
+            dry_run=dry_run,
         )
     else:
         _LOG.info("Reusing worktree '%s' of branch '%s'", worktree_dir, branch)
         if args.worktree_dir:
             _LOG.warning("Ignoring --worktree_dir, since the worktree exists")
-        _sync_worktree(branch, worktree_dir, dry_run=dry_run)
+        hgit.sync_worktree(branch, worktree_dir, dry_run=dry_run)
     # Build the image and start Jupyter Lab from the project dir.
     abs_project_dir = os.path.join(worktree_dir, project_dir)
     if args.build:
