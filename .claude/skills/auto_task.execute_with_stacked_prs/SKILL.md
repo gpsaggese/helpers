@@ -59,13 +59,13 @@ model: haiku
 
     ```bash
     > invoke git_branch_create --issue-id <NUM> --suffix <ID> \
-        --no-only-branch-from-master --no-abort-if-not-master --no-create-pr
+        --no-only-branch-from-master --no-create-pr
     ```
 
     - Do not use `invoke git_branch_next_name`. It appends `_1`, `_2`, ... to the
       current branch, so from `<BASE>_<ID-1>` it gives `<BASE>_<ID-1>_1`
-    - Pass both `--no-only-branch-from-master` and `--no-abort-if-not-master`. The
-      default `only_branch_from_master` (`True`) switches to `master` first
+    - Pass `--no-only-branch-from-master`. The default `only_branch_from_master`
+      (`True`) branches from `origin/master`, not from the current branch
   - Implement task `<ID>`, run its tests, commit, and push
   - Open the PR against `<BASE>_<ID-1>`, not `master`:
 

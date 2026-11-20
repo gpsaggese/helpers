@@ -57,10 +57,21 @@ Based on the files that you need to operate, read and follow the corresponding r
 - For executing a sequence of ready tasks as a stack of branches and PRs you MUST
   follow `.claude/skills/auto_task.execute_with_stacked_prs/SKILL.md`
 
+## Asana
+
+- For Asana tasks you MUST follow:
+  - The rules `.claude/skills/asana.rules.md`
+  - For the plan: the template `.claude/templates/asana_plan.template.md`
+
 ## TODO Files
 
 - For a TODO / task queue file organized by execution stage (e.g.,
   `ai_task_queue.md`) you MUST follow `.claude/skills/todo.rules.md`
+
+## GitHub
+
+- For GitHub issues, projects, branches, and PRs you MUST follow the rules
+  `.claude/skills/github.rules.md`
 
 ## GitHub PR Plan
 
@@ -177,8 +188,15 @@ Based on the files that you need to operate, read and follow the corresponding r
 
 ## Package Landscape
 
-- For a package/library functionality-cluster comparison doc you MUST follow the
-  template `.claude/templates/package.template.md`
+- For the list of Python packages related to the content of a directory
+  (`<DIR>/related_python_packages.md`) you MUST follow:
+  - The rules `.claude/skills/related_python_packages.rules.md`
+  - The template `.claude/templates/related_python_packages.template.md`
+
+- For the list of books related to the content of a directory
+  (`<DIR>/related_books.md`) you MUST follow:
+  - The rules `.claude/skills/related_books.rules.md`
+  - The template `.claude/templates/related_books.template.md`
 
 # Research
 

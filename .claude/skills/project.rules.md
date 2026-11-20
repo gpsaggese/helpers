@@ -282,6 +282,8 @@
 - Number the open questions and tag with `-> Project` those that need their own
   project
 - Write the PR entries of the next version in detail
+  - Identify the dependencies between the entries
+  - Estimate the complexity of each entry
   - Later versions can stay as a few bullets until they are close
   - File GitHub issues only for the next version: issues for later versions go stale
 - In the execution plan, give:

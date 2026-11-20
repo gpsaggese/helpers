@@ -84,6 +84,24 @@
 - See "Acknowledge a request with a link" in
   [`all.team_collaboration.how_to_guide.md`](/docs/work_organization/all.team_collaboration.how_to_guide.md)
 
+## Keep Tasks Up to Date
+
+- Update each task in real time
+  - Asana then does the work for you (e.g., sorting by due date, showing what is
+    late)
+- Do not add dates to the task title
+  - E.g., use `Contact Acme`, not `Contact Acme - 2026-11-16`
+- Do not tag the task with dates or status
+- Set the due date to the next time something needs to be done
+  - E.g., after you email a lead, wait 1 week and set the due date to 1 week from
+    now to contact them again
+  - Move the due date forward each time the next action changes
+- Add all the emails related to the task to the task
+  - Paste the text of the email, instead of a screenshot, so that Asana search
+    finds it
+  - Add a screenshot only when the text is not enough (e.g., an image, a table, or
+    a layout that matters)
+
 ## Track Leads
 
 - Use one Asana task to track each lead
@@ -91,6 +109,7 @@
   - Post one email per comment
   - Post the emails in chronological order, oldest first, when possible
   - Include the sender, the date, and the text of each email
+  - Paste the text, not a screenshot, so that search works
 - The goal is to track what was said, what was answered, and what is still open
   - Anyone can read the task and understand the status of the lead without
     opening the mailbox
