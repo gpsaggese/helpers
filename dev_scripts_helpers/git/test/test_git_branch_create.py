@@ -12,6 +12,7 @@ from typing import Tuple
 import helpers.hgit as hgit
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
 import dev_scripts_helpers.git.git_branch_create as dsggibrc
 
 # pylint: disable=protected-access
@@ -204,9 +205,7 @@ class Test__dassert_branch_available(hunitest.TestCase):
         ) as mock_does_branch_exist:
             dsggibrc._dassert_branch_available(branch_name)
         # Check outputs.
-        mock_does_branch_exist.assert_called_once_with(
-            branch_name, mode="all"
-        )
+        mock_does_branch_exist.assert_called_once_with(branch_name, mode="all")
 
     def test1(self) -> None:
         """
@@ -225,9 +224,11 @@ class Test__dassert_branch_available(hunitest.TestCase):
         # Prepare inputs.
         branch_name = "HelpersTask123_Fix_bug_02"
         # Run test and check output.
-        with umock.patch.object(hgit, "does_branch_exist", return_value=True):
-            with self.assertRaises(AssertionError) as cm:
-                dsggibrc._dassert_branch_available(branch_name)
+        with (
+            umock.patch.object(hgit, "does_branch_exist", return_value=True),
+            self.assertRaises(AssertionError) as cm,
+        ):
+            dsggibrc._dassert_branch_available(branch_name)
         actual = str(cm.exception)
         expected = """
         * Failed assertion *
@@ -318,20 +319,15 @@ class Test__create_branch(hunitest.TestCase):
         branch_name = "HelpersTask999_Foo"
         # Prepare outputs.
         expected = f"""
-        call('git pull --autostash --rebase', suppress_output=False)
-        call('git checkout -b {branch_name}', suppress_output=False)
+        call('git fetch origin master', suppress_output=False)
+        call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
         call('git push --set-upstream origin {branch_name}', suppress_output=False)
         """
         # Run test.
         with (
             umock.patch.object(hgit, "is_client_clean"),
-            umock.patch.object(
-                hgit, "does_branch_exist", return_value=False
-            ),
-            umock.patch.object(hgit, "get_branch_name", return_value="master"),
-            umock.patch.object(
-                hsystem, "system", return_value=0
-            ) as mock_system,
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
         ):
             dsggibrc._create_branch(
                 branch_name, 0, "current", "", create_pr=False
@@ -342,37 +338,26 @@ class Test__create_branch(hunitest.TestCase):
 
     def test2(self) -> None:
         """
-        Test that not being on `master` triggers a checkout when allowed.
+        Test that branching from `origin/master` never checks out `master`.
+
+        This makes it work when `master` is checked out in another worktree.
         """
         # Prepare inputs.
         branch_name = "HelpersTask999_Foo"
         # Prepare outputs.
         expected = f"""
-        call('git checkout master', suppress_output=False)
-        call('git pull --autostash --rebase', suppress_output=False)
-        call('git checkout -b {branch_name}', suppress_output=False)
+        call('git fetch origin master', suppress_output=False)
+        call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
         call('git push --set-upstream origin {branch_name}', suppress_output=False)
         """
         # Run test.
         with (
             umock.patch.object(hgit, "is_client_clean"),
-            umock.patch.object(
-                hgit, "does_branch_exist", return_value=False
-            ),
-            umock.patch.object(
-                hgit, "get_branch_name", return_value="other_branch"
-            ),
-            umock.patch.object(
-                hsystem, "system", return_value=0
-            ) as mock_system,
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
         ):
             dsggibrc._create_branch(
-                branch_name,
-                0,
-                "current",
-                "",
-                create_pr=False,
-                abort_if_not_master=False,
+                branch_name, 0, "current", "", create_pr=False
             )
         # Check outputs.
         actual = _get_system_calls(mock_system)
@@ -380,26 +365,32 @@ class Test__create_branch(hunitest.TestCase):
 
     def test3(self) -> None:
         """
-        Test that not being on `master` aborts when required.
+        Test that `only_branch_from_master=False` branches from `HEAD`.
         """
         # Prepare inputs.
         branch_name = "HelpersTask999_Foo"
-        # Run test and check output.
+        # Prepare outputs.
+        expected = f"""
+        call('git checkout --no-track -b {branch_name} HEAD', suppress_output=False)
+        call('git push --set-upstream origin {branch_name}', suppress_output=False)
+        """
+        # Run test.
         with (
             umock.patch.object(hgit, "is_client_clean"),
-            umock.patch.object(
-                hgit, "does_branch_exist", return_value=False
-            ),
-            umock.patch.object(
-                hgit, "get_branch_name", return_value="other_branch"
-            ),
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
         ):
-            with self.assertRaises(AssertionError) as cm:
-                dsggibrc._create_branch(
-                    branch_name, 0, "current", "", create_pr=False
-                )
-        actual = str(cm.exception)
-        self.assertIn("Must be on 'master' branch", actual)
+            dsggibrc._create_branch(
+                branch_name,
+                0,
+                "current",
+                "",
+                only_branch_from_master=False,
+                create_pr=False,
+            )
+        # Check outputs.
+        actual = _get_system_calls(mock_system)
+        self.assert_equal(actual, expected, fuzzy_match=True, dedent=True)
 
     def test4(self) -> None:
         """
@@ -410,9 +401,7 @@ class Test__create_branch(hunitest.TestCase):
             umock.patch.object(hgit, "is_client_clean"),
             self.assertRaises(AssertionError) as cm,
         ):
-            dsggibrc._create_branch(
-                "HelpersTask999_Foo", 999, "current", ""
-            )
+            dsggibrc._create_branch("HelpersTask999_Foo", 999, "current", "")
         actual = str(cm.exception)
         self.assertIn("Cannot specify both --issue and --branch-name", actual)
 
@@ -424,8 +413,8 @@ class Test__create_branch(hunitest.TestCase):
         branch_name = "HelpersTask999_Foo"
         # Prepare outputs.
         expected = f"""
-        call('git pull --autostash --rebase', suppress_output=False)
-        call('git checkout -b {branch_name}', suppress_output=False)
+        call('git fetch origin master', suppress_output=False)
+        call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
         call('git push --set-upstream origin {branch_name}', suppress_output=False)
         call('git commit --allow-empty -m "Draft PR"', suppress_output=False)
         call('git push', suppress_output=False)
@@ -434,13 +423,8 @@ class Test__create_branch(hunitest.TestCase):
         # Run test.
         with (
             umock.patch.object(hgit, "is_client_clean"),
-            umock.patch.object(
-                hgit, "does_branch_exist", return_value=False
-            ),
-            umock.patch.object(hgit, "get_branch_name", return_value="master"),
-            umock.patch.object(
-                hsystem, "system", return_value=0
-            ) as mock_system,
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
         ):
             dsggibrc._create_branch(
                 branch_name, 0, "current", "", create_pr=True
@@ -459,10 +443,7 @@ class Test__create_branch(hunitest.TestCase):
         # Run test.
         with (
             umock.patch.object(hgit, "is_client_clean"),
-            umock.patch.object(
-                hgit, "does_branch_exist", return_value=False
-            ),
-            umock.patch.object(hgit, "get_branch_name", return_value="master"),
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
             umock.patch.object(hsystem, "system") as mock_system,
         ):
             dsggibrc._create_branch(
