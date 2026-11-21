@@ -1233,10 +1233,10 @@ class Test_git_branch_copy(hunitest.TestCase):
         new_branch_name = "HelpersTask1_Foo_2"
         # Prepare outputs.
         expected = f"""
-        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
-        call('git clean -fd', echo=False)
         call('invoke git_merge_master --abort-if-not-ff --no-auto-merge', echo=False)
         call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}' --skip-branch-exists-check --no-fetch", echo=False)
+        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
+        call('git clean -fd', echo=False)
         call('git merge --squash --ff {curr_branch_name} && git reset HEAD', echo=False)
         """
         # Run test.
@@ -1366,10 +1366,10 @@ class Test_git_branch_copy(hunitest.TestCase):
         submodules = True
         # Prepare outputs.
         expected = f"""
-        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
-        call('git clean -fd', echo=False)
         call('invoke git_merge_master --abort-if-not-ff --no-auto-merge --submodules', echo=False)
         call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}' --skip-branch-exists-check --no-fetch", echo=False)
+        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
+        call('git clean -fd', echo=False)
         call('git merge --squash --ff {curr_branch_name} && git reset HEAD', echo=False)
         """
         # Run test.

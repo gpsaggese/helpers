@@ -919,16 +919,6 @@ def git_branch_copy(  # type: ignore
         check_branch_name = False
     if check_branch_name:
         dsggibrc._dassert_valid_branch_name(new_branch_name)
-    # Stage the untracked files (except `tmp.*` and `*.log` scratch files), so
-    # that they are carried over to the new branch and not removed by the clean
-    # below.
-    # Call the task as a function to avoid paying the startup cost of a new
-    # `invoke` process.
-    git_add_all_untracked(ctx, dry_run=dry_run)
-    # Remove the remaining untracked files (i.e., the scratch files) to ensure
-    # clean state when copying branch.
-    cmd = "git clean -fd"
-    hltltaut.run(ctx, cmd, dry_run=dry_run)
     # Sync with master first to ensure new branch includes latest changes (if requested).
     if not skip_git_merge_master:
         cmd = "invoke git_merge_master --abort-if-not-ff --no-auto-merge"
@@ -962,6 +952,17 @@ def git_branch_copy(  # type: ignore
         # `git_merge_master` already fetched `origin/master`.
         if not skip_git_merge_master:
             cmd += " --no-fetch"
+    hltltaut.run(ctx, cmd, dry_run=dry_run)
+    # Stage the untracked files (except `tmp.*` and `*.log` scratch files), so
+    # that they are carried over to the new branch and not removed by the clean
+    # below. This must happen after `git_merge_master` and `git_branch_create`,
+    # since they abort when the index has staged files.
+    # Call the task as a function to avoid paying the startup cost of a new
+    # `invoke` process.
+    git_add_all_untracked(ctx, dry_run=dry_run)
+    # Remove the remaining untracked files (i.e., the scratch files) to ensure
+    # clean state when copying branch.
+    cmd = "git clean -fd"
     hltltaut.run(ctx, cmd, dry_run=dry_run)
     if use_patch:
         # TODO(gp): Apply the patch.
