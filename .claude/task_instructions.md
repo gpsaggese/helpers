@@ -58,6 +58,13 @@ This file clarifies how to execute a task in the current repo
     - ...
   ```
 
+## Check Commit Gates
+
+- Before reporting a task as done, run the commit gates
+  - Run `pre-commit.py` from `helpers_root`
+  - Fix every reported error and re-run until it passes
+  - See `.claude/skills/coding.rules.md` `## Run Commit Gates After Writing Code`
+
 ## Add Files to the Repo
 
 - When creating new files that belong to the repo (e.g., Python files, scripts) as

@@ -1218,6 +1218,67 @@ class Test_find_git_root6(hunitest.TestCase):
 
 
 # #############################################################################
+# Test_find_git_root7
+# #############################################################################
+
+
+class Test_find_git_root7(hunitest.TestCase):
+    """
+    Check that the function returns the worktree root, and not the submodule
+    root or the main repo root, when called from a submodule of a worktree.
+
+    Directory structure:
+    main_repo/
+    `-- .git/
+        `-- worktrees/
+            `-- csfy2/
+                `-- modules/
+                    `-- helpers_root/
+    csfy2/ (worktree)
+    |-- .git (points to /main_repo/.git/worktrees/csfy2)
+    `-- helpers_root/ (submodule)
+        `-- .git (points to /main_repo/.git/worktrees/csfy2/modules/helpers_root)
+    """
+
+    def set_up_test(self) -> None:
+        temp_dir = self.get_scratch_space()
+        # Create main repo with the git metadata of the worktree and of its
+        # submodule.
+        self.main_repo_dir = os.path.join(temp_dir, "main_repo")
+        self.worktree_git_dir = os.path.join(
+            self.main_repo_dir, ".git", "worktrees", "csfy2"
+        )
+        self.submodule_git_dir = os.path.join(
+            self.worktree_git_dir, "modules", "helpers_root"
+        )
+        hio.create_dir(self.submodule_git_dir, incremental=False)
+        # Create worktree directory.
+        self.worktree_dir = os.path.join(temp_dir, "csfy2")
+        hio.create_dir(self.worktree_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.worktree_dir, ".git"),
+            f"gitdir: {self.worktree_git_dir}\n",
+        )
+        # Create submodule directory.
+        self.submodule_dir = os.path.join(self.worktree_dir, "helpers_root")
+        hio.create_dir(self.submodule_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.submodule_dir, ".git"),
+            f"gitdir: {self.submodule_git_dir}\n",
+        )
+
+    def test1(self) -> None:
+        """
+        Check that the function returns the worktree root when called from the
+        submodule of the worktree.
+        """
+        self.set_up_test()
+        with hsystem.cd(self.submodule_dir):
+            git_root = hgit.find_git_root(".")
+            self.assert_equal(git_root, self.worktree_dir)
+
+
+# #############################################################################
 # Test_find_git_root_in_active_worktree
 # #############################################################################
 

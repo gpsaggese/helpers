@@ -13,7 +13,7 @@ import os
 import random
 import re
 import string
-from typing import cast, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, cast
 
 import helpers.hdbg as hdbg
 import helpers.hio as hio
@@ -161,7 +161,7 @@ def _get_branch_next_name_via_github_api(
     return new_branch_name
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _get_gh_pr_list(dir_name: str = ".") -> str:
     """
     Get a cached list of all pull requests from GitHub (merged and open).
@@ -205,7 +205,6 @@ def does_branch_exist(
             )
             exists = exists or exists_tmp
         return exists
-    #
     hdbg.dassert_in(mode, ("git_local", "git_remote", "github"))
     exists = False
     if mode in ("git_local", "git_remote"):
@@ -378,7 +377,7 @@ def get_branch_hash(dir_name: str = ".") -> str:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def is_inside_submodule(git_dir: str = ".") -> bool:
     """
     Return whether a dir is inside a Git submodule or a Git supermodule.
@@ -411,7 +410,7 @@ def is_inside_submodule(git_dir: str = ".") -> bool:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_client_root(super_module: bool) -> str:
     """
     Return the full path of the root of the Git client.
@@ -477,10 +476,24 @@ def find_git_root(path: str = ".") -> str:
                 if line.startswith("gitdir:"):
                     git_dir_path = line.split(":", 1)[1].strip()
                     _LOG.debug("git_dir_path=%s", git_dir_path)
-                    # For worktrees, the current path is the root of the worktree.
-                    # The worktree's `.git` file points to the shared git directory
-                    # (e.g., main_repo/.git/worktrees/worktree_name).
-                    if ".git/worktrees/" in git_dir_path:
+                    is_worktree_dir = ".git/worktrees/" in git_dir_path
+                    # A submodule of a worktree has its git dir inside the
+                    # worktree git dir (e.g.,
+                    # `main_repo/.git/worktrees/worktree_name/modules/helpers_root`).
+                    is_submodule_of_worktree = (
+                        is_worktree_dir and "/modules/" in git_dir_path
+                    )
+                    if is_submodule_of_worktree:
+                        # The submodule is not the root: keep going up to find
+                        # the worktree that contains it. Using the path to the
+                        # git dir would return the main repo instead of the
+                        # worktree.
+                        pass
+                    elif is_worktree_dir:
+                        # For worktrees, the current path is the root of the
+                        # worktree. The worktree's `.git` file points to the
+                        # shared git directory (e.g.,
+                        # main_repo/.git/worktrees/worktree_name).
                         git_root_dir = path
                     else:
                         # For other linked setups (submodules, custom .git directory),
@@ -551,8 +564,8 @@ def is_git_worktree(path: str = ".") -> bool:
         # Check if git directory path contains worktrees indicator.
         git_dir = git_dir.strip()
         return ".git/worktrees/" in git_dir
-    except Exception:
-        # On any error, assume not in a worktree.
+    except (RuntimeError, OSError):
+        # On any system error, assume not in a worktree.
         return False
 
 
@@ -860,7 +873,7 @@ def _get_submodule_hash(dir_name: str) -> str:
     return git_hash
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_path_from_supermodule() -> Tuple[str, str]:
     """
     Return the path to the Git repo including the Git submodule for a submodule.
@@ -896,7 +909,7 @@ def get_path_from_supermodule() -> Tuple[str, str]:
     return superproject_path, submodule_path
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_submodule_paths() -> List[str]:
     """
     Return the path of the submodules in this repo.
@@ -1034,8 +1047,7 @@ def _parse_github_repo_name(repo_name: str) -> Tuple[str, str]:
     assert m is not None
     # origin  git@github.com:.../ORG_....git (fetch)
     suffix_to_remove = ".git"
-    if repo_name.endswith(suffix_to_remove):
-        repo_name = repo_name[: -len(suffix_to_remove)]
+    repo_name = repo_name.removesuffix(suffix_to_remove)
     return host_name, repo_name
 
 
@@ -1217,7 +1229,7 @@ def is_cwd_git_repo() -> bool:
 
 
 # TODO(gp): Use find_file
-@functools.lru_cache()
+@functools.lru_cache
 def find_file_in_git_tree(
     file_name: str, super_module: bool = True, remove_tmp_base: bool = False
 ) -> str:
@@ -1265,7 +1277,6 @@ def get_path_from_git_root(
     # Get the root of the Git client.
     if git_root is None:
         git_root = get_client_root(super_module)
-    #
     git_root = os.path.normpath(git_root)
     _LOG.debug("git_root=%s", git_root)
     file_name = os.path.normpath(file_name)
@@ -1289,14 +1300,13 @@ def get_path_from_git_root(
 
 
 # TODO(gp): Rewrite this function in a better way.
-@functools.lru_cache()
+@functools.lru_cache
 def get_amp_abs_path() -> str:
     """
     Return the absolute path of `amp` dir.
     """
     repo_sym_name = get_repo_full_name_from_client(super_module=False)
     _LOG.debug("repo_sym_name=%s", repo_sym_name)
-    #
     repo_sym_names = ["alphamatic/amp"]
     import helpers.repo_config_utils as hrecouti
 
@@ -1586,14 +1596,12 @@ def get_modified_and_untracked_files(
         status_code = line[:2] if len(line) >= 2 else ""
         file_name = line[3:].strip() if len(line) > 3 else ""
         # Filter by mode.
-        if mode == "untracked":
-            # Untracked files have status "??"
-            if status_code != "??":
-                continue
-        elif mode == "modified":
-            # Modified files have any status other than "??"
-            if status_code == "??":
-                continue
+        # Untracked files have status "??".
+        if mode == "untracked" and status_code != "??":
+            continue
+        # Modified files have any status other than "??".
+        if mode == "modified" and status_code == "??":
+            continue
         # Skip submodule paths.
         is_in_submodule = any(
             file_name.startswith(subpath + "/") or file_name == subpath
@@ -1814,7 +1822,7 @@ def get_files_to_process(
 
 
 # TODO(gp): -> get_user_name()
-@functools.lru_cache()
+@functools.lru_cache
 def get_git_name() -> str:
     """
     Return the configured git user name from git config.

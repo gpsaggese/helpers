@@ -85,6 +85,20 @@ The repository uses `pyinvoke` for task automation with a modular task system:
   invoke run_coverage --suite superslow --generate-html-report
   ```
 
+### Commit Gates
+
+- After writing code, run the commit gates before declaring the task done
+
+  ```bash
+  # Run all the gates that `git commit` runs
+  > pre-commit.py
+  # Run a single gate (e.g., ruff check and format)
+  > pre-commit.py --check ruff_format
+  ```
+
+- Fix every reported error; do not use `git commit --no-verify`
+- See `.claude/skills/coding.rules.md` `## Run Commit Gates After Writing Code`
+
 ### Git and Branch Management
 
 - To use branch
