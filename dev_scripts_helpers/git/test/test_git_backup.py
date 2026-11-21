@@ -12,6 +12,7 @@ import unittest.mock as umock
 import helpers.hgit as hgit
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
 import dev_scripts_helpers.git.git_backup as dsggibac
 
 # pylint: disable=protected-access
@@ -47,9 +48,7 @@ class Test__collect_backup_files(hunitest.TestCase):
                 dsggibac.hltltagi, "_get_submodule_paths", return_value=[]
             ),
         ):
-            actual = dsggibac._collect_backup_files(
-                file_mode, include_subrepos
-            )
+            actual = dsggibac._collect_backup_files(file_mode, include_subrepos)
         # Check outputs.
         self.assert_equal(str(actual), str(expected))
 
@@ -73,9 +72,7 @@ class Test__collect_backup_files(hunitest.TestCase):
                 dsggibac.hltltagi, "_get_submodule_paths"
             ) as mock_get_submodule_paths,
         ):
-            actual = dsggibac._collect_backup_files(
-                file_mode, include_subrepos
-            )
+            actual = dsggibac._collect_backup_files(file_mode, include_subrepos)
         # Check outputs.
         self.assert_equal(str(actual), str(expected))
         mock_get_submodule_paths.assert_not_called()
@@ -104,9 +101,7 @@ class Test__collect_backup_files(hunitest.TestCase):
                 return_value=[submodule_path],
             ),
         ):
-            actual = dsggibac._collect_backup_files(
-                file_mode, include_subrepos
-            )
+            actual = dsggibac._collect_backup_files(file_mode, include_subrepos)
         # Check outputs.
         self.assert_equal(str(actual), str(expected))
 
@@ -137,9 +132,7 @@ class Test__create_backup(hunitest.TestCase):
         backup_dir = self.get_scratch_space()
         # Run test.
         with (
-            umock.patch.object(
-                hgit, "get_client_root", return_value="/repo"
-            ),
+            umock.patch.object(hgit, "get_client_root", return_value="/repo"),
             umock.patch.object(
                 dsggibac, "_collect_backup_files", return_value=[]
             ),
@@ -157,9 +150,7 @@ class Test__create_backup(hunitest.TestCase):
         backup_dir = self.get_scratch_space()
         # Run test.
         with (
-            umock.patch.object(
-                hgit, "get_client_root", return_value="/repo"
-            ),
+            umock.patch.object(hgit, "get_client_root", return_value="/repo"),
             umock.patch.object(
                 dsggibac,
                 "_collect_backup_files",
@@ -180,9 +171,7 @@ class Test__create_backup(hunitest.TestCase):
         all_files = [(".", "a.py"), ("helpers_root", "b.py")]
         # Run test.
         with (
-            umock.patch.object(
-                hgit, "get_client_root", return_value="/repo"
-            ),
+            umock.patch.object(hgit, "get_client_root", return_value="/repo"),
             umock.patch.object(
                 dsggibac, "_collect_backup_files", return_value=all_files
             ),

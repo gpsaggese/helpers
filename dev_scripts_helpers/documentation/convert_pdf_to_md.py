@@ -51,7 +51,7 @@ import logging
 import os
 import re
 import shutil
-from typing import cast, Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 import pymupdf
 from tqdm import tqdm
@@ -61,6 +61,7 @@ import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
+
 import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
@@ -263,8 +264,7 @@ def _extract_text_with_formatting(
                 size = span.get("size", 0)
                 font = span.get("font", "")
                 line_text.append(text)
-                if size > max_font_size:
-                    max_font_size = size
+                max_font_size = max(max_font_size, size)
                 if "Bold" in font or "bold" in font:
                     is_bold = True
             if line_text:
@@ -280,9 +280,11 @@ def _extract_text_with_formatting(
             md_type = "h1"
         elif max_font_size >= font_thresholds["h2_threshold"]:
             md_type = "h2"
-        elif max_font_size >= font_thresholds["h3_threshold"]:
-            md_type = "h3"
-        elif is_bold and len(content) < 100:
+        elif (
+            max_font_size >= font_thresholds["h3_threshold"]
+            or is_bold
+            and len(content) < 100
+        ):
             md_type = "h3"
         else:
             md_type = "text"

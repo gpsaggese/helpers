@@ -10,6 +10,7 @@ pytest.importorskip("pandas")
 import helpers.hcache_simple as hcacsimp
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbou
 import dev_scripts_helpers.download.download_utils as dshddut
 import dev_scripts_helpers.download.pre_process_bookmarks as dspprbo
@@ -75,9 +76,7 @@ class Test__update_article_urls(hunitest.TestCase):
             hcacsimp.enable_caching(True)
         return actual_rows
 
-    def helper2(
-        self, rows: list, expected_url: str
-    ) -> None:
+    def helper2(self, rows: list, expected_url: str) -> None:
         """
         Helper to run test and check a single Article_url result.
         """
@@ -86,9 +85,7 @@ class Test__update_article_urls(hunitest.TestCase):
         expected_row["Article_url"] = expected_url
         self.assert_equal(str(actual_rows[0]), str(expected_row))
 
-    def helper3(
-        self, rows: list, expected_url: str
-    ) -> None:
+    def helper3(self, rows: list, expected_url: str) -> None:
         """
         Helper to run test with mocked HN API and check a single Article_url result.
         """
@@ -212,9 +209,7 @@ class Test__update_article_urls(hunitest.TestCase):
             "https://example.com/existing",
         ]
         # Run test.
-        self.helper4(
-            rows, extracted_url, expected
-        )
+        self.helper4(rows, extracted_url, expected)
 
     def test6(self) -> None:
         """
@@ -342,9 +337,7 @@ class Test__update_article_clusters(hunitest.TestCase):
         actual_rows = self.helper(rows)
         self.assert_equal(str(actual_rows[0]), str(expected_row))
 
-    def helper2(
-        self, rows: list, expected_cluster: str
-    ) -> None:
+    def helper2(self, rows: list, expected_cluster: str) -> None:
         """
         Helper to run test and check a single Article_cluster result.
         """
@@ -353,9 +346,7 @@ class Test__update_article_clusters(hunitest.TestCase):
         expected_row["Article_cluster"] = expected_cluster
         self.assert_equal(str(actual_rows[0]), str(expected_row))
 
-    def helper3(
-        self, rows: list, expected_clusters: list
-    ) -> None:
+    def helper3(self, rows: list, expected_clusters: list) -> None:
         """
         Helper to run test and check multiple Article_cluster results.
         """
@@ -642,9 +633,7 @@ class Test__normalize_tag(hunitest.TestCase):
         Test a tag wrapped in double quotes inside a sentence.
         """
         # Prepare inputs.
-        raw_tag = (
-            'The best tag to represent the article is "Developer Tools."'
-        )
+        raw_tag = 'The best tag to represent the article is "Developer Tools."'
         # Prepare outputs.
         expected = "Developer Tools"
         # Run test.

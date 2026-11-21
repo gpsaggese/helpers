@@ -48,7 +48,6 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tqdm import tqdm
 
-import dev_scripts_helpers.ai.cc_lib as dshaccli
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
@@ -60,6 +59,8 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
+
+import dev_scripts_helpers.ai.cc_lib as dshaccli
 
 _LOG = logging.getLogger(__name__)
 

@@ -517,7 +517,6 @@ def assert_equal(
     # Check.
     tag = "final"
     _append(tag, actual, expected)
-    #
     is_equal = expected == actual
     _LOG.debug(hprint.to_str("is_equal"))
     if is_equal:
@@ -560,11 +559,9 @@ def assert_equal(
         # Save the expected variable to files.
         exp_var_file_name = f"{test_dir}/tmp.exp_var.txt"
         hio.to_file(exp_var_file_name, exp_var)
-        #
         exp_var_file_name = "tmp.exp_var.txt"
         hio.to_file(exp_var_file_name, exp_var)
         _LOG.info("Saved exp_var in %s", exp_var_file_name)
-        #
         txt.append(exp_var)
         txt = "\n".join(txt)
         error_msg += txt
@@ -616,10 +613,10 @@ def compare_df(df1: "pd.DataFrame", df2: "pd.DataFrame") -> None:
 
     def _compute_df_signature(df: "pd.DataFrame") -> str:
         txt = []
-        txt.append(f"df1=\n{str(df)}")
-        txt.append(f"df1.dtypes=\n{str(df.dtypes)}")
+        txt.append(f"df1=\n{df!s}")
+        txt.append(f"df1.dtypes=\n{df.dtypes!s}")
         if hasattr(df.index, "freq"):
-            txt.append(f"df1.index.freq=\n{str(df.index.freq)}")
+            txt.append(f"df1.index.freq=\n{df.index.freq!s}")
         return "\n".join(txt)
 
     full_test_name = "dummy"
@@ -725,7 +722,6 @@ def get_dir_signature(
     # Save the directory / file structure.
     txt.append("# Dir structure")
     txt.append("\n".join(map(_remove_dir_name, file_names)))
-    #
     if include_file_content:
         txt.append("# File signatures")
         # Remove the directories.
@@ -772,7 +768,6 @@ def diff_strings(
     # Save the actual and expected strings to files.
     file_name1 = f"{dst_dir}/tmp.string1.txt"
     hio.to_file(file_name1, string1)
-    #
     file_name2 = f"{dst_dir}/tmp.string2.txt"
     hio.to_file(file_name2, string2)
     # Compare with diff_files.
@@ -1282,7 +1277,6 @@ class TestCase(unittest.TestCase):
         _LOG.debug("dir_name=%s", dir_name)
         hio.create_dir(dir_name, incremental=True)
         hdbg.dassert_path_exists(dir_name)
-        #
         test_name = self._get_test_name()
         is_equal = assert_equal(
             actual,
@@ -1464,7 +1458,6 @@ class TestCase(unittest.TestCase):
             )
         )
         hdbg.dassert_in(type(actual), (bytes, str), "actual='%s'", actual)
-        #
         dir_name, file_name = self._get_golden_outcome_file_name(
             tag,
             test_class_name=test_class_name,
@@ -1604,7 +1597,7 @@ class TestCase(unittest.TestCase):
         ret = True
         # Compare columns.
         if actual.columns.tolist() != expected.columns.tolist():
-            msg = f"Columns are different:\n{str(actual.columns)}\n{str(expected.columns)}"
+            msg = f"Columns are different:\n{actual.columns!s}\n{expected.columns!s}"
             self._to_error(msg)
             ret = False
         # Compare the values.
@@ -1620,21 +1613,16 @@ class TestCase(unittest.TestCase):
             _LOG.error("Dataframe values are not close")
             if actual.shape == expected.shape:
                 close_mask = np.isclose(actual, expected, equal_nan=True)  # type: ignore[possibly-unbound]
-                #
                 msg = f"actual=\n{actual}"
                 self._to_error(msg)
-                #
                 msg = f"expected=\n{expected}"
                 self._to_error(msg)
-                #
                 actual_masked = np.where(close_mask, np.nan, actual)  # type: ignore[possibly-unbound]
                 msg = f"actual_masked=\n{actual_masked}"
                 self._to_error(msg)
-                #
                 expected_masked = np.where(close_mask, np.nan, expected)  # type: ignore[possibly-unbound]
                 msg = f"expected_masked=\n{expected_masked}"
                 self._to_error(msg)
-                #
                 err = np.abs((actual_masked - expected_masked) / expected_masked)  # type: ignore[possibly-unbound]
                 msg = f"err=\n{err}"
                 self._to_error(msg)
@@ -1644,7 +1632,7 @@ class TestCase(unittest.TestCase):
             else:
                 msg = (
                     "Shapes are different:\n"
-                    f"actual.shape={str(actual.shape)}\nexpected.shape={str(expected.shape)}"
+                    f"actual.shape={actual.shape!s}\nexpected.shape={expected.shape!s}"
                 )
                 self._to_error(msg)
             ret = False
@@ -1666,7 +1654,6 @@ class TestCase(unittest.TestCase):
         """
         _LOG.debug(hprint.to_str("err_threshold tag abort_on_error"))
         hdbg.dassert_isinstance(actual, pd.DataFrame)  # type: ignore[possibly-unbound]
-        #
         dir_name, file_name = self._get_golden_outcome_file_name(tag)
         _LOG.debug("file_name=%s", file_name)
         outcome_updated = False

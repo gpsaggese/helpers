@@ -11,6 +11,7 @@ import pytest
 pytest.importorskip("requests")
 
 import helpers.hunit_test as hunitest
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbou
 import dev_scripts_helpers.download.update_bookmarks_from_raindrop as dsbfr
 
@@ -101,9 +102,7 @@ class Test_update_bookmarks_from_raindrop_py(hunitest.TestCase):
                 umock.patch.dict(
                     os.environ, {"RAINDROP_API_TOKEN": "fake_token"}
                 ),
-                umock.patch.object(
-                    dsbfr.requests, "get", return_value=response
-                ),
+                umock.patch.object(dsbfr.requests, "get", return_value=response),
             ):
                 self.helper(argv)
             actual_rows = dshdbou.read_csv(local_csv)
@@ -165,9 +164,7 @@ class Test_update_bookmarks_from_raindrop_py(hunitest.TestCase):
                 umock.patch.dict(
                     os.environ, {"RAINDROP_API_TOKEN": "fake_token"}
                 ),
-                umock.patch.object(
-                    dsbfr.requests, "get", return_value=response
-                ),
+                umock.patch.object(dsbfr.requests, "get", return_value=response),
             ):
                 self.helper(argv)
             raindrop_csv = dshdbou.get_tmp_file_path(
@@ -232,9 +229,7 @@ class Test__combine_raindrop_with_gsheet_links(hunitest.TestCase):
             gsheet_csv = dshdbou.get_tmp_file_path(
                 dsbfr.GSHEET_CSV_FILE, "update_bookmarks_from_raindrop"
             )
-            dshdbou.write_csv(
-                gsheet_csv, gsheet_rows, fieldnames=gsheet_columns
-            )
+            dshdbou.write_csv(gsheet_csv, gsheet_rows, fieldnames=gsheet_columns)
             raindrop_csv = dshdbou.get_tmp_file_path(
                 dsbfr.RAINDROP_CSV_FILE, "update_bookmarks_from_raindrop"
             )
@@ -384,9 +379,7 @@ class Test__combine_raindrop_with_gsheet_links(hunitest.TestCase):
                     "Done": "yes",
                 },
             ]
-            dshdbou.write_csv(
-                local_csv, gsheet_rows, fieldnames=gsheet_columns
-            )
+            dshdbou.write_csv(local_csv, gsheet_rows, fieldnames=gsheet_columns)
             raindrop_csv = dshdbou.get_tmp_file_path(
                 dsbfr.RAINDROP_CSV_FILE, "update_bookmarks_from_raindrop"
             )
@@ -425,7 +418,6 @@ class Test__combine_raindrop_with_gsheet_links(hunitest.TestCase):
         # Check outputs.
         self.assert_equal(combined_csv, local_csv)
         self.assert_equal(str(actual_rows), str(expected_rows))
-
 
     def test5(self) -> None:
         """

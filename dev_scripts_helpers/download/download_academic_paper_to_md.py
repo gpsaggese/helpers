@@ -112,7 +112,6 @@ import feedparser
 import pymupdf
 import requests
 
-import dev_scripts_helpers.download.download_utils as dshddut
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
@@ -121,6 +120,8 @@ import helpers.hprint as hprint
 import helpers.hretry as hretry
 import helpers.hselect_action as hselacti
 import helpers.hsystem as hsystem
+
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 

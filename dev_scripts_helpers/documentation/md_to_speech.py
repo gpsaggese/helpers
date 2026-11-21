@@ -66,8 +66,8 @@ import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
 import helpers.hmarkdown_select as hmarsele
-import helpers.hselect_input_output as hseinout
 import helpers.hparser as hparser
+import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
 
 _LOG = logging.getLogger(__name__)

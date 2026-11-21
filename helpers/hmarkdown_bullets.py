@@ -264,5 +264,4 @@ def process_lines(lines: List[str]) -> Generator[Tuple[int, str], None, None]:
         if do_continue:
             continue
         out.append(line)
-    #
     yield from enumerate(out)

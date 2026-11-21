@@ -75,12 +75,13 @@ import urllib.parse
 import urllib.request
 from typing import Any, Tuple
 
-import dev_scripts_helpers.download.download_utils as dshddut
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
+
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 

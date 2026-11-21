@@ -138,7 +138,6 @@ def get_name_from_function(func: Callable) -> str:
     """
     hdbg.dassert_callable(func)
     func_name = func.__name__
-    #
     module = inspect.getmodule(func)
     hdbg.dassert_is_not(
         module, None, "Could not get module for function '%s'", str(func)
@@ -357,7 +356,7 @@ def print_obj_info(obj: Any, **kwargs: Any) -> None:
         instead of just its first line
     """
     try:
-        from IPython.display import display, Markdown
+        from IPython.display import Markdown, display
     except ImportError:
         display = print  # type: ignore
         Markdown = lambda x: x
@@ -426,12 +425,10 @@ def is_pickleable(obj: object, *, mode: str = "try_and_catch") -> bool:
         _LOG.debug("callable=%s", callable(obj))
         if not callable(obj):
             return True
-        #
         is_bound = is_bound_to_object(obj)
         _LOG.debug("is_bound=%s", is_bound)
         if is_bound:
             return False
-        #
         is_lambda = is_lambda_function(obj)
         _LOG.debug("is_lambda=%s", is_lambda)
         if is_lambda:
@@ -486,12 +483,12 @@ def get_size_in_bytes(obj: object, seen: Optional[set] = None) -> int:
                     size += get_size_in_bytes(obj.__dict__, seen)
                 break
     if isinstance(obj, dict):
-        size += sum((get_size_in_bytes(v, seen) for v in obj.values()))
-        size += sum((get_size_in_bytes(k, seen) for k in obj.keys()))
+        size += sum(get_size_in_bytes(v, seen) for v in obj.values())
+        size += sum(get_size_in_bytes(k, seen) for k in obj.keys())
     elif isinstance(obj, cabc.Iterable) and not isinstance(
         obj, (str, bytes, bytearray)
     ):
-        size += sum((get_size_in_bytes(i, seen) for i in obj))
+        size += sum(get_size_in_bytes(i, seen) for i in obj)
     if hasattr(obj, "__slots__"):  # can have __slots__ with __dict__
         slots = getattr(obj, "__slots__", None)
         if slots is not None:

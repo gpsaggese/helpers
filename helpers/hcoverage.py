@@ -29,7 +29,7 @@ def _detect_site_packages() -> str:
         purelib = sysconfig.get_path("purelib")
         if purelib:
             return purelib
-    except (KeyError, IOError):
+    except (OSError, KeyError):
         _LOG.debug(
             "sysconfig.get_path('purelib') failed, falling back to site packages"
         )

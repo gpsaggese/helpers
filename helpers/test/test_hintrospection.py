@@ -7,7 +7,7 @@ import pickle
 import sys
 import types
 import unittest.mock as umock
-from typing import Any, Callable, cast, Dict
+from typing import Any, Callable, Dict, cast
 
 import pytest
 
@@ -82,17 +82,14 @@ class Test_is_pickleable1(hunitest.TestCase):
         exp_pickled: bool,
     ) -> None:
         _LOG.debug("obj=%s", obj)
-        #
         act_str = str(obj)
         _LOG.debug("act_str=%s", act_str)
         _LOG.debug("exp_str=%s", exp_str)
         self.assert_equal(act_str, exp_str, purify_text=True)
-        #
         act_bound = hintros.is_bound_to_object(obj)
         _LOG.debug("act_bound=%s", act_bound)
         _LOG.debug("exp_bound=%s", exp_bound)
         self.assertEqual(act_bound, exp_bound)
-        #
         act_lambda = hintros.is_lambda_function(obj)
         _LOG.debug("act_lambda=%s", act_lambda)
         _LOG.debug("exp_lambda=%s", exp_lambda)
@@ -138,7 +135,6 @@ class Test_is_pickleable1(hunitest.TestCase):
         def _hello() -> bool:
             return False
 
-        #
         func = _hello
         exp_str = (
             r"<function Test_is_pickleable1.test_func1.<locals>._hello at 0x>"

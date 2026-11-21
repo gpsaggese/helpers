@@ -263,9 +263,7 @@ def prettier(
         if file_type == "tex":
             # TODO(gp): Is this difference meaninful?
             width = 72
-        elif file_type == "md":
-            width = 80
-        elif file_type == "txt":
+        elif file_type == "md" or file_type == "txt":
             width = 80
         else:
             raise ValueError(f"Invalid file type: {file_type}")
@@ -329,7 +327,6 @@ def prettier(
         cmd.append(in_file_path)
         if in_file_path != out_file_path:
             cmd.append("> " + out_file_path)
-        #
         cmd_as_str = " ".join(cmd)
         _, output_tmp = hsystem.system_to_string(cmd_as_str, abort_on_error=True)
         _LOG.debug("output_tmp=%s", output_tmp)
@@ -339,7 +336,6 @@ def prettier(
         lines = txt.split("\n")
         lines = hmadiblo.remove_prettier_ignore_from_div_blocks(lines)
         txt = "\n".join(lines)
-        #
         txt = hio.to_file(out_file_path, txt)
     timer_.stop()
     _LOG.info("prettier time=%s", str(timer_))

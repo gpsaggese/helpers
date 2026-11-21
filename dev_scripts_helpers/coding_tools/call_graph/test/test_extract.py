@@ -8,10 +8,11 @@ import pytest
 pytest.importorskip("jedi")
 pytest.importorskip("networkx")
 
-import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
-import dev_scripts_helpers.coding_tools.call_graph.test.call_graph_fixture as dsccgtcgf
 import helpers.hunit_test as hunitest
 from helpers import hio
+
+import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
+import dev_scripts_helpers.coding_tools.call_graph.test.call_graph_fixture as dsccgtcgf
 
 _LOG = logging.getLogger(__name__)
 

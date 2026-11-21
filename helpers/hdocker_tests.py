@@ -57,7 +57,6 @@ def _run_docker_pytest_cmd(
     """
     hdbg.dassert_file_exists(test_file)
     hdbg.dassert_file_exists(docker_cmd_script)
-    #
     cmd = f'{docker_cmd_script} "pytest {test_file}"'
     # TODO(gp): Why abort_on_error?
     rc = hsystem.system(cmd, abort_on_error=False)
@@ -78,7 +77,6 @@ def run_docker_cmd(
     # Look for `docker_cmd.sh`
     docker_cmd_script = os.path.join(docker_script_dir, "docker_cmd.sh")
     hdbg.dassert_file_exists(docker_cmd_script)
-    #
     cmd = f"cd {docker_script_dir} && bash {docker_cmd_script} '{shell_cmd}'"
     hsystem.system(cmd)
 

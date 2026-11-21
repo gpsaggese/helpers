@@ -4,11 +4,12 @@ import tempfile
 from typing import List, Tuple
 from unittest import mock
 
-import dev_scripts_helpers.documentation.open_md as dshdopmd
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
 import helpers.hunit_test_utils as hunteuti
+
+import dev_scripts_helpers.documentation.open_md as dshdopmd
 
 # #############################################################################
 # Test_convert_ssh_to_https

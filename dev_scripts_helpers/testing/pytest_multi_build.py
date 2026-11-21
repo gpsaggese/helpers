@@ -32,8 +32,8 @@ import helpers.hio as hio
 import helpers.hnotify as hnotify
 import helpers.hparser as hparser
 import helpers.hprint as hprint
-import helpers.hsystem as hsystem
 import helpers.hpytest as hpytest
+import helpers.hsystem as hsystem
 import helpers.htmux as htmux
 
 _LOG = logging.getLogger(__name__)

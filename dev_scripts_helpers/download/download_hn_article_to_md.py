@@ -93,14 +93,15 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
-import helpers.hcache_simple as hcacsimp
 import helpers.hselect_action as hselacti
-import dev_scripts_helpers.download.download_utils as dshddut
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 
@@ -667,7 +668,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
     # specified, otherwise the sanitized submission title.
     if time_:
         date_str = datetime.datetime.fromtimestamp(
-            time_, tz=datetime.timezone.utc
+            time_, tz=datetime.UTC
         ).strftime("%Y-%m-%d")
     else:
         date_str = "unknown_date"

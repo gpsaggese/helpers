@@ -8,7 +8,6 @@ import logging
 import re
 from typing import List, Match
 
-import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hmarkdown_headers as hmarhead
@@ -16,6 +15,8 @@ import helpers.hmarkdown_slides as hmarslid
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.htimer as htimer
+
+import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
 

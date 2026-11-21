@@ -1,7 +1,8 @@
 import os
 
-import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.notebooks.open_notebook_from_branch as dsnoonfb
 
 # #############################################################################
 # Test_normalize_branch

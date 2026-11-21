@@ -509,7 +509,6 @@ class Test_format_first_level_bullets1(hunitest.TestCase):
     def format_and_compare_markdown(self, text: str, expected: str) -> None:
         text = hprint.dedent(text)
         expected = hprint.dedent(expected)
-        #
         lines = text.split("\n")
         actual_lines = hmarkdo.format_first_level_bullets(lines)
         actual = "\n".join(actual_lines)
@@ -777,7 +776,6 @@ class Test_process_code_block1(hunitest.TestCase):
             out.extend(out_tmp)
             if do_continue:
                 continue
-            #
             out.append(line)
         return "\n".join(out)
 

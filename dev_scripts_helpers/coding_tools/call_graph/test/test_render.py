@@ -12,10 +12,11 @@ pytest.importorskip("networkx")
 pytest.importorskip("jinja2")
 pytest.importorskip("pygments")
 
-import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
-import dev_scripts_helpers.coding_tools.call_graph.render as dsccgre
 import helpers.hunit_test as hunitest
 from helpers import hio, hprint
+
+import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
+import dev_scripts_helpers.coding_tools.call_graph.render as dsccgre
 
 _LOG = logging.getLogger(__name__)
 

@@ -13,10 +13,11 @@ import logging
 import subprocess
 from typing import List, Optional
 
-import dev_scripts_helpers.system_tools.search_utils as dshstseut
 import helpers.hdbg as hdbg
 import helpers.hparser as hparser
 import helpers.hprint as hprint
+
+import dev_scripts_helpers.system_tools.search_utils as dshstseut
 
 _LOG = logging.getLogger(__name__)
 

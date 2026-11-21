@@ -73,13 +73,14 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hllm_cli as hllmcli
 import helpers.hlogging as hloggin
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
-import helpers.hcache_simple as hcacsimp
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
 import dev_scripts_helpers.download.download_utils as dshddut
 
@@ -103,34 +104,27 @@ topic_to_cluster = {
     "Prompt Engineering": "AI",
     "Self-Supervised Learning": "AI",
     "Uncertainty Modeling": "AI",
-    #
     "AI Infrastructure": "Data/Infra",
     "Data Engineering": "Data/Infra",
     "High-Performance Computing": "Data/Infra",
-    #
     "Developer Tools": "Dev tools",
     "Git": "Dev tools",
     "Open Source": "Dev tools",
     "Python Ecosystem": "Dev tools",
     "Rust and C++": "Dev tools",
-    #
     "Quant Finance": "Finance",
     "Trading Strategies": "Finance",
-    #
     "Complex Systems": "Math",
     "Mathematical Concepts": "Math",
     "Simulation": "Math",
     "Time Series": "Math",
     "Unconventional Computing": "Math",
-    #
     "Careers": "Business",
     "Marketing and Sales": "Business",
     "Organizational Behavior": "Business",
     "Psychology": "Business",
-    #
     "Cybersecurity": "CyberSec",
     "Risk Management": "CyberSec",
-    #
     "Code Refactoring": "SwEng",
     "Dev Productivity": "SwEng",
     "Software Architecture": "SwEng",

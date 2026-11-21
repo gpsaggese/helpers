@@ -6,9 +6,6 @@ from typing import Callable, List, Optional
 
 import pytest
 
-import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
-import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
-import dev_scripts_helpers.documentation.lib_lint_text as dshdllite
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
@@ -17,6 +14,10 @@ import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
+import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
+import dev_scripts_helpers.documentation.lib_lint_text as dshdllite
 
 _LOG = logging.getLogger(__name__)
 

@@ -10,25 +10,25 @@ import argparse
 import contextlib
 import dataclasses
 import hashlib
+import importlib
 import json
 import logging
 import os
+import pprint
 import re
 import shlex
 import subprocess
 import sys
-import importlib
-import pprint
 import tempfile
 import time
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Callable,
     List,
     Optional,
     Tuple,
     Union,
-    TYPE_CHECKING,
 )
 from unittest import mock
 
@@ -54,7 +54,6 @@ import helpers.hmodule as hmodule
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -108,7 +107,10 @@ def _get_llm_model(model: str):  # type: ignore[no-untyped-def]
         # `load_plugins()`, which is a one-shot no-op after the first
         # call), so simply retrying it after clearing the cache file is
         # enough to force `llm-openrouter` to re-fetch the model list.
-        if model.startswith("openrouter/") and _refresh_openrouter_models_cache():
+        if (
+            model.startswith("openrouter/")
+            and _refresh_openrouter_models_cache()
+        ):
             llm_model = llm.get_model(model)
         else:
             raise

@@ -59,8 +59,9 @@ import helpers.hgit as hgit
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
-import dev_scripts_helpers.download.download_utils as dshddut
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 

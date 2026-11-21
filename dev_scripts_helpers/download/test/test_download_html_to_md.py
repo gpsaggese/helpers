@@ -74,7 +74,9 @@ class Test_download_html_to_md_py(hunitest.TestCase):
     Test `dev_scripts_helpers.download.download_html_to_md` script.
     """
 
-    def helper(self, html_content: str, expected_md: str, *, converter: str = "bs") -> None:
+    def helper(
+        self, html_content: str, expected_md: str, *, converter: str = "bs"
+    ) -> None:
         """
         Test helper for the script with different converters.
 

@@ -11,8 +11,8 @@ import pytest
 import helpers.hgit as hgit
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
-import dev_scripts_helpers.git.git_patch_create as dsggipac
 
+import dev_scripts_helpers.git.git_patch_create as dsggipac
 
 # #############################################################################
 # Test__create_patch
