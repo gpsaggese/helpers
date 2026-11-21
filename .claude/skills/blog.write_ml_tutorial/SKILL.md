@@ -4,35 +4,29 @@ model: opus
 ---
 
 # Goal
-- Write a blog post about the use of a machine learning library or technique in
-  a real-world application
-- Target a technical audience with a background in machine learning and AI
-  that is not necessarily familiar with the library or technique used
-- Promote the use of the library and explain the benefits of using it in
-  simple terms
-- Explain why this library or technique is better than others for the given
-  use case
+- Write a blog post about using an ML library or technique in a real-world
+  application
+- Target a technical audience with an ML and AI background that may not know the
+  library or technique
+- Promote the library and explain its benefits in simple terms
+- Explain why it is better than alternatives for the use case
 
 # Workflow
 
 ## Write the Post
 - Follow this structure:
   - Title
-  - Subtitle: a short description of the post, written in first person
-  - Introduction: explain the library or technique and its benefits in simple
+  - **Subtitle**: short description of the post, in first person
+  - **Introduction**: explain the library or technique and its benefits in simple
     terms
-  - Competitors: explain the main competitors and why this library may be
-    better
-  - Problem Statement: explain the problem and how the library or technique is
-    used to solve it
-  - Solution: explain the solution, use code snippets, output examples, and
-    screenshots; keep it simple and concise so the reader can understand it
-    without running the code
-  - Conclusion: summarize the benefits of the library or technique and why it
-    is better than others for the given use case
-  - References: list the references used to write the post
-- For each section, write a title that brings some interest while staying
-  concise
+  - **Competitors**: explain the main competitors and why this library may be better
+  - **Problem Statement**: explain the problem and how the library or technique
+    solves it
+  - **Solution**: explain the solution with code snippets, output examples, and
+    screenshots, simple enough to follow without running the code
+  - **Conclusion**: summarize the benefits and why it is better for the use case
+  - **References**: list the references used to write the post
+- Give each section a concise, interesting title
 
 # Conventions
 - Use Markdown and LaTeX for math equations
@@ -44,5 +38,5 @@ model: opus
 - [ ] Confirm the post follows the required structure (Title, Subtitle,
       Introduction, Competitors, Problem Statement, Solution, Conclusion,
       References)
-- [ ] Confirm code snippets and screenshots let the reader follow along
-      without running the code
+- [ ] Confirm code snippets and screenshots let the reader follow along without
+      running the code

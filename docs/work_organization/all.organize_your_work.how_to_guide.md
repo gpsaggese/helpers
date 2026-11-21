@@ -1,53 +1,41 @@
-
-
-<!-- toc -->
-
-- [Untitled](#untitled)
-  * [Golden rules](#golden-rules)
-  * [Roles](#roles)
-    + [Tech leads](#tech-leads)
-    + [Developers](#developers)
-  * [How to organize your research](#how-to-organize-your-research)
-  * [About the project you choose](#about-the-project-you-choose)
-
-<!-- tocstop -->
-
-# Untitled
+# How to Organize Your Work
 
 ## Golden rules
 
-- Please `watch`, `star` and `fork` the repo.
+- Please `watch`, `star` and `fork` the repos
+  - This helps GitHub promote our work
 - "Remember to treat others the way you want to be treated"
 - Everybody comes from a different place and different skill-level, somebody has
   a job, somebody has a full-time work
 - Let's be polite, helpful, and supportive to each other
+- Be clear about your availability
+  - Agree on realistic weekly commitments
+  - Communicate changes early
 - I'll remind you an adage that I tell myself when my teammates drive me crazy:
   "If you want to go fast, go alone; if you want to go far, go together"
-- While being assigned a warm-up issue:
-  - We highly value the importance of following instructions to ensure efficient
-    task completion. We intentionally select straightforward and simple issues
-    as the first tasks for you. So as your first step you should put primary
-    focus on following the rules. Failure to do so can result in wasting more of
-    our time than saving it.
-  - A pledge to put in the time you committed and not disappear
-  - If we don't find that you can meaningfully contribute, we will give you a
-    warning and help you improve, we will suggest you how to fill in your
-    knowledge gaps, and start not putting the time to help since we don't have
-    enough resources
+- We highly value the importance of following instructions to ensure efficient
+  task completion. We intentionally select straightforward and simple issues
+  as the first tasks for you. So as your first step you should put primary
+  focus on following the rules. Failure to do so can result in wasting more of
+  our time than saving it.
+- A pledge to put in the time you committed and not disappear
+- If we don't find that you can meaningfully contribute, we will give you a
+  warning and help you improve, we will suggest you how to fill in your
+  knowledge gaps, and start not putting the time to help since we don't have
+  enough resources
   - If we decide that you are not ready to contribute, we will drop you, without
-    discussions: this is our sole decision for the good of the project and the
-    other contributors
-  - You can study and try again in 6 months
+    discussions: this is our sole decision for the good of the project and the other
+    contributors
+- You can study, improve, and try again in 6 months
 
 ## Roles
 
-### Tech leads
+### Team Leaders
 
-- Tech leads are contributors that have put more effort in KaizenFlow and / or
-  have more experience in research and development
+- Team leads are contributors that have put more effort in out projects and / or have
+  more experience in research and development
 
-- The same project (e.g., Web3, Model, Arbitrage, NLP) can have multiple tech
-  leads
+- The same project can have multiple tech leads
   - One becomes a tech lead by technical excellence and dedication, and for no
     other reason (e.g., seniority or degree)
 
@@ -60,14 +48,35 @@
   - Following our process, advertising it, and explaining it to new team members
   - Understand what other people in your team are doing and coordinate with them
   - Make sure code, notebooks, and data are reused and shared
+  - Clarify priorities and interfaces
+  - Help unblock contributors and coordinate the reviews
+  - Confirm the acceptance of completed work
 
 - What tech leads gain from being a tech lead:
   - Learn how to run a research / dev team
   - Practice leadership skills (which mainly entail technical excellence and
     patience)
-  - Work closely with GP / Paul
-  - Material benefits (e.g., higher KaizenFlow bonuses once the reward system is
-    in place)
+  - Work closely with GP
+
+### Issue owners
+
+- Keep the issue and the board current
+- Provide reproducible results
+- Flag the dependencies
+- Follow through on the review feedback
+
+### Reviewers
+
+- Assess the proposed change and its validation
+- Give actionable feedback
+- Communicate the review delays that affect the sprint
+
+### Meeting facilitators
+
+- Guide the weekly blocker review, see
+  [all.scrum.explanation.md](/docs/work_organization/all.scrum.explanation.md#weekly-blocker-meeting)
+- Record the decisions, the unblock actions, the owners, and the follow-up dates
+- The team chooses the facilitator
 
 ### Developers
 
@@ -78,19 +87,46 @@
   3. Each can "replicate" the work so that both of you understand (no
      coordination)
 
+- Pairing and shared research are welcome
+  - Keep one accountable owner per issue
+  - Agree on how the collaborators divide the work to avoid duplicate or
+    conflicting changes
+
+## Starting work
+
+- Read `onboarding.md`, `plan.md`, and `how_we_work.md` in the `docs/` dir of the
+  project, and the acceptance criteria of the issue
+  - See
+    [Write a Project Meta-Doc](/docs/planning/all.plan_work.how_to_guide.md#write-a-project-meta-doc)
+- Clarify the missing requirements before substantial implementation
+- Break the work into reviewable steps that fit the available sprint capacity
+- Use a branch in the repo when authorized, or a fork when the write access to
+  the repo is unavailable
+- Use the documented environment so that others can reproduce the result
+
 ## How to organize your research
 
 - The GH issues are for:
   - Reporting issues (e.g., "I am getting this error. What should I do?")
   - Updates (e.g., "I've made a bunch of progress and the details are in the
     gdoc <link>)
+  - A short update on the days you work:
+    - What was completed
+    - The next step
+    - The blockers
+
+- Record the experiments and the findings following
+  [Keep a Progress Log](/docs/planning/all.plan_work.how_to_guide.md#keep-a-progress-log)
+  - Link the record from the issue and the PR
+  - Do not commit secrets, private data, or large raw artifacts without an
+    agreed storage approach
+
+- Commit reviewable progress
+  - Use draft PRs when early feedback would help
 
 - Commit the code in a PR (even the same PR) so that it's easier to review the
   details together
   - You can say "this is what I'm doing, what do you think?"
-  - E.g., create a dir like 'SorrIssueXYZ\_...' under
-    https://github.com/kaizen-ai/kaizenflow/tree/master/sorrentum_sandbox/examples/ml_projects
-  - E.g., see the PR under https://github.com/kaizen-ai/kaizenflow/pull/31
 
 - Work in the Docker container so that you use the standard flow and it's easy
   to collaborate
@@ -103,9 +139,14 @@
     the dir synced locally on your computer so when you work on your project the
     data is always in sync with what others view
 
-- Keep a detailed research log in a Google Doc in the
-  [Project dir](https://drive.google.com/drive/u/0/folders/1eKj6u_cbQM0ZLZ4wRJ6xPM1oqIKwusUo)
-  - Document what you are doing, take screenshot, explain the results
+- Keep a detailed research log in markdown in the repo, see
+  [Keep a Progress Log](/docs/planning/all.plan_work.how_to_guide.md#keep-a-progress-log)
+  - A Google Doc in the
+    [Project dir](https://drive.google.com/drive/u/0/folders/1eKj6u_cbQM0ZLZ4wRJ6xPM1oqIKwusUo)
+    can supplement the log (e.g., screenshots, drafts)
+    - Link it from the log
+  - Document what you are doing, explain the results
+  - Keep every decision in a non-ephemeral system, never only in Slack or email
   - You can make progress _only_ if you are organized and consistent
 
 - Avoid emails any time possible
@@ -131,6 +172,33 @@
   - Coordinate with them
   - We can only make progress together as a team and not as a single person (get
     over being shy)
+
+## Blockers and communication
+
+- Report a blocker in the issue
+  - Set the issue to the status used for blocked work
+  - Mention who can help
+  - State what you tried, the impact, and a concrete next action
+  - Use the template in
+    [all.use_github.how_to_guide.md](/docs/work_organization/all.use_github.how_to_guide.md#updating-an-issue)
+- Use the urgent channel agreed by the team for time-sensitive help
+  - Then record the outcome in the issue
+- Do not wait for the weekly meeting to report a blocker
+  - At the meeting, review the open blockers and agree on owners and follow-up
+    dates
+- Keep the deep technical discussion in focused follow-ups
+- Preserve the decisions in the issue or in the weekly summary
+
+## Finishing and choosing next work
+
+- Show how the acceptance criteria were met and link the validation evidence
+- Address the review feedback
+- Complete the closing process, see
+  [all.use_github.how_to_guide.md](/docs/work_organization/all.use_github.how_to_guide.md#closing-an-issue)
+- If you finish early, coordinate with the team before starting another priority
+  - Record any resulting change in the sprint scope
+- Preserve the carryover decisions at the end of the sprint, see
+  [Carryover of unfinished issues](/docs/work_organization/all.github_projects_process.reference.md#carryover-of-unfinished-issues)
 
 ## About the project you choose
 

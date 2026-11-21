@@ -443,8 +443,9 @@ def is_pickleable(obj: object, *, mode: str = "try_and_catch") -> bool:
             return True
         # `AttributeError` is raised when obj is a class with lambda param
         # values, and `TypeError`is raised when the class has DB connection
-        # object as value.
-        except (AttributeError, TypeError) as e:
+        # object as value. Python 3.14+ raises `pickle.PicklingError` instead
+        # of `AttributeError` for local objects (e.g., lambdas).
+        except (AttributeError, TypeError, pickle.PicklingError) as e:
             _LOG.debug("Cannot pickle object=%s, the error is %s", obj, str(e))
             return False
     else:

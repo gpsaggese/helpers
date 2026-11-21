@@ -1,4 +1,7 @@
+import importlib.util
 import logging
+
+import pytest
 
 import helpers.hpandas as hpandas
 import helpers.hunit_test as hunitest
@@ -13,6 +16,10 @@ _AWS_PROFILE = "ck"
 # #############################################################################
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("IPython") is None,
+    reason="IPython is not installed",
+)
 class Test_CheckSummary(hunitest.TestCase):
     def test1(self) -> None:
         """

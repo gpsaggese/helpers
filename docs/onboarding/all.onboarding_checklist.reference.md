@@ -165,11 +165,11 @@
   - Linux user: name + first letter of last name
   - Send the account info bundle
 
-- [ ] **IT**: create company email `@causify.ai`
+- [ ] **IT**: create company email `@<company_domain>`
   - Exchange username and password
 
 - [ ] **IT**: Add team member to mailing lists
-  - `all@causify.ai` mailing lists
+  - `<all_email>` mailing lists
     - [https://groups.google.com/my-groups](https://groups.google.com/my-groups)
     - [https://admin.google.com/ac/groups/01qoc8b13iwic0z/info](https://admin.google.com/ac/groups/01qoc8b13iwic0z/info)
 
@@ -181,11 +181,11 @@
 
 - [ ] **Team member**: Confirm monthly all-hands meeting (usually on Monday
       morning)
-  - This happens automatically through `all@causify.ai`
+  - This happens automatically through `<all_email>`
   - [https://calendar.google.com/calendar/u/0/r](https://calendar.google.com/calendar/u/0/r)
 
 - [ ] **Team member**: Confirm access to the Google Drive documentation
-  - This should be automatically granted as being in `all@causify.ai`
+  - This should be automatically granted as being in `<all_email>`
   - [Tech](https://drive.google.com/drive/u/1/folders/0AG6WMNtf7MVkUk9PVA)
   - [Process](https://drive.google.com/drive/u/1/folders/1aLNVB_Oiljf2ajkmpZuoX_TArpQdb6pG)
 
@@ -204,11 +204,11 @@
   - TODO(Shayan): Update this
 
 - [ ] **IT**: Add team member to all GitHub repos:
-  - [ ] [kaizenflow](https://github.com/causify-ai/kaizenflow)
-  - [ ] [helpers](https://github.com/causify-ai/helpers)
-  - [ ] [tutorials](https://github.com/causify-ai/tutorials)
-  - [ ] [cmamp](https://github.com/causify-ai/cmamp)
-  - [ ] [orange](https://github.com/causify-ai/orange) (On per-need basis)
+  - [ ] kaizenflow (`https://github.com/<org>/kaizenflow`)
+  - [ ] helpers (`https://github.com/<org>/helpers`)
+  - [ ] tutorials (`https://github.com/<org>/tutorials`)
+  - [ ] cmamp (`https://github.com/<org>/cmamp`)
+  - [ ] orange (`https://github.com/<org>/orange`) (On per-need basis)
   - [ ] [UMD_classes](https://github.com/gpsaggese/umd_classes) (On per-need
         basis)
 
@@ -248,7 +248,7 @@
 - [ ] **Team member**: Add your usual working hours by going to
       calendar.google.com (using your corporate email), heading to the settings
       section by clicking the gear icon on top right
-  - <img src="https://github.com/causify-ai/helpers/blob/master/docs/onboarding/figs/google_calendar/Fig1_google_calendar_working_hour.png"
+  - <img src="/docs/onboarding/figs/google_calendar/Fig1_google_calendar_working_hour.png"
     style="width:6in" />
 
 - [ ] **Team member**: Confirm you can access the anonymous form to ask anything
@@ -270,7 +270,7 @@
     - There is an extension for VSCode, which allows to develop remotely
       [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
     - Follow
-      [this instruction](/docs/tools/all.visual_studio_code.how_to_guide.md)
+      [this instruction](/docs/tools/ide/all.visual_studio_code.how_to_guide.md)
       on how to set it up in your Visual Studio Code
   - [ ] Run the unit tests and make sure they all pass
   - [ ] Run a docker container
@@ -279,7 +279,7 @@
     ```
   - [ ] Run a jupyter notebook
     - Follow
-      [this instruction](/docs/tools/all.visual_studio_code.how_to_guide.md#how-to-access-the-jupyter-server-running-on-the-remote-server-through-your-local-machine)
+      [this instruction](/docs/tools/ide/all.visual_studio_code.how_to_guide.md#how-to-access-the-jupyter-server-running-on-the-remote-server-through-your-local-machine)
       on how to access the Jupyter server running on the remote server through
       your local machine
     ```bash
@@ -290,13 +290,14 @@
 
 - [ ] **Team member**: carefully study all the documents in
       [the must-read list](/docs/onboarding/all.dev_must_read_checklist.reference.md)
+  - [ ] [How to navigate the documentation](/docs/README.md)
   - [ ] [General rules of collaboration](/docs/work_organization/all.team_collaboration.how_to_guide.md)
-  - [ ] [Coding style guide](/docs/code_guidelines/all.coding_style.how_to_guide.md)
+  - [ ] [Coding style guide](/docs/coding/all.coding_style.how_to_guide.md)
   - [ ] [How to write unit tests](/helpers/test/docs/all.write_unit_tests.how_to_guide.md)
   - [ ] [How to run unit tests](/helpers/test/docs/all.run_unit_tests.how_to_guide.md)
   - [ ] [Creating a Jupyter Notebook](/docs/tools/notebooks/all.jupyter_notebook.how_to_guide.md)
-  - [ ] [What to do before opening a PR](/docs/code_guidelines/all.submit_code_for_review.how_to_guide.md)
-  - [ ] [Code review process](/docs/code_guidelines/all.code_review.how_to_guide.md)
+  - [ ] [What to do before opening a PR](/docs/coding/all.submit_code_for_review.how_to_guide.md)
+  - [ ] [Code review process](/docs/coding/all.code_review.how_to_guide.md)
   - [ ] [Git workflows and best practices](/docs/tools/git/all.git.how_to_guide.md)
   - [ ] [GitHub organization](/docs/work_organization/all.use_github.how_to_guide.md)
   - [ ] [Tips for writing documentation](/docs/documentation_meta/all.writing_docs.how_to_guide.md)

@@ -10,17 +10,19 @@ import dev_scripts_helpers.download.download_utils as dshddut
 """
 
 import logging
+import os
 import re
-from typing import Optional
+from typing import List, Optional
 
 import bs4
 import requests
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
 import helpers.hprint as hprint
-import helpers.hcache_simple as hcacsimp
+import helpers.hstring as hstring
 import helpers.hsystem as hsystem
 
 _LOG = logging.getLogger(__name__)
@@ -48,6 +50,14 @@ def fetch_article_title(url: str) -> Optional[str]:
         ),
         "Accept-Language": "en-US,en;q=0.9",
     }
+    # TODO(ai_gp): Remove try-except and let the exception propagate, or
+    # restructure to avoid recovering from errors (coding.rules.md:## Do Not
+    # Use `try-except`)
+    # Not removed: this function's contract (see `:return:` above) is to
+    # return `None` on fetch failure, and
+    # `download_html_to_md.py::_get_output_md_file()` relies on that `None`
+    # to gracefully fall back to the input's basename when the request
+    # fails (e.g., network error, timeout, 404).
     try:
         response = requests.get(url, timeout=30, headers=headers)
         response.raise_for_status()
@@ -58,7 +68,7 @@ def fetch_article_title(url: str) -> Optional[str]:
     if not soup.title or not soup.title.string:
         _LOG.warning("No <title> tag found in '%s'", url)
         return None
-    # BeautifulSoup already unescapes HTML entities; just collapse internal
+    # `BeautifulSoup` already unescapes HTML entities; just collapse internal
     # whitespace/newlines.
     title = soup.title.string.strip()
     title = re.sub(r"\s+", " ", title)
@@ -93,6 +103,138 @@ def sanitize_title_for_filename(title: str) -> str:
 # it as their own `--model` CLI default.
 SUMMARY_MODEL = "openrouter/anthropic/claude-haiku-4.5"
 
+
+# Suffixes of a person name that are not part of the family name.
+_NAME_SUFFIXES = ["jr", "sr", "ii", "iii", "iv"]
+
+
+def _is_name_suffix(token: str) -> bool:
+    """
+    Check if a token is a name suffix, e.g., `Jr.` or `III`.
+
+    :param token: token of a person name
+    :return: True if the token is a suffix and not part of the family name
+    """
+    return token.strip().rstrip(".").lower() in _NAME_SUFFIXES
+
+
+def _get_family_name(author: str) -> str:
+    """
+    Extract the family name from an author name.
+
+    The name can be in the form `First Last` or `Last, First`. A suffix like
+    `Jr.` is dropped, also when it follows a comma.
+    - `Marcos Lopez de Prado` -> `Prado`
+    - `Jackson, Robert J.` -> `Jackson`
+    - `Robert J. Jackson, Jr.` -> `Jackson`
+
+    :param author: author name
+    :return: family name, `Unknown` if the name is empty
+    """
+    parts = [part.strip() for part in author.split(",")]
+    # Drop a suffix that follows a comma, as in `Robert J. Jackson, Jr.`.
+    if len(parts) > 1 and _is_name_suffix(parts[1]):
+        parts = parts[:1]
+    if len(parts) > 1:
+        # The form is `Last, First`: the family name is before the comma.
+        family_name = parts[0]
+    else:
+        # The form is `First Last`: the family name is the last token that is
+        # not a suffix.
+        tokens = parts[0].split()
+        while len(tokens) > 1 and _is_name_suffix(tokens[-1]):
+            tokens.pop()
+        family_name = tokens[-1] if tokens else "Unknown"
+    return family_name
+
+
+def format_base_filename(
+    year: Optional[str], authors: List[str], title: Optional[str]
+) -> str:
+    """
+    Format the base file name (no extension) of a paper.
+
+    The format is `<Year>.<Last_name_of_first_author>[_et_al].<Title>`, per
+    `.claude/skills/references.rules.md`. Every char that is not a letter, a
+    digit, or `_` becomes `_`, and runs of `_` collapse into one.
+    - `2016.Ribeiro_et_al.Why_Should_I_Trust_You_Explaining_the_Predictions`
+
+    :param year: publication year, `UnknownYear` if empty
+    :param authors: author names, in the form `First Last` or `Last, First`
+    :param title: paper title, `UnknownTitle` if empty
+    :return: base file name, without extension
+    """
+    _LOG.debug(hprint.to_str("year authors title"))
+    # Year.
+    year_part = sanitize_title_for_filename(year or "") or "UnknownYear"
+    # First author: the family name, with `_et_al` if there are more authors.
+    if authors:
+        family_name = _get_family_name(authors[0])
+        author_part = sanitize_title_for_filename(hstring.to_ascii(family_name))
+        author_part = author_part or "Unknown"
+        if len(authors) > 1:
+            author_part = f"{author_part}_et_al"
+    else:
+        author_part = "None"
+    # Title.
+    title_part = sanitize_title_for_filename(hstring.to_ascii(title or ""))
+    title_part = title_part or "UnknownTitle"
+    base_filename = ".".join([year_part, author_part, title_part])
+    _LOG.debug("return=%s", base_filename)
+    return base_filename
+
+
+# Phrases (lowercase) found in the visible text of the pages that bot-protection
+# systems (e.g., Cloudflare, Akamai, Imperva, Elsevier's content protection)
+# return instead of the requested content.
+BLOCKED_PAGE_MARKERS = [
+    "just a moment",
+    "attention required! | cloudflare",
+    "enable javascript and cookies to continue",
+    "checking your browser before accessing",
+    "verify you are human",
+    "performing security verification",
+    "you may be using an automated script",
+    "access denied",
+    "unusual traffic from your computer",
+    "pardon our interruption",
+    "are you a robot",
+    "captcha",
+]
+
+# A block page has only a few lines of text, while a real page has much more:
+# a marker is only trusted on pages with less visible text than this, so that
+# an article that merely mentions a "captcha" is not flagged.
+BLOCKED_PAGE_MAX_TEXT_CHARS = 2000
+
+
+def detect_blocked_page(html_content: str) -> str:
+    """
+    Detect a bot-protection page returned instead of the requested content.
+
+    Such pages often come with a `200` status or are rendered by a browser, so
+    the HTTP status alone does not reveal them. A page is flagged when its
+    visible text is short and contains a known marker.
+
+    :param html_content: HTML of the downloaded page
+    :return: the matching marker, e.g., "just a moment", or "" if the page
+        looks like real content
+    """
+    _LOG.debug(hprint.to_str("html_content"))
+    # Keep only the text a person would see: drop scripts and styles, which are
+    # large in block pages (e.g., 900 KB of HTML for 400 characters of text).
+    soup = bs4.BeautifulSoup(html_content, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    text = re.sub(r"\s+", " ", soup.get_text(" ")).strip().lower()
+    marker = ""
+    if len(text) < BLOCKED_PAGE_MAX_TEXT_CHARS:
+        matches = [m for m in BLOCKED_PAGE_MARKERS if m in text]
+        marker = matches[0] if matches else ""
+    _LOG.debug("return=%s", marker)
+    return marker
+
+
 # Shared prompt for summarizing article content into 12-15 bullet points;
 # reused by `download_hn_article_to_md.py`, `download_html_to_md.py`, and
 # `download_academic_paper_to_md.py` to avoid repeating the same prompt text.
@@ -107,35 +249,219 @@ ARTICLE_SUMMARY_PROMPT = hprint.dedent(
     """
 )
 
+# Prompt for a summary that keeps the structure of the article: a level-1
+# header for each main section, with bullet points under it. The headers of the
+# input are not relied upon, since a markdown converted from a PDF has headers
+# that are wrong, missing, or used for body text.
+ARTICLE_STRUCTURED_SUMMARY_PROMPT = hprint.dedent(
+    """
+    - Summarize the main article keeping its structure
+    - Write a markdown header of level 1 (`#`) for each main section of the
+      article (e.g., abstract, introduction, methods, results, conclusions)
+      - The article was converted from a PDF, so its markdown headers can be
+        wrong, missing, or used for body text: infer the sections from the
+        content
+      - Skip the front matter (title block, authors, affiliations), the page
+        headers and footers, and the references
+    - Under each header write bullet points, using sub-bullets for the details
+      - Do not use headers of level 2 or deeper
+    - Use fewer than about 800 words in total
+    - Follow the conventions in:
+      - @.claude/skills/markdown.rules.md
+      - @.claude/skills/text.rules.md
+    """
+)
+
+# Deepest header level that an `up_to_l<N>` summary can keep. Headers of level 4
+# or deeper are avoided in markdown.
+MAX_SUMMARY_LEVEL = 3
+
+# What a header of each level stands for in the article, from level 1 down.
+_SECTION_LEVEL_DESCRIPTIONS = [
+    (
+        "each main section of the article (e.g., abstract, introduction, "
+        "methods, results, conclusions)"
+    ),
+    "each subsection of a main section",
+    "each sub-subsection of a subsection",
+]
+
+
+def _build_up_to_level_prompt(max_level: int) -> str:
+    """
+    Build the prompt of a summary that keeps the structure of the article up to
+    a header level.
+
+    It is the generalization of `ARTICLE_STRUCTURED_SUMMARY_PROMPT`, which
+    keeps only the level-1 headers.
+
+    :param max_level: deepest level of header to write, from 2 to
+        `MAX_SUMMARY_LEVEL`
+    :return: system prompt to pass to `summarize_text_with_llm()`
+    """
+    _LOG.debug(hprint.to_str("max_level"))
+    hdbg.dassert_lte(2, max_level)
+    hdbg.dassert_lte(max_level, MAX_SUMMARY_LEVEL)
+    template = hprint.dedent(
+        """
+        - Summarize the main article keeping its structure to level {max_level}
+        - Write a markdown header for each section, down to level {max_level}:
+        {level_lines}
+          - The article was converted from a PDF, so its markdown headers can be
+            wrong, missing, or used for body text: infer the sections from the
+            content
+          - Skip the front matter (title block, authors, affiliations), the page
+            headers and footers, and the references
+        - Under each header write bullet points, using sub-bullets for the details
+          - Do not use headers of level {too_deep_level} or deeper
+        - Use fewer than about {num_words} words in total
+        - Follow the conventions in:
+          - @.claude/skills/markdown.rules.md
+          - @.claude/skills/text.rules.md
+        """
+    )
+    level_lines = "\n".join(
+        f"  - Level {level} (`{'#' * level}`): {description}"
+        for level, description in enumerate(
+            _SECTION_LEVEL_DESCRIPTIONS[:max_level], start=1
+        )
+    )
+    prompt = template.format(
+        max_level=max_level,
+        level_lines=level_lines,
+        too_deep_level=max_level + 1,
+        # The deeper the structure, the more text is needed to fill it.
+        num_words=400 * (max_level + 1),
+    )
+    return prompt
+
+
+# Types of summary, mapped to the prompt that generates them:
+# - `short`: 7-10 bullet points, with no structure
+# - `structured`: level-1 headers with bullet points, like the article
+# - `up_to_l<N>`: headers up to level N (2 to `MAX_SUMMARY_LEVEL`) with bullet
+#   points, like the article
+_SUMMARY_PROMPTS = {
+    "short": ARTICLE_SUMMARY_PROMPT,
+    "structured": ARTICLE_STRUCTURED_SUMMARY_PROMPT,
+}
+_SUMMARY_PROMPTS.update(
+    {
+        f"up_to_l{level}": _build_up_to_level_prompt(level)
+        for level in range(2, MAX_SUMMARY_LEVEL + 1)
+    }
+)
+SUMMARY_TYPES = list(_SUMMARY_PROMPTS)
+
+# Other names of a type of summary, mapped to the type they stand for:
+# `structured` keeps the headers up to level 1.
+SUMMARY_TYPE_ALIASES = {"up_to_l1": "structured"}
+
+
+def normalize_summary_type(summary_type: str) -> str:
+    """
+    Get the type of summary that an alias stands for.
+
+    :param summary_type: type of summary or alias, one of `SUMMARY_TYPES` or
+        `SUMMARY_TYPE_ALIASES`
+        - E.g., `up_to_l1`
+    :return: type of summary, one of `SUMMARY_TYPES`
+        - E.g., `structured`
+    """
+    _LOG.debug(hprint.to_str("summary_type"))
+    summary_type = SUMMARY_TYPE_ALIASES.get(summary_type, summary_type)
+    hdbg.dassert_in(summary_type, SUMMARY_TYPES)
+    return summary_type
+
+
+def get_summary_prompt(summary_type: str) -> str:
+    """
+    Get the prompt that generates a type of summary.
+
+    :param summary_type: type of summary, one of `SUMMARY_TYPES` or
+        `SUMMARY_TYPE_ALIASES`
+        - `short`: 7-10 bullet points, with no structure
+        - `structured` or `up_to_l1`: level-1 headers with bullet points,
+          keeping the structure of the article
+        - `up_to_l<N>`: headers up to level N with bullet points, keeping the
+          structure of the article
+    :return: system prompt to pass to `summarize_text_with_llm()`
+    """
+    _LOG.debug(hprint.to_str("summary_type"))
+    summary_type = normalize_summary_type(summary_type)
+    prompt = _SUMMARY_PROMPTS[summary_type]
+    return prompt
+
 
 def get_stat_file_path(summary_file: str) -> str:
     """
     Derive the stats JSON file path for a summary file.
 
-    :param summary_file: path to a `*.summary.md` file produced by
-        `summarize_text_with_llm()`
+    :param summary_file: path to a summary file produced by
+        `summarize_text_with_llm()`, e.g., `*.summary.md` or `*.summary.txt`
     :return: path to the sibling stats file (e.g.,
         `foo.summary.md` -> `foo.summary.stat.json`)
     """
-    hdbg.dassert(
-        summary_file.endswith(".md"),
-        "Summary file must end in '.md': %s",
-        summary_file,
+    stem, ext = os.path.splitext(summary_file)
+    hdbg.dassert_ne(
+        ext, "", "Summary file must have an extension: '%s'", summary_file
     )
-    return summary_file[: -len(".md")] + ".stat.json"
+    return stem + ".stat.json"
+
+
+def _build_llm_cli_cmd(
+    llm_cli_path: str,
+    input_file: str,
+    output_file: str,
+    prompt_file: str,
+    stat_file: str,
+    *,
+    model: str = "",
+) -> str:
+    """
+    Build the `llm_cli.py` command line to summarize a file.
+
+    :param llm_cli_path: path to `llm_cli.py`
+    :param input_file: path to the input text file
+    :param output_file: path to save the result
+    :param prompt_file: path to the file with the system prompt
+    :param stat_file: path to save the LLM usage stats
+    :param model: LLM model name
+        - Default: `""`, which omits `--model` so that `llm_cli.py` uses its
+          own default model
+    :return: command line
+    """
+    _LOG.debug(hprint.to_str("input_file output_file prompt_file model"))
+    cmd_parts = [
+        llm_cli_path,
+        f"--input={input_file}",
+        f"--output={output_file}",
+        f"--pf={prompt_file}",
+    ]
+    # Without `--model`, `llm_cli.py` uses its default model: an OpenRouter one.
+    if model:
+        cmd_parts.append(f"--model={model}")
+    # `llm_cli_path` runs via its own `uv run` shebang, in an isolated
+    # environment that starts with no llm plugins configured (see the note at
+    # the top of `llm_cli.py`). `--install_llm_plugins` installs
+    # `llm-openrouter`/`llm-anthropic` if missing (cheap no-op once already
+    # installed in that cached uv environment), so an OpenRouter-routed model
+    # resolves correctly.
+    cmd_parts += [f"--stat_file={stat_file}", "--lint", "--install_llm_plugins"]
+    cmd = " ".join(cmd_parts)
+    return cmd
 
 
 def summarize_text_with_llm(
     input_file: str,
     output_file: str,
     prompt: str,
-    # TODO(ai_gp): Move this to after *
-    model: str = SUMMARY_MODEL,
     *,
+    model: str = "",
     dry_run: bool = False,
 ) -> None:
     """
-    Summarize text using llm_cli.py and lint the output.
+    Summarize text using `llm_cli.py` and lint the output.
 
     Also saves LLM usage stats (model, input/output/prompt char counts,
     wallclock time, cost) next to `output_file`; see `get_stat_file_path()`.
@@ -144,6 +470,12 @@ def summarize_text_with_llm(
     :param output_file: Path to save the summary
     :param prompt: System prompt to guide the summarization
     :param model: LLM model to use for summarization
+        - Default: `""`, which uses the default model of `llm_cli.py`, an
+          OpenRouter one (it needs the `OPENROUTER_KEY` env var)
+        - Use the `openrouter/<provider>/<model>` prefix for another
+          OpenRouter model, e.g., `openrouter/anthropic/claude-haiku-4.5`
+        - A direct model name, e.g., `gpt-4o-mini`, is not routed through
+          OpenRouter and needs the key of its provider
     :param dry_run: If True, show what would be done without executing
     """
     _LOG.debug(hprint.to_str("input_file output_file model"))
@@ -153,35 +485,25 @@ def summarize_text_with_llm(
             "[DRY RUN] Would summarize: %s -> %s (model: %s)",
             input_file,
             output_file,
-            model,
+            model or "default",
         )
         return
     # Save prompt to a temporary file.
-    prompt_file = "tmp.summarize_text_with_llm.prompt.txt"
+    prompt_file = "tmp.download_utils.summarize_text_with_llm.prompt.txt"
     hio.to_file(prompt_file, prompt)
     _LOG.debug("Saved prompt to: '%s'", prompt_file)
-    # Build command to call llm_cli.py with the given prompt file.
+    # Build command to call `llm_cli.py` with the given prompt file.
     llm_cli_path = hsystem.find_file_in_repo("llm_cli.py")
     stat_file = get_stat_file_path(output_file)
-    cmd_parts = [
+    cmd = _build_llm_cli_cmd(
         llm_cli_path,
-        f"--input={input_file}",
-        f"--output={output_file}",
-        f"--pf={prompt_file}",
-        f"--model={model}",
-        f"--stat_file={stat_file}",
-        "--lint",
-        # `llm_cli_path` runs via its own `uv run` shebang, in an isolated
-        # environment that starts with no llm plugins configured (see the
-        # note at the top of `llm_cli.py`). `--install_llm_plugins` installs
-        # `llm-openrouter`/`llm-anthropic` if missing (cheap no-op once
-        # already installed in that cached uv environment), so an
-        # OpenRouter-routed `model` (the default, see `SUMMARY_MODEL`)
-        # resolves correctly.
-        "--install_llm_plugins",
-    ]
-    cmd = " ".join(cmd_parts)
-    _LOG.debug("Running command: %s", cmd)
+        input_file,
+        output_file,
+        prompt_file,
+        stat_file,
+        model=model,
+    )
+    _LOG.debug("Running command: '%s'", cmd)
     hsystem.system(cmd, print_command=True)
     _LOG.info("Summary saved to: '%s'", output_file)
     _LOG.info("Stats saved to: '%s'", stat_file)
@@ -192,6 +514,12 @@ def summarize_text_with_llm(
 # #############################################################################
 
 
+# TODO(ai_gp): Rename to `_is_arxiv_url()` since it is only used
+# internally by `is_academic_paper_url()` (coding.rules.md:## Mark
+# Private Functions)
+# Not renamed: `is_arxiv_url()` is also called from
+# `download_hn_article_to_md.py` (as `dshddut.is_arxiv_url()`), so it is
+# part of the module's public interface, not internal-only.
 def is_arxiv_url(url: str) -> bool:
     """
     Check if a URL points to an arXiv paper.
@@ -205,6 +533,12 @@ def is_arxiv_url(url: str) -> bool:
     return result
 
 
+# TODO(ai_gp): Rename to `_detect_doi()` since it is only used
+# internally by `is_academic_paper_url()` (coding.rules.md:## Mark
+# Private Functions)
+# Not renamed: `detect_doi()` is also called from
+# `download_academic_paper_to_md.py` (as `dshddut.detect_doi()`), so it is
+# part of the module's public interface, not internal-only.
 def detect_doi(url: str) -> Optional[str]:
     """
     Detect DOI from URL or bare DOI string.
@@ -232,7 +566,40 @@ def detect_doi(url: str) -> Optional[str]:
     return None
 
 
-def is_pdf_url(url: str) -> bool:
+def get_ssrn_id(input_arg: str) -> str:
+    """
+    Extract the SSRN abstract id from an SSRN URL or DOI.
+
+    E.g., all of these return "5277078":
+    - `https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5277078`
+    - `https://papers.ssrn.com/sol3/Delivery.cfm/5277078.pdf?abstractid=5277078`
+    - `https://www.ssrn.com/abstract=5277078`
+    - `10.2139/ssrn.5277078`
+
+    :param input_arg: URL or DOI
+    :return: the abstract id, or "" if the input is not an SSRN paper
+    """
+    _LOG.debug(hprint.to_str("input_arg"))
+    ssrn_id = ""
+    if "ssrn" in input_arg.lower():
+        # Match the id after any of the forms SSRN uses for it.
+        pattern = r"""
+            (?:
+                abstract_id=         # papers.cfm?abstract_id=<id>
+              | abstractid=          # Delivery.cfm/<id>.pdf?abstractid=<id>
+              | ssrn\.com/abstract=  # www.ssrn.com/abstract=<id>
+              | 10\.2139/ssrn\.      # DOI
+            )
+            (\d+)
+        """
+        match = re.search(pattern, input_arg, re.VERBOSE)
+        if match:
+            ssrn_id = match.group(1)
+    _LOG.debug("return=%s", ssrn_id)
+    return ssrn_id
+
+
+def _is_pdf_url(url: str) -> bool:
     """
     Check if a URL points directly to a PDF file.
 
@@ -244,24 +611,33 @@ def is_pdf_url(url: str) -> bool:
     # Strip query string and fragment before checking the file extension.
     path = url.split("?")[0].split("#")[0]
     result = path.lower().endswith(".pdf")
-    _LOG.debug("return=%s", result)
+    _LOG.debug("return='%s'", result)
     return result
 
 
 def is_academic_paper_url(url: str) -> bool:
     """
-    Check if a URL points to an academic paper (arXiv, DOI, or PDF).
+    Check if a URL points to an academic paper (arXiv, DOI, PDF, or SSRN).
 
     Single source of truth for what counts as an "academic paper" URL,
     shared by `download_to_md.py`'s input-type detection and
     `download_article()`'s dispatch below, so the two stay consistent.
 
-    :param url: Article URL or bare DOI
+    A path to a local `.pdf` file also counts, like a PDF URL. An SSRN
+    abstract page counts too: it is not a PDF, but
+    `download_academic_paper_to_md.py` downloads its paper through Chrome.
+
+    :param url: Article URL, bare DOI, or local file path
     :return: True if the URL should be routed to
         `download_academic_paper_to_md.py`
     """
     _LOG.debug(hprint.to_str("url"))
-    result = bool(is_arxiv_url(url) or detect_doi(url) or is_pdf_url(url))
+    result = bool(
+        is_arxiv_url(url)
+        or detect_doi(url)
+        or _is_pdf_url(url)
+        or get_ssrn_id(url)
+    )
     _LOG.debug(hprint.to_str("result"))
     return result
 
@@ -277,7 +653,12 @@ def download_website_article(url: str, output_file: str) -> None:
     """
     _LOG.debug(hprint.to_str("url output_file"))
     script = hgit.find_file_in_git_tree("download_html_to_md.py")
-    cmd = f'{script} --input "{url}" --output "{output_file}"'
+    cmd = [
+        script,
+        f'--input "{url}"',
+        f'--output "{output_file}"',
+    ]
+    cmd = " ".join(cmd)
     hsystem.system(cmd, print_command=True)
     hdbg.dassert_file_exists(output_file)
 
@@ -310,10 +691,15 @@ def download_arxiv_article(url: str, output_file: str) -> None:
     # Only download + convert here: skip the script's own summarize action
     # since callers summarize the resulting article text themselves. Skip
     # figures too, since only the text is consumed downstream.
-    cmd = (
-        f'{script} --input "{url}" --output "{base_path}" '
-        f"--no_incremental --skip_action summarize --skip_figures"
-    )
+    cmd = [
+        script,
+        f'--input "{url}"',
+        f'--output "{base_path}"',
+        "--no_incremental",
+        "--skip_action summarize",
+        "--no_extract_figures",
+    ]
+    cmd = " ".join(cmd)
     hsystem.system(cmd, print_command=True)
     pdf_output_file = f"{base_path}.pdf"
     hdbg.dassert_file_exists(pdf_output_file)

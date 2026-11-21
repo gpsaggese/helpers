@@ -20,12 +20,14 @@ This directory has no subdirectories.
   - Send email notifications via SMTP
 - `extract_cfile.py`
   - Extract code from C-style vim cfile format
-- `ffind.py`
-  - Find files and directories by name pattern
+- `ffind`
+  - Find files and directories by name pattern (command-line tool)
 - `fix_perms.sh`
   - Fix file permissions recursively in a directory tree
 - `git_fix_perms.sh`
   - Correct git repository file permissions
+- `lib_ffind.py`
+  - `ffind` library implementation
 - `lib_rig.py`
   - Library and rig management utilities
 - `mdm`
@@ -44,6 +46,8 @@ This directory has no subdirectories.
   - Search and replace text across multiple files
 - `save_screenshot.py`
   - Save an image from an interactive macOS screenshot, the clipboard, or a URL
+- `search_utils.py`
+  - Argument parsing shared by `rig` and `ffind` (`<pattern> [<dir>] [<ext>]`)
 - `tg.py`
   - Send notifications via Telegram
 - `tree.sh`
@@ -111,19 +115,34 @@ This directory has no subdirectories.
   > website_screenshot.py --url "https://example.com" --output screenshot.png
   ```
 
-## `ffind.py`
+## `ffind`
 
 ### What It Does
 
-- Finds files and directories by name pattern or glob expression
-- Supports recursive directory search with multiple filters
+- Finds files and directories whose name matches a pattern, wrapping `find`
+- Uses the same interface and parsing code as `rig`:
+  `ffind <pattern> [<dir>] [<ext>]`
+  - `<dir>` defaults to the current directory `.`
+  - `<ext>` is an optional comma-separated list of extensions without dot (e.g.,
+    `py,md`) and requires `<dir>`
+- Accepts `--dir` as an alternative to the positional `<dir>`
+- Accepts `--dry_run` to print the `find` command without running it
 - Outputs results suitable for pipeline processing
 
 ### Examples
 
-- Find Python files in directory tree:
+- Find files/dirs whose name contains a pattern:
   ```bash
-  > ffind.py --pattern "*.py" /path/to/search
+  > ffind Task243
+  ```
+- Search only in a given directory:
+  ```bash
+  > ffind stocktwits this_dir
+  ```
+- Filter by file extension (the directory is required):
+  ```bash
+  > ffind notebook . py
+  > ffind stocktwits this_dir py,md
   ```
 
 ## `replace_text.py`

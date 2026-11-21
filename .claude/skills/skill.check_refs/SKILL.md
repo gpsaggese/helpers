@@ -9,17 +9,16 @@ model: haiku
 # Workflow
 
 ## Find Files
-- Look for all the markdown files, both `SKILL.md` and `<TOPIC>.rules.md`
+- Find all markdown files: `SKILL.md` and `<TOPIC>.rules.md`
   ```bash
   > find .claude/skills -name "*.md"
   ```
 
 ## Read Context
-- Read context about rules from `.claude/skills/skill.rules.md`
+- Read `.claude/skills/skill.rules.md` for context on rules
 
 ## Check Rules
-- For each file, apply all the following rules and report violations as
-  described below
+- For each file, apply all the rules below and report violations as described
 
 ### Check Files Existence
 - Make sure the file follows `.claude/skills/skill.rules.md`
@@ -30,19 +29,18 @@ model: haiku
   `# References and Dependencies`
 
 ### Check for Other Violations
-- Use the rules in `.claude/skills/skill.rules.md` to look for clear
-  violations
+- Use the rules in `.claude/skills/skill.rules.md` to find clear violations
 - Report a violation only when certain it is one
 
 ## Report Violations
-- Report all the violations in a file `cfile` using the format
+- Report all violations in a file `cfile` using the format in
   `.claude/skills/cfile.rules.md`
 
 ## Ask the User Which Problems to Fix
-- Ask the user which problems to fix by printing a numbered list of problems
+- Ask which problems to fix by printing a numbered list of problems
 
 # Verification
-- [ ] Every file under `.claude/skills` matching `SKILL.md` or
-      `<TOPIC>.rules.md` was checked
+- [ ] Every file under `.claude/skills` matching `SKILL.md` or `<TOPIC>.rules.md`
+      was checked
 - [ ] `cfile` follows the format in `.claude/skills/cfile.rules.md`
 - [ ] Every reported violation is one the reviewer is confident about

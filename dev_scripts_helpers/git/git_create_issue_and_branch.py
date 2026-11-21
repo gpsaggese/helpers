@@ -23,9 +23,25 @@ Uses invoke tasks for issue and branch creation:
 - `invoke git_branch_create --branch-name` to create the same branch, by
   name, in every submodule
 
+Pass `--gh_project <project>` to also add the issue to a GitHub project, given
+- its title looked up among the projects owned by the repo's owner
+    - E.g., `Optimal_strategy_for_racket_sports`
+- its URL
+    - E.g., `https://github.com/users/gpsaggese/projects/4`)
+
+By default the issue is not added to any project. The project is resolved
+before anything is created, so a wrong project aborts the script without
+leaving an orphan issue.
+
 Pass `--suffix <suffix>` (e.g., `--suffix 1`) to name the branch
 `<Base>_<suffix>` (e.g., `AmpTask1234_..._1`), for splitting one issue into a
 stack of sequential branches/PRs.
+
+When `--submodules` is passed and a PR exists in more than one repo, the
+issue's body gets a `## Companion PRs` section listing each repo's PR link,
+so the single issue stays the source of truth. Pass `--update_pr_links`
+with `--gh_issue_id` to refresh that section later on its own, e.g. after a
+PR deferred with `--no_create_pr` is opened.
 
 Import as:
 
@@ -33,11 +49,13 @@ import dev_scripts_helpers.git.git_create_issue_and_branch as dsggiab
 """
 
 import argparse
+import json
 import logging
 import os
 import re
 import shlex
-from typing import List, Optional
+import tempfile
+from typing import List, Optional, Tuple
 
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
@@ -46,6 +64,7 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.lib_tasks.lib_tasks_gh as hltltagh
+import helpers.repo_config_utils as hrecouti
 
 _LOG = logging.getLogger(__name__)
 
@@ -76,17 +95,28 @@ def _get_repo_targets(submodules: bool) -> List[str]:
     return repo_targets
 
 
-def _dassert_all_targets_clean(repo_targets: List[str]) -> None:
+def _dassert_all_targets_clean(
+    repo_targets: List[str], *, no_abort_if_not_clean: bool = False
+) -> None:
     """
     Assert that every repo target is clean, before mutating any of them.
 
     :param repo_targets: repo directories to check
+    :param no_abort_if_not_clean: if True, only warn (do not raise) when a
+        repo target is not clean
     """
     dirty_targets = [
         target
         for target in repo_targets
         if not hgit.is_client_clean(dir_name=target, abort_if_not_clean=False)
     ]
+    if no_abort_if_not_clean:
+        if dirty_targets:
+            _LOG.warning(
+                "The following repo(s) are not clean: %s",
+                ", ".join(dirty_targets),
+            )
+        return
     hdbg.dassert(
         not dirty_targets,
         "The following repo(s) are not clean: %s",
@@ -144,6 +174,118 @@ def _get_issue_body(body_text: str, body_file: str) -> str:
     return body_text
 
 
+def _resolve_gh_project(
+    gh_project: str, repo_full_name_with_host: str
+) -> Tuple[str, int]:
+    """
+    Resolve a GitHub project reference into its owner and number.
+
+    The project is either a URL (e.g.,
+    `https://github.com/users/gpsaggese/projects/4`) or a title (e.g.,
+    `Optimal_strategy_for_racket_sports`). A title is looked up among the
+    projects owned by the owner of the repo.
+
+    :param gh_project: project URL or title
+    :param repo_full_name_with_host: repo of the issue, used to find the owner
+        of a project given by title (e.g., "github.com/gpsaggese/umd_classes")
+    :return: login of the project owner and project number
+        ```
+
+        ('gpsaggese', 4)
+
+        ```
+    """
+    _LOG.debug(hprint.to_str("gh_project repo_full_name_with_host"))
+    # Match a project URL: host, `users` or `orgs`, owner login, project
+    # number, and an optional trailing path (e.g., `/views/1`).
+    _PROJECT_URL_RE = re.compile(
+        r"""
+        ^https?://[^/]+/          # scheme and host
+        (?:users|orgs)/           # personal or organization project
+        (?P<owner>[^/]+)/         # owner login
+        projects/(?P<number>\d+)  # project number
+        (?:/.*)?$                 # optional trailing path
+        """,
+        re.VERBOSE,
+    )
+    match = _PROJECT_URL_RE.match(gh_project)
+    if match:
+        owner = match.group("owner")
+        number = int(match.group("number"))
+    else:
+        # Look up the title among the projects of the repo's owner.
+        owner = repo_full_name_with_host.split("/")[1]
+        cmd = (
+            f"gh project list --owner {shlex.quote(owner)} --limit 200 "
+            "--format json"
+        )
+        _, output = hsystem.system_to_string(cmd)
+        projects = json.loads(output)["projects"]
+        matching_projects = [
+            project for project in projects if project["title"] == gh_project
+        ]
+        hdbg.dassert_eq(
+            len(matching_projects),
+            1,
+            "Expected exactly one project titled '%s' owned by '%s'; "
+            "available projects: %s. Pass the project URL to use another "
+            "owner",
+            gh_project,
+            owner,
+            ", ".join(f"'{project['title']}'" for project in projects),
+        )
+        number = int(matching_projects[0]["number"])
+    _LOG.info(
+        "Project '%s' resolved to owner='%s' number='%s'",
+        gh_project,
+        owner,
+        number,
+    )
+    _LOG.debug("return=%s", (owner, number))
+    return owner, number
+
+
+def _add_issue_to_project(
+    issue_id: int,
+    repo_full_name_with_host: str,
+    project_owner: str,
+    project_number: int,
+) -> None:
+    """
+    Add a GitHub issue to a GitHub project.
+
+    Adding an issue that is already in the project is a no-op on the GitHub
+    side, so it is safe to re-run.
+
+    :param issue_id: GitHub issue number, in the outer repo's tracker
+    :param repo_full_name_with_host: repo of the issue (e.g.,
+        "github.com/gpsaggese/umd_classes")
+    :param project_owner: login of the project owner
+    :param project_number: project number, as in the project URL
+    """
+    _LOG.debug(
+        hprint.to_str(
+            "issue_id repo_full_name_with_host project_owner project_number"
+        )
+    )
+    # `gh project item-add` takes the issue by URL, not by number.
+    issue_url = f"https://{repo_full_name_with_host}/issues/{issue_id}"
+    cmd = [
+        f"gh project item-add {project_number}",
+        f"--owner {shlex.quote(project_owner)}",
+        f"--url {shlex.quote(issue_url)}",
+    ]
+    cmd = " ".join(cmd)
+    _LOG.info(
+        "Adding issue #%s to project '%s' of '%s' via: %s",
+        issue_id,
+        project_number,
+        project_owner,
+        cmd,
+    )
+    hsystem.system(cmd, log_level=logging.INFO)
+
+
 def _commit_issue_files(branch_name: str, original_branch: str) -> None:
     """
     Copy and commit issue files to the new branch.
@@ -180,6 +322,7 @@ def _create_branch_and_pr(
     create_pr: bool = True,
     gh_issue_id_provided: bool = False,
     no_abort_if_not_master: bool = False,
+    no_abort_if_not_clean: bool = False,
     suffix: str = "",
 ) -> str:
     """
@@ -192,6 +335,8 @@ def _create_branch_and_pr(
     :param no_abort_if_not_master: if True, allow branching from a non-'master'
         branch instead of aborting (the underlying invoke task switches to
         'master' first)
+    :param no_abort_if_not_clean: if True, allow branching with uncommitted
+        changes instead of aborting
     :param suffix: if specified (e.g., "1"), append `_<suffix>` to the branch
         name derived from the issue (e.g., `AmpTask1234_..._1`)
     :return: Created branch name
@@ -227,6 +372,8 @@ def _create_branch_and_pr(
         # Let git_branch_create switch to 'master' itself instead of
         # aborting when the current branch isn't 'master'.
         cmd += " --no-abort-if-not-master"
+    if no_abort_if_not_clean:
+        cmd += " --no-abort-if-not-clean"
     _LOG.info("Creating branch via invoke: %s", cmd)
     hsystem.system(cmd, log_level=logging.INFO)
     # Get the current branch name (invoke git_branch_create creates and checks out the branch).
@@ -246,6 +393,7 @@ def _create_branch_in_submodule(
     *,
     create_pr: bool = True,
     no_abort_if_not_master: bool = False,
+    no_abort_if_not_clean: bool = False,
 ) -> None:
     """
     Create (or check out) `branch_name` inside a submodule.
@@ -262,6 +410,8 @@ def _create_branch_in_submodule(
     :param no_abort_if_not_master: if True, allow branching from a non-'master'
         branch instead of aborting (the underlying invoke task switches to
         'master' first)
+    :param no_abort_if_not_clean: if True, allow branching with uncommitted
+        changes instead of aborting
     """
     if hgit.does_branch_exist(branch_name, mode="all", dir_name=submodule_path):
         _LOG.info(
@@ -282,8 +432,73 @@ def _create_branch_in_submodule(
         # Let git_branch_create switch to 'master' itself instead of
         # aborting when the current branch isn't 'master'.
         cmd += " --no-abort-if-not-master"
+    if no_abort_if_not_clean:
+        cmd += " --no-abort-if-not-clean"
     _LOG.info("Creating branch in '%s' via invoke: %s", submodule_path, cmd)
     hsystem.system(cmd, log_level=logging.INFO)
+
+
+def _get_pr_url(target: str) -> str:
+    """
+    Get the URL of the PR open on the current branch in `target`, if any.
+
+    :param target: repo directory ("." for the outer repo, or a submodule
+        path)
+    :return: PR URL, or "" if no PR is open yet (e.g., before the first
+        commit, when a branch was created with `--no_create_pr`)
+    """
+    cmd = "gh pr view --json url -q .url"
+    if target != ".":
+        cmd = f"cd {shlex.quote(target)} && {cmd}"
+    rc, output = hsystem.system_to_string(cmd, abort_on_error=False)
+    if rc != 0:
+        return ""
+    return output.strip()
+
+
+def _update_issue_body_with_pr_links(
+    issue_id: int, repo_targets: List[str]
+) -> None:
+    """
+    Refresh the issue's `## Companion PRs` section with every repo's PR link.
+
+    Keeps the single GitHub issue as the source of truth for a multi-repo
+    task's PRs, instead of opening a second issue per repo. Safe to call more
+    than once: re-running replaces the section instead of duplicating it.
+
+    :param issue_id: GitHub issue number, in the outer repo's tracker
+    :param repo_targets: repo directories to report PR links for (outer repo
+        first, then every submodule)
+    """
+    rc, body = hsystem.system_to_string(
+        f"gh issue view {issue_id} --json body -q .body", abort_on_error=False
+    )
+    if rc != 0:
+        _LOG.warning(
+            "Could not read issue #%s body; skipping companion PR links",
+            issue_id,
+        )
+        return
+    # Build the section listing every repo's current PR link.
+    section_lines = ["## Companion PRs"]
+    for target in repo_targets:
+        repo_label = "outer repo" if target == "." else f"submodule `{target}`"
+        pr_url = _get_pr_url(target)
+        section_lines.append(
+            f"- {repo_label}: {pr_url if pr_url else '_no PR yet_'}"
+        )
+    section = "\n".join(section_lines)
+    # Drop a previously-added section, if any, before re-appending it.
+    body = body.split("## Companion PRs")[0].rstrip("\n")
+    new_body = body + "\n\n" + section + "\n"
+    tmp_file = os.path.join(
+        tempfile.gettempdir(),
+        f"tmp.git_create_issue_and_branch.issue_{issue_id}_body.md",
+    )
+    hio.to_file(tmp_file, new_body)
+    cmd = f"gh issue edit {issue_id} --body-file {tmp_file}"
+    hsystem.system(cmd, log_level=logging.INFO)
+    _LOG.info("Updated issue #%s with companion PR links", issue_id)
 
 
 def _create_worktree(
@@ -291,19 +506,29 @@ def _create_worktree(
     issue_id: int,
     original_branch: str,
     submodule_paths: Optional[List[str]] = None,
+    *,
+    init_submodules: bool = False,
 ) -> str:
     """
     Create a git worktree for the given branch.
 
-    When `submodule_paths` is passed, the submodules are initialized inside
-    the new worktree and checked out on `branch_name` too (matching the outer
-    repo), instead of being left uninitialized / on a detached HEAD.
+    A new worktree has all its submodule dirs empty (e.g., `helpers_root/`), so
+    nothing that lives in a submodule (`tmux.py`, `invoke`, ...) works until the
+    submodules are initialized. When `init_submodules` is True, the submodules
+    are initialized inside the new worktree, at the commit recorded by the
+    outer repo.
+
+    When `submodule_paths` is passed, the submodules are also checked out on
+    `branch_name` (matching the outer repo), instead of being left on a
+    detached HEAD. This requires the branch to exist in those submodules.
 
     :param branch_name: Name of the branch to create worktree for
     :param issue_id: GitHub issue number (for path naming)
     :param original_branch: Original branch to checkout before creating worktree
     :param submodule_paths: paths of submodules (relative to the outer repo)
-        to initialize and check out on `branch_name` inside the worktree
+        to check out on `branch_name` inside the worktree
+    :param init_submodules: if True, initialize every submodule inside the
+        worktree. It is implied when `submodule_paths` is not empty
     :return: Path to the created worktree
     """
     # Checkout original branch first to free up the new branch.
@@ -322,18 +547,19 @@ def _create_worktree(
     # Create worktree.
     cmd = f"git worktree add {worktree_path} {branch_name}"
     hsystem.system(cmd, log_level=logging.INFO)
-    if submodule_paths:
-        # Initialize the submodules inside the new worktree and land each of
-        # them on `branch_name` (not a detached HEAD), matching the outer repo.
+    if init_submodules or submodule_paths:
+        # Populate the submodule dirs, which `git worktree add` leaves empty.
         cmd = f"git -C {worktree_path} submodule update --init --recursive"
         hsystem.system(cmd, log_level=logging.INFO)
-        for submodule_path in submodule_paths:
-            submodule_worktree_path = os.path.join(worktree_path, submodule_path)
-            cmd = (
-                f"git -C {submodule_worktree_path} checkout "
-                f"{shlex.quote(branch_name)}"
-            )
-            hsystem.system(cmd, log_level=logging.INFO)
+    # Land each submodule on `branch_name` (not a detached HEAD), matching the
+    # outer repo.
+    for submodule_path in submodule_paths or []:
+        submodule_worktree_path = os.path.join(worktree_path, submodule_path)
+        cmd = (
+            f"git -C {submodule_worktree_path} checkout "
+            f"{shlex.quote(branch_name)}"
+        )
+        hsystem.system(cmd, log_level=logging.INFO)
     return worktree_path
 
 
@@ -368,13 +594,18 @@ def _print_usage_instructions(
             f"    - {repo_label}: branch '{branch_name}' ({status})"
         )
     summary = "\n".join(summary_lines)
-    # Extract worktree suffix (e.g., "1_worktree_1325" from "helpers1_worktree_1325").
+    # The tmux script lives in `dev_scripts_{dir_suffix}/`, which is
+    # `dev_scripts_helpers/` in `helpers` but e.g., `dev_scripts_umd_classes/`
+    # in a repo that uses `helpers` as a submodule.
+    dir_suffix = hrecouti.get_repo_config().get_dir_suffix()
+    tmux_script = f"dev_scripts_{dir_suffix}/thin_client/tmux.py"
+    # Extract worktree suffix, which is what `tmux.py` appends to the
+    # `dir_suffix` to build the tmux session name (e.g., "1_worktree_1325" from
+    # "helpers1_worktree_1325").
     worktree_dir = os.path.basename(worktree_path)
-    # TODO(ai_gp2): We should get the basename of the repo from the config.
-    # Strip "helpers" prefix from repo name to get suffix.
     worktree_suffix = (
-        worktree_dir.replace("helpers", "", 1)
-        if worktree_dir.startswith("helpers")
+        worktree_dir.replace(dir_suffix, "", 1)
+        if worktree_dir.startswith(dir_suffix)
         else worktree_dir
     )
     msg = f"""
@@ -383,7 +614,7 @@ def _print_usage_instructions(
     {summary}
 
     To open tmux session:
-    > cd {worktree_path}; dev_scripts_helpers/thin_client/tmux.py --index {worktree_suffix}
+    > cd {worktree_path}; {tmux_script} --index {worktree_suffix}
     """
     msg = hprint.dedent(msg)
     msg = hprint.color_highlight(msg, "green")
@@ -440,10 +671,35 @@ def _parse() -> argparse.ArgumentParser:
         help="GitHub user to assign the issue to",
     )
     parser.add_argument(
+        "--gh_project",
+        type=str,
+        default="",
+        help=(
+            "GitHub project to add the issue to, given by title (e.g., "
+            "'Optimal_strategy_for_racket_sports') or by URL (e.g., "
+            "'https://github.com/users/gpsaggese/projects/4'). Empty means "
+            "do not add the issue to any project"
+        ),
+    )
+    # After-branch-creation behavior: mutually exclusive since a worktree
+    # already checks out the new branch separately from the outer repo.
+    after_branch_group = parser.add_mutually_exclusive_group()
+    after_branch_group.add_argument(
         "--create_worktree",
         action="store_true",
         default=False,
         help="Create git worktree (default: False, only create branch)",
+    )
+    after_branch_group.add_argument(
+        "--stay_on_new_branch",
+        action="store_true",
+        default=False,
+        help=(
+            "Stay checked out on the newly created branch instead of "
+            "returning to the original branch afterwards, like plain "
+            "`git checkout -b` (default: False, return to the original "
+            "branch)"
+        ),
     )
     parser.add_argument(
         "--no_create_pr",
@@ -463,10 +719,27 @@ def _parse() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--update_pr_links",
+        action="store_true",
+        default=False,
+        help=(
+            "Only refresh the issue's '## Companion PRs' section from each "
+            "repo target's current PR (requires --gh_issue_id); skip issue/"
+            "branch/PR creation. Use after opening a PR this script deferred "
+            "with --no_create_pr"
+        ),
+    )
+    parser.add_argument(
         "--no_abort_if_not_master",
         action="store_true",
         default=False,
         help="Skip checking that every repo target is on 'master'",
+    )
+    parser.add_argument(
+        "--no_abort_if_not_clean",
+        action="store_true",
+        default=False,
+        help="Warn, instead of aborting, if a repo target is not clean",
     )
     parser.add_argument(
         "--suffix",
@@ -496,18 +769,32 @@ def _main_workflow(
     gh_issue_body = _get_issue_body(args.gh_issue_body, args.gh_issue_body_file)
     _LOG.debug(
         "gh_issue_id=%s gh_issue_title=%s gh_issue_body=%s gh_issue_body_file=%s "
-        "gh_assignee=%s create_worktree=%s create_pr=%s suffix=%s "
-        "repo_targets=%s",
+        "gh_assignee=%s gh_project=%s create_worktree=%s create_pr=%s "
+        "suffix=%s repo_targets=%s",
         args.gh_issue_id,
         args.gh_issue_title,
         gh_issue_body,
         args.gh_issue_body_file,
         args.gh_assignee,
+        args.gh_project,
         args.create_worktree,
         args.create_pr,
         args.suffix,
         repo_targets,
     )
+    # Resolve the project before creating anything, so that a wrong project
+    # (or a missing `project` scope of `gh`) aborts without leaving an orphan
+    # issue behind.
+    project_owner = ""
+    project_number = 0
+    repo_full_name_with_host = ""
+    if args.gh_project:
+        repo_full_name_with_host, _ = hltltagh._get_repo_full_name_from_cmd(
+            "current"
+        )
+        project_owner, project_number = _resolve_gh_project(
+            args.gh_project, repo_full_name_with_host
+        )
     # Determine issue ID.
     if args.gh_issue_id:
         # Skip GitHub issue creation if ID is provided.
@@ -519,6 +806,16 @@ def _main_workflow(
             args.gh_issue_title,
             "Issue title is required when creating a new issue",
         )
+        # Fail fast if an open issue with the same title already exists
+        # (e.g., from a prior run of this script that failed after creating
+        # the issue but before finishing the branch/PR steps), instead of
+        # silently creating a duplicate.
+        repo_full_name_with_host, _ = hltltagh._get_repo_full_name_from_cmd(
+            "current"
+        )
+        hltltagh._dassert_no_duplicate_open_issue(
+            repo_full_name_with_host, args.gh_issue_title
+        )
         cmd = "invoke gh_issue_create"
         cmd += f" --title {shlex.quote(args.gh_issue_title)}"
         if gh_issue_body:
@@ -526,7 +823,7 @@ def _main_workflow(
         if args.gh_assignee:
             cmd += f" --assignees {shlex.quote(args.gh_assignee)}"
         _LOG.info("Creating GitHub issue via invoke: %s", cmd)
-        _, output = hsystem.system_to_string(cmd)
+        _, output = hsystem.system_to_string(cmd, log_level=logging.INFO)
         _LOG.debug("Invoke output:\n%s", output)
         # Parse issue ID from output.
         match = re.search(r"Created issue #(\d+)", output)
@@ -535,6 +832,11 @@ def _main_workflow(
         )
         issue_id = int(match.group(1))
         _LOG.info("Created issue #%s", issue_id)
+    # Add the issue (new or existing) to the project, if requested.
+    if args.gh_project:
+        _add_issue_to_project(
+            issue_id, repo_full_name_with_host, project_owner, project_number
+        )
     # Create branch and PR via invoke, in the outer repo.
     branch_name = _create_branch_and_pr(
         issue_id,
@@ -542,6 +844,7 @@ def _main_workflow(
         create_pr=args.create_pr,
         gh_issue_id_provided=bool(args.gh_issue_id),
         no_abort_if_not_master=args.no_abort_if_not_master,
+        no_abort_if_not_clean=args.no_abort_if_not_clean,
         suffix=args.suffix,
     )
     _LOG.info("Branch name: '%s'", branch_name)
@@ -553,16 +856,27 @@ def _main_workflow(
             branch_name,
             create_pr=args.create_pr,
             no_abort_if_not_master=args.no_abort_if_not_master,
+            no_abort_if_not_clean=args.no_abort_if_not_clean,
         )
     # Create worktree, if requested.
     if args.create_worktree:
+        # Always populate the submodules in the worktree (even without
+        # `--submodules`), otherwise `helpers_root/` is empty and nothing works.
         worktree_path = _create_worktree(
-            branch_name, issue_id, original_branch, submodule_targets
+            branch_name,
+            issue_id,
+            original_branch,
+            submodule_targets,
+            init_submodules=hgit.has_submodules(),
         )
         # Print usage instructions.
         _print_usage_instructions(
             worktree_path, issue_id, branch_name, repo_targets
         )
+    # Keep the single issue as the source of truth for every repo's PR, once
+    # a PR exists in more than one repo.
+    if args.create_pr and len(repo_targets) > 1:
+        _update_issue_body_with_pr_links(issue_id, repo_targets)
 
 
 def _main(parser: argparse.ArgumentParser) -> None:
@@ -574,9 +888,22 @@ def _main(parser: argparse.ArgumentParser) -> None:
     # Determine which repos to operate on symmetrically (outer + submodules,
     # when `--submodules` was passed).
     repo_targets = _get_repo_targets(args.submodules)
+    if args.update_pr_links:
+        # Only refresh the issue's companion PR links: skip issue/branch/PR
+        # creation and the cleanliness/branch checks that precede it.
+        hdbg.dassert_ne(
+            args.gh_issue_id,
+            0,
+            "--update_pr_links requires --gh_issue_id to know which issue "
+            "to update",
+        )
+        _update_issue_body_with_pr_links(args.gh_issue_id, repo_targets)
+        return
     # Assert that every repo target is clean (no uncommitted changes), before
     # mutating any of them.
-    _dassert_all_targets_clean(repo_targets)
+    _dassert_all_targets_clean(
+        repo_targets, no_abort_if_not_clean=args.no_abort_if_not_clean
+    )
     # Capture original branch to restore on failure.
     original_branch = hgit.get_branch_name()
     if len(repo_targets) > 1 and not args.no_abort_if_not_master:
@@ -586,9 +913,12 @@ def _main(parser: argparse.ArgumentParser) -> None:
     try:
         _main_workflow(args, original_branch, repo_targets)
     finally:
-        # Return to original branch if we switched away.
+        # Return to original branch if we switched away, unless the caller
+        # asked to stay on the newly created branch (like `git checkout -b`).
         current_branch = hgit.get_branch_name()
-        if current_branch != original_branch:
+        if args.stay_on_new_branch:
+            _LOG.info("Staying on new branch: '%s'", current_branch)
+        elif current_branch != original_branch:
             _LOG.info("Returning to original branch: '%s'", original_branch)
             cmd = f"git checkout {shlex.quote(original_branch)}"
             hsystem.system(cmd)

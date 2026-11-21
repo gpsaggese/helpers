@@ -3,10 +3,13 @@ import importlib.machinery
 import importlib.util
 import logging
 import os
+import pickle
 import sys
 import types
 import unittest.mock as umock
 from typing import Any, Callable, cast, Dict
+
+import pytest
 
 import helpers.hdbg as hdbg
 import helpers.hintrospection as hintros
@@ -99,7 +102,9 @@ class Test_is_pickleable1(hunitest.TestCase):
             file_name = os.path.join(self.get_scratch_space(), "obj.pkl")
             hpickle.to_pickle(obj, file_name)
             act_pickled = True
-        except AttributeError as e:
+        # Python 3.14+ raises `pickle.PicklingError` instead of
+        # `AttributeError` for local objects.
+        except (AttributeError, pickle.PicklingError) as e:
             _LOG.error("e=%s", e)
             act_pickled = False
         _LOG.debug("act_pickled=%s", act_pickled)
@@ -714,6 +719,7 @@ class Test_print_obj_info(hunitest.TestCase):
         :param expected: expected Markdown text
         :param kwargs: extra options passed through to `print_obj_info()`
         """
+        pytest.importorskip("IPython")
         # Run test: mock only the external `IPython.display.display()` call
         # so the Markdown text it receives can be inspected; everything
         # else (including the real `get_link_to_code()` call) executes

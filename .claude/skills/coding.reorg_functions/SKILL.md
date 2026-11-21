@@ -5,19 +5,18 @@ model: haiku
 
 # Reorganize Python Functions Within a File
 
-- Reorganize the Python functions in the user-provided file according to the
-  general rules in the `coding.rules.md` file for organizing code
+- Reorganize the Python functions in the user-provided file per the general
+  rules in `coding.rules.md`
 
-  - Follow the section `## Organize Functions Into Logical Layers` from the file
+  - Follow `## Organize Functions Into Logical Layers` in
     `.claude/skills/coding.rules.md`
-  - Follow the section `## Order Layers by Abstraction Level` from the file
+  - Follow `## Order Layers by Abstraction Level` in
     `.claude/skills/coding.rules.md`
-  - Follow the section `## Order Functions Within Each Layer` from the file
+  - Follow `## Order Functions Within Each Layer` in
     `.claude/skills/coding.rules.md`
-  - Follow the section `## Keep Related Functions Together` from the file
+  - Follow `## Keep Related Functions Together` in
     `.claude/skills/coding.rules.md`
-  - Follow the section `## Mark Private Functions` from the file
-    `.claude/skills/coding.rules.md`
+  - Follow `## Mark Private Functions` in `.claude/skills/coding.rules.md`
 
 
 ## Additional Guidance
@@ -33,17 +32,15 @@ model: haiku
 
 - Do not modify functionality, logic, signatures, control flow, side effects, or
   semantics
-- The resulting code must behave identically to the original.
+- The resulting code must behave identically to the original
 
 ## Move Code Only
 
 - The refactor must be structural only
-
 - Allowed changes:
   - Reordering functions
   - Adding section headers
   - Renaming internal/private functions consistently
-
 - Disallowed changes:
   - Rewriting logic
   - Simplifying implementations

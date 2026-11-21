@@ -354,6 +354,7 @@ class Test_git_modified_files1(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Factor out common code.
 # Outside CK infra, the following class hangs, so we skip it.
 @pytest.mark.requires_ck_infra
 class Test_find_docker_file1(hunitest.TestCase):
@@ -493,6 +494,72 @@ class Test_extract_gh_issue_number_from_branch(hunitest.TestCase):
         expected = "None"
         # Run test.
         self._helper(branch_name, expected)
+
+
+# #############################################################################
+# Test__get_max_branch_num
+# #############################################################################
+
+
+class Test__get_max_branch_num(hunitest.TestCase):
+    def helper(
+        self, branch_names: List[str], curr_branch_name: str, expected: int
+    ) -> None:
+        """
+        Check the highest number among the branches `<curr_branch_name>_N`.
+        """
+        actual = hgit._get_max_branch_num(branch_names, curr_branch_name)
+        self.assert_equal(str(actual), str(expected))
+
+    def test1(self) -> None:
+        """
+        Test that the highest number is returned, not the last or the count.
+        """
+        branch_names = ["gp_1", "gp_10", "gp_2", "gp_6"]
+        curr_branch_name = "gp"
+        expected = 10
+        # Run test.
+        self.helper(branch_names, curr_branch_name, expected)
+
+    def test2(self) -> None:
+        """
+        Test that remote-tracking branches are matched.
+        """
+        branch_names = ["gp_1", "origin/gp_6", "origin/gp_3"]
+        curr_branch_name = "gp"
+        expected = 6
+        # Run test.
+        self.helper(branch_names, curr_branch_name, expected)
+
+    def test3(self) -> None:
+        """
+        Test that branches with a different prefix or suffix are ignored.
+        """
+        branch_names = ["gp", "gp_scratch_9", "gp_qa_1", "xgp_7", "gp_3_tmp"]
+        curr_branch_name = "gp"
+        expected = 0
+        # Run test.
+        self.helper(branch_names, curr_branch_name, expected)
+
+    def test4(self) -> None:
+        """
+        Test that an empty list and empty lines return 0.
+        """
+        branch_names = [""]
+        curr_branch_name = "gp"
+        expected = 0
+        # Run test.
+        self.helper(branch_names, curr_branch_name, expected)
+
+    def test5(self) -> None:
+        """
+        Test that special regex characters in the branch name are escaped.
+        """
+        branch_names = ["gp-fix.v2_4", "gpXfixXv2_9"]
+        curr_branch_name = "gp-fix.v2"
+        expected = 4
+        # Run test.
+        self.helper(branch_names, curr_branch_name, expected)
 
 
 # #############################################################################
@@ -748,6 +815,7 @@ class Test_find_git_root4(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Factor out common code.
 class Test_find_git_root5(hunitest.TestCase):
     """
     Check that the error is raised when no .git directory is found.
@@ -831,6 +899,7 @@ class Test_find_git_root5(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Factor out common code.
 class Test_get_files_to_process_files(hunitest.TestCase):
     """
     Test get_files_to_process with --files argument (space-separated list).
@@ -990,6 +1059,7 @@ class Test_get_files_to_process_git(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Factor out common code.
 class Test_get_files_to_process_from_file(hunitest.TestCase):
     """
     Test get_files_to_process with --from_file argument.
@@ -1032,6 +1102,7 @@ class Test_get_files_to_process_from_file(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Factor out common code, if possible.
 class Test_get_files_to_process_assert(hunitest.TestCase):
     """
     Test get_files_to_process mutual exclusivity assertions.
@@ -1143,6 +1214,121 @@ class Test_find_git_root6(hunitest.TestCase):
             git_root = hgit.find_git_root(".")
             # For worktrees, the function should return the worktree root,
             # not the main repository root.
+            self.assert_equal(git_root, self.worktree_dir)
+
+
+# #############################################################################
+# Test_find_git_root7
+# #############################################################################
+
+
+class Test_find_git_root7(hunitest.TestCase):
+    """
+    Check that the function returns the worktree root, and not the submodule
+    root or the main repo root, when called from a submodule of a worktree.
+
+    Directory structure:
+    main_repo/
+    `-- .git/
+        `-- worktrees/
+            `-- csfy2/
+                `-- modules/
+                    `-- helpers_root/
+    csfy2/ (worktree)
+    |-- .git (points to /main_repo/.git/worktrees/csfy2)
+    `-- helpers_root/ (submodule)
+        `-- .git (points to /main_repo/.git/worktrees/csfy2/modules/helpers_root)
+    """
+
+    def set_up_test(self) -> None:
+        temp_dir = self.get_scratch_space()
+        # Create main repo with the git metadata of the worktree and of its
+        # submodule.
+        self.main_repo_dir = os.path.join(temp_dir, "main_repo")
+        self.worktree_git_dir = os.path.join(
+            self.main_repo_dir, ".git", "worktrees", "csfy2"
+        )
+        self.submodule_git_dir = os.path.join(
+            self.worktree_git_dir, "modules", "helpers_root"
+        )
+        hio.create_dir(self.submodule_git_dir, incremental=False)
+        # Create worktree directory.
+        self.worktree_dir = os.path.join(temp_dir, "csfy2")
+        hio.create_dir(self.worktree_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.worktree_dir, ".git"),
+            f"gitdir: {self.worktree_git_dir}\n",
+        )
+        # Create submodule directory.
+        self.submodule_dir = os.path.join(self.worktree_dir, "helpers_root")
+        hio.create_dir(self.submodule_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.submodule_dir, ".git"),
+            f"gitdir: {self.submodule_git_dir}\n",
+        )
+
+    def test1(self) -> None:
+        """
+        Check that the function returns the worktree root when called from the
+        submodule of the worktree.
+        """
+        self.set_up_test()
+        with hsystem.cd(self.submodule_dir):
+            git_root = hgit.find_git_root(".")
+            self.assert_equal(git_root, self.worktree_dir)
+
+
+# #############################################################################
+# Test_find_git_root8
+# #############################################################################
+
+
+class Test_find_git_root8(hunitest.TestCase):
+    """
+    Check that the function returns the worktree root, and not the main repo
+    root, when called from a worktree of a submodule.
+
+    Directory structure:
+    main_repo/
+    `-- .git/
+        `-- modules/
+            `-- helpers_root/
+                `-- worktrees/
+                    `-- helpers_worktree_1354/
+    helpers_worktree_1354/ (worktree of the submodule)
+    `-- .git (points to
+        /main_repo/.git/modules/helpers_root/worktrees/helpers_worktree_1354)
+    """
+
+    def set_up_test(self) -> None:
+        temp_dir = self.get_scratch_space()
+        # Create the git metadata of the worktree of the submodule.
+        self.main_repo_dir = os.path.join(temp_dir, "main_repo")
+        self.worktree_git_dir = os.path.join(
+            self.main_repo_dir,
+            ".git",
+            "modules",
+            "helpers_root",
+            "worktrees",
+            "helpers_worktree_1354",
+        )
+        hio.create_dir(self.worktree_git_dir, incremental=False)
+        # Create worktree directory.
+        self.worktree_dir = os.path.join(temp_dir, "helpers_worktree_1354")
+        hio.create_dir(self.worktree_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.worktree_dir, ".git"),
+            f"gitdir: {self.worktree_git_dir}\n",
+        )
+
+    def test1(self) -> None:
+        """
+        Check that the function returns the worktree root when called from a
+        worktree of a submodule.
+        """
+        self.set_up_test()
+        with hsystem.cd(self.worktree_dir):
+            git_root = hgit.find_git_root(".")
             self.assert_equal(git_root, self.worktree_dir)
 
 

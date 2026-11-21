@@ -13,7 +13,7 @@ import os
 import random
 import re
 import string
-from typing import cast, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, cast
 
 import helpers.hdbg as hdbg
 import helpers.hio as hio
@@ -90,7 +90,29 @@ def get_branch_name(dir_name: str = ".") -> str:
     return output
 
 
+def _get_max_branch_num(branch_names: List[str], curr_branch_name: str) -> int:
+    """
+    Return the highest N among the branches named `<curr_branch_name>_N`.
+
+    Remote-tracking branches (e.g., `origin/gp_3`) are matched too.
+
+    E.g., `["gp_1", "origin/gp_6", "gp_scratch_9", "gp"]` for `gp` -> 6
+
+    :param branch_names: branch names to search
+    :param curr_branch_name: current branch name (e.g., "gp")
+    :return: highest N, or 0 if there is no matching branch
+    """
+    regex = re.compile(rf"^(?:origin/)?{re.escape(curr_branch_name)}_(\d+)$")
+    max_num = 0
+    for branch_name in branch_names:
+        match = regex.match(branch_name.strip())
+        if match:
+            max_num = max(max_num, int(match.group(1)))
+    return max_num
+
+
 def _get_branch_next_name_via_github_api(
+    dir_name: str,
     curr_branch_name: str,
     *,
     max_num_ids: int = 100,
@@ -98,49 +120,48 @@ def _get_branch_next_name_via_github_api(
     """
     Find the next available branch name using GitHub API (fast method).
 
-    Uses `gh pr list` to query merged branches and extract the highest number.
+    Use `gh pr list` to get the branches of all the PRs (open, closed, merged)
+    and `git branch -a` to get the local and remote branches. The next name uses
+    the highest number found in any of them.
 
+    :param dir_name: directory containing the git repository
     :param curr_branch_name: current branch name (e.g., "gp_scratch")
     :param max_num_ids: maximum number of IDs to check
     :return: next available branch name or None if GitHub API is not available
     """
-    try:
-        # Query all PRs (merged, closed, open) and extract branch names
-        # matching pattern.
-        cmd = (
-            "gh pr list --state all --json headRefName "
-            "| jq -r '.[].headRefName | select(test(\"^{branch}_[0-9]+$\"))' "
-            "| sed 's/.*_//' | sort -rn | head -1"
-        ).format(branch=re.escape(curr_branch_name))
-        _LOG.debug("Running GitHub API query: %s", cmd)
-        ret, output = hsystem.system_to_one_line(cmd, suppress_output=True)
-        if ret != 0:
-            _LOG.debug("GitHub API query failed, falling back to linear scan")
-            return None
-        # Extract the highest number from all branches.
-        output = output.strip()
-        if output:
-            highest_num = int(output)
-            next_num = highest_num + 1
-            new_branch_name = f"{curr_branch_name}_{next_num}"
-            _LOG.info(
-                "Found highest number '%s' in all branches, next is '%s'",
-                highest_num,
-                next_num,
-            )
-            return new_branch_name
-        # No existing numbered branches found.
-        _LOG.debug("No existing numbered branches found, starting at 1")
-        return f"{curr_branch_name}_1"
-    except Exception as e:
-        _LOG.debug(
-            "Error querying GitHub API: %s, falling back to linear scan",
-            e,
-        )
+    # `gh pr list` returns only 30 PRs by default, so set the limit explicitly.
+    cmd = [
+        f"cd {dir_name} &&",
+        "gh pr list",
+        "--state all",
+        "--limit 1000",
+        "--json headRefName",
+        "--jq '.[].headRefName'",
+    ]
+    cmd = " ".join(cmd)
+    ret, output = hsystem.system_to_string(
+        cmd, abort_on_error=False, suppress_output=True
+    )
+    if ret != 0:
+        _LOG.debug("GitHub API query failed, falling back to linear scan")
         return None
+    branch_names = output.split("\n")
+    # Add the local and remote branches, which can be without a PR.
+    cmd = f"cd {dir_name} && git branch -a --format='%(refname:short)'"
+    _, output = hsystem.system_to_string(cmd, suppress_output=True)
+    branch_names.extend(output.split("\n"))
+    # Compute the next name.
+    max_num = _get_max_branch_num(branch_names, curr_branch_name)
+    new_branch_name = f"{curr_branch_name}_{max_num + 1}"
+    _LOG.info(
+        "Found highest number '%s' in all branches, next is '%s'",
+        max_num,
+        new_branch_name,
+    )
+    return new_branch_name
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _get_gh_pr_list(dir_name: str = ".") -> str:
     """
     Get a cached list of all pull requests from GitHub (merged and open).
@@ -184,7 +205,6 @@ def does_branch_exist(
             )
             exists = exists or exists_tmp
         return exists
-    #
     hdbg.dassert_in(mode, ("git_local", "git_remote", "github"))
     exists = False
     if mode in ("git_local", "git_remote"):
@@ -257,7 +277,7 @@ def _get_branch_next_name_linear_scan(
     """
     for i in range(1, max_num_ids):
         new_branch_name = f"{curr_branch_name}_{i}"
-        _LOG.info("Trying branch name '%s' ...", new_branch_name)
+        _LOG.debug("Trying branch name '%s' ...", new_branch_name)
         mode = "all"
         exists = does_branch_exist(new_branch_name, mode, dir_name=dir_name)
         _LOG.log(log_verb, "-> exists=%s", exists)
@@ -303,6 +323,7 @@ def get_branch_next_name(
     next_name: Optional[str] = None
     if method in ("auto", "github_api"):
         next_name = _get_branch_next_name_via_github_api(
+            dir_name,
             curr_branch_name,
             max_num_ids=max_num_ids,
         )
@@ -356,7 +377,7 @@ def get_branch_hash(dir_name: str = ".") -> str:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def is_inside_submodule(git_dir: str = ".") -> bool:
     """
     Return whether a dir is inside a Git submodule or a Git supermodule.
@@ -389,7 +410,7 @@ def is_inside_submodule(git_dir: str = ".") -> bool:
 # #############################################################################
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_client_root(super_module: bool) -> str:
     """
     Return the full path of the root of the Git client.
@@ -455,10 +476,32 @@ def find_git_root(path: str = ".") -> str:
                 if line.startswith("gitdir:"):
                     git_dir_path = line.split(":", 1)[1].strip()
                     _LOG.debug("git_dir_path=%s", git_dir_path)
-                    # For worktrees, the current path is the root of the worktree.
-                    # The worktree's `.git` file points to the shared git directory
-                    # (e.g., main_repo/.git/worktrees/worktree_name).
-                    if ".git/worktrees/" in git_dir_path:
+                    is_worktree_dir = ".git/worktrees/" in git_dir_path
+                    # A submodule of a worktree has its git dir inside the
+                    # worktree git dir (e.g.,
+                    # `main_repo/.git/worktrees/worktree_name/modules/helpers_root`).
+                    is_submodule_of_worktree = (
+                        is_worktree_dir and "/modules/" in git_dir_path
+                    )
+                    # A worktree of a submodule has its git dir in the
+                    # `worktrees` dir of the git dir of the submodule (e.g.,
+                    # `main_repo/.git/modules/helpers_root/worktrees/name`).
+                    is_worktree_of_submodule = (
+                        not is_worktree_dir
+                        and os.path.basename(os.path.dirname(git_dir_path))
+                        == "worktrees"
+                    )
+                    if is_submodule_of_worktree:
+                        # The submodule is not the root: keep going up to find
+                        # the worktree that contains it. Using the path to the
+                        # git dir would return the main repo instead of the
+                        # worktree.
+                        pass
+                    elif is_worktree_dir or is_worktree_of_submodule:
+                        # For worktrees, the current path is the root of the
+                        # worktree. The worktree's `.git` file points to the
+                        # shared git directory (e.g.,
+                        # main_repo/.git/worktrees/worktree_name).
                         git_root_dir = path
                     else:
                         # For other linked setups (submodules, custom .git directory),
@@ -529,8 +572,8 @@ def is_git_worktree(path: str = ".") -> bool:
         # Check if git directory path contains worktrees indicator.
         git_dir = git_dir.strip()
         return ".git/worktrees/" in git_dir
-    except Exception:
-        # On any error, assume not in a worktree.
+    except (RuntimeError, OSError):
+        # On any system error, assume not in a worktree.
         return False
 
 
@@ -838,7 +881,7 @@ def _get_submodule_hash(dir_name: str) -> str:
     return git_hash
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_path_from_supermodule() -> Tuple[str, str]:
     """
     Return the path to the Git repo including the Git submodule for a submodule.
@@ -874,7 +917,7 @@ def get_path_from_supermodule() -> Tuple[str, str]:
     return superproject_path, submodule_path
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_submodule_paths() -> List[str]:
     """
     Return the path of the submodules in this repo.
@@ -1012,8 +1055,7 @@ def _parse_github_repo_name(repo_name: str) -> Tuple[str, str]:
     assert m is not None
     # origin  git@github.com:.../ORG_....git (fetch)
     suffix_to_remove = ".git"
-    if repo_name.endswith(suffix_to_remove):
-        repo_name = repo_name[: -len(suffix_to_remove)]
+    repo_name = repo_name.removesuffix(suffix_to_remove)
     return host_name, repo_name
 
 
@@ -1195,7 +1237,7 @@ def is_cwd_git_repo() -> bool:
 
 
 # TODO(gp): Use find_file
-@functools.lru_cache()
+@functools.lru_cache
 def find_file_in_git_tree(
     file_name: str, super_module: bool = True, remove_tmp_base: bool = False
 ) -> str:
@@ -1243,7 +1285,6 @@ def get_path_from_git_root(
     # Get the root of the Git client.
     if git_root is None:
         git_root = get_client_root(super_module)
-    #
     git_root = os.path.normpath(git_root)
     _LOG.debug("git_root=%s", git_root)
     file_name = os.path.normpath(file_name)
@@ -1267,14 +1308,13 @@ def get_path_from_git_root(
 
 
 # TODO(gp): Rewrite this function in a better way.
-@functools.lru_cache()
+@functools.lru_cache
 def get_amp_abs_path() -> str:
     """
     Return the absolute path of `amp` dir.
     """
     repo_sym_name = get_repo_full_name_from_client(super_module=False)
     _LOG.debug("repo_sym_name=%s", repo_sym_name)
-    #
     repo_sym_names = ["alphamatic/amp"]
     import helpers.repo_config_utils as hrecouti
 
@@ -1283,8 +1323,11 @@ def get_amp_abs_path() -> str:
     )
     repo_sym_names.append(extra_amp_repo_sym_name)
     _LOG.debug("repo_sym_names=%s", repo_sym_names)
-    #
-    if repo_sym_name in repo_sym_names:
+    # Compare only the repo name and ignore the GitHub account, so that forks
+    # (e.g., `gpsaggese/helpers` vs `causify-ai/helpers`) are recognized.
+    repo_names = [name.split("/")[-1] for name in repo_sym_names]
+    _LOG.debug("repo_names=%s", repo_names)
+    if repo_sym_name.split("/")[-1] in repo_names:
         # If we are in the amp repo, then the git client root is the amp
         # directory.
         git_root = get_client_root(super_module=False)
@@ -1561,14 +1604,12 @@ def get_modified_and_untracked_files(
         status_code = line[:2] if len(line) >= 2 else ""
         file_name = line[3:].strip() if len(line) > 3 else ""
         # Filter by mode.
-        if mode == "untracked":
-            # Untracked files have status "??"
-            if status_code != "??":
-                continue
-        elif mode == "modified":
-            # Modified files have any status other than "??"
-            if status_code == "??":
-                continue
+        # Untracked files have status "??".
+        if mode == "untracked" and status_code != "??":
+            continue
+        # Modified files have any status other than "??".
+        if mode == "modified" and status_code == "??":
+            continue
         # Skip submodule paths.
         is_in_submodule = any(
             file_name.startswith(subpath + "/") or file_name == subpath
@@ -1789,7 +1830,7 @@ def get_files_to_process(
 
 
 # TODO(gp): -> get_user_name()
-@functools.lru_cache()
+@functools.lru_cache
 def get_git_name() -> str:
     """
     Return the configured git user name from git config.

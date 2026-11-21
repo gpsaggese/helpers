@@ -9,8 +9,9 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import invoke.exceptions as invexc
 from invoke import task
@@ -56,7 +57,6 @@ def gh_login(  # type: ignore
     print_status=False,
 ):
     hltltaut.report_task()
-    #
     if not account:
         # Retrieve the name of the repo, e.g., "alphamatic/amp".
         full_repo_name = hgit.get_repo_full_name_from_dirname(
@@ -65,7 +65,6 @@ def gh_login(  # type: ignore
         _LOG.debug(hprint.to_str("full_repo_name"))
         account = full_repo_name.split("/")[0]
     _LOG.info(hprint.to_str("account"))
-    #
     ssh_filename = os.path.expanduser(f"~/.ssh/id_rsa.{account}.github")
     _LOG.debug(hprint.to_str("ssh_filename"))
     if os.path.exists(ssh_filename):
@@ -73,18 +72,15 @@ def gh_login(  # type: ignore
         print(cmd)
     else:
         _LOG.warning("Can't find file '%s'", ssh_filename)
-    #
     if print_status:
         cmd = "gh auth status"
         hltltaut.run(ctx, cmd)
-    #
     github_pat_filename = os.path.expanduser(f"~/.ssh/github_pat.{account}.txt")
     if os.path.exists(github_pat_filename):
         cmd = f"gh auth login --with-token <{github_pat_filename}"
         hltltaut.run(ctx, cmd)
     else:
         _LOG.warning("Can't find file '%s'", github_pat_filename)
-    #
     if print_status:
         cmd = "gh auth status"
         hltltaut.run(ctx, cmd)
@@ -121,64 +117,517 @@ def _get_org_name(org_name: str) -> str:
     return org_name
 
 
-def _get_workflow_table() -> htable.TableType:
+# #############################################################################
+# Latest CI state per workflow.
+# #############################################################################
+
+
+def parse_timestamp(iso_timestamp: str) -> datetime.datetime:
     """
-    Get a table with the status of the GH workflow for the current repo.
+    Parse a GH Actions ISO 8601 timestamp into a UTC `datetime`.
+
+    :param iso_timestamp: timestamp as returned by `gh run list --json`
+        - E.g., `2026-07-28T22:08:19Z`
+    :return: timezone-aware UTC `datetime`
     """
-    # Get the workflow status from GH.
-    cmd = "export NO_COLOR=1; gh run list"
+    dt = datetime.datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    dt = dt.replace(tzinfo=datetime.UTC)
+    return dt
+
+
+def format_days_ago(dt: datetime.datetime) -> str:
+    """
+    Format how long ago `dt` was.
+
+    :param dt: timezone-aware UTC `datetime` to compare against now
+    :return: relative age in days, e.g., `0 days ago`, `3 days ago`
+    """
+    now = datetime.datetime.now(datetime.UTC)
+    num_days = (now - dt).days
+    return f"{num_days} days ago"
+
+
+def fetch_runs(
+    *, repo_full_name_with_host: str = "", limit: int = 200
+) -> List[Dict[str, Any]]:
+    """
+    Fetch the most recent GH Actions runs across all the branches.
+
+    The runs are not filtered by branch on the GH side: callers filter on the
+    `headBranch` field.
+
+    :param repo_full_name_with_host: e.g., `github.com/causify-ai/helpers`
+        - If empty, use the repo that the CWD is in (`gh`'s default)
+    :param limit: max number of runs to fetch
+        - `gh run list` returns only the 20 most recent runs by default, so the
+          runs of a branch (or of a workflow that runs rarely, e.g., a weekly
+          job) are missed when other branches have been more active
+    :return: run objects ordered newest-first (as returned by `gh`), each with
+        the keys `name`, `status`, `conclusion`, `databaseId`, `updatedAt`,
+        `createdAt`, `headBranch`
+    """
+    _LOG.debug(hprint.to_str("repo_full_name_with_host limit"))
+    hdbg.dassert_lt(0, limit, "The number of runs to fetch must be positive")
+    # Check of the claim "`gh run list --branch=<branch>` can return stale
+    # runs", which the old `ci_state.py` script made. Checked on 2026-11-01 for
+    # `master` of `causify-ai/helpers`:
+    # > gh run list --branch master --limit 20 --json ...
+    # > gh run list --limit 200 --json ...
+    # Both gave the same newest `master` run for every workflow (e.g.,
+    # `Fast tests` 41303654964): the claim was NOT reproduced. The only
+    # difference was that the 20-run window of the filtered list was too short
+    # to reach the old `Scheduled` run. So a stale server-side filter is not
+    # proven. We still fetch unfiltered and filter on `headBranch` in Python
+    # (see `get_latest_runs_per_workflow()`), at the cost that the `limit` runs
+    # are shared among all the branches.
+    cmd = [
+        "gh run list",
+        f"--limit {limit}",
+        "--json=name,status,conclusion,databaseId,updatedAt,createdAt,headBranch",
+    ]
+    if repo_full_name_with_host:
+        cmd.append(f"--repo {repo_full_name_with_host}")
+    cmd = " ".join(cmd)
     _, txt = hsystem.system_to_string(cmd)
     _LOG.debug(hprint.to_str("txt"))
-    # pylint: disable=line-too-long
-    # > gh run list
-    # STATUS  TITLE                                                          WORKFLOW    BRANCH                                                         EVENT         ID          ELAPSED  AGE
-    # *       AmpTask1786_Integrate_20230518_2                               Fast tests  AmpTask1786_Integrate_20230518_2                               pull_request  5027911519  4m49s    4m
-    # > gh run list | more
-    # completed       success AmpTask1786_Integrate_20230518_2        Fast tests      AmpTask1786_Integrate_20230518_2        pull_request    5027911519      7m17s   10m
-    # in_progress             AmpTask1786_Integrate_20230518_2        Slow tests      AmpTask1786_Integrate_20230518_2        pull_request    5027911518      10m9s   10m
-    # pylint: enable=line-too-long
-    # The output is tab separated, so convert it into CSV.
-    first_line = txt.split("\n")[0]
-    _LOG.debug("first_line=%s", first_line.replace("\t", ","))
-    num_cols = len(first_line.split("\t"))
-    _LOG.debug(hprint.to_str("first_line num_cols"))
-    cols = [
-        # E.g., completed, in_progress.
-        "completed",
-        # E.g., success, failure.
-        "status",
-        # Aka title: parse but don't use.
-        "name",
-        "workflow",
-        "branch",
-        "event",
-        "id",
-        "elapsed",
-        "age",
+    # `gh` prints nothing when there are no runs.
+    runs: List[Dict[str, Any]] = json.loads(txt) if txt.strip() else []
+    return runs
+
+
+def group_runs_by_workflow(
+    runs: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Group runs by workflow name, keeping only the most recent for each.
+
+    :param runs: run objects ordered newest-first (as returned by
+        `fetch_runs()`)
+    :return: workflow name -> its newest run object, in the order the
+        workflows first appear in `runs`
+    """
+    workflows: Dict[str, Dict[str, Any]] = {}
+    for run in runs:
+        workflow_name = run["name"]
+        if workflow_name not in workflows:
+            workflows[workflow_name] = run
+    return workflows
+
+
+def get_latest_runs_per_workflow(
+    branch: str,
+    *,
+    repo_full_name_with_host: str = "",
+    limit: int = 200,
+) -> Tuple[Dict[str, Dict[str, Any]], Set[str]]:
+    """
+    Get the latest completed run of each GH Actions workflow on a branch.
+
+    The verdict of a workflow comes from its latest *completed* run, even when
+    a newer run is queued or running. The run can have any conclusion
+    (`success`, `failure`, `cancelled`, `skipped`, `startup_failure`, ...): the
+    caller decides which ones count as a failure.
+
+    :param branch: name of the branch to report, e.g., `master`
+    :param repo_full_name_with_host: see `fetch_runs()`
+    :param limit: see `fetch_runs()`
+    :return: pair `(latest_runs, in_progress)`
+        - `latest_runs`: workflow name -> latest completed run on `branch`,
+          ordered newest-first
+        - `in_progress`: names of the workflows whose newest run on `branch`
+          is not completed yet
+            - If the workflow is also in `latest_runs`, a newer run than the
+              one in `latest_runs` is in flight
+            - If the workflow is not in `latest_runs`, it has no verdict yet
+    """
+    _LOG.debug(hprint.to_str("branch repo_full_name_with_host limit"))
+    hdbg.dassert_ne(branch, "", "A branch name is needed to select the runs")
+    runs = fetch_runs(
+        repo_full_name_with_host=repo_full_name_with_host, limit=limit
+    )
+    # Filter on the branch client-side, see `fetch_runs()`.
+    runs = [run for run in runs if run["headBranch"] == branch]
+    # The verdict comes from the latest completed run of each workflow.
+    completed_runs = [run for run in runs if run["status"] == "completed"]
+    latest_runs = group_runs_by_workflow(completed_runs)
+    # A workflow is in progress when its newest run, completed or not, is not
+    # completed.
+    newest_runs = group_runs_by_workflow(runs)
+    in_progress = {
+        workflow_name
+        for workflow_name, run in newest_runs.items()
+        if run["status"] != "completed"
+    }
+    _LOG.debug(hprint.to_str("latest_runs in_progress"))
+    return latest_runs, in_progress
+
+
+def get_failed_workflows(latest_runs: Dict[str, Dict[str, Any]]) -> List[str]:
+    """
+    Get the workflows whose latest completed run has `conclusion == "failure"`.
+
+    The conclusions `cancelled`, `skipped` and `startup_failure` do not count
+    as a failure.
+
+    :param latest_runs: workflow name -> its latest completed run, as returned
+        by `get_latest_runs_per_workflow()`
+    :return: sorted names of the failed workflows
+    """
+    failed = [
+        workflow_name
+        for workflow_name, run in latest_runs.items()
+        if run["conclusion"] == "failure"
     ]
-    hdbg.dassert_eq(num_cols, len(cols))
-    # Build the table.
-    table = htable.Table.from_text(cols, txt, delimiter="\t")
-    _LOG.debug(hprint.to_str("table"))
-    # Remove the "name" column as it's redundant with "workflow".
-    table = table.remove_column("name")
-    return table
+    return sorted(failed)
 
 
-def _print_table(table: htable.TableType) -> None:
-    table_str = str(table)
-    # Colorize the table.
-    color_map = {"success": "green", "failure": "red", "in progress": "yellow"}
-    for status, color in color_map.items():
-        table_str = table_str.replace(
-            status, hprint.color_highlight(status, color)
+# #############################################################################
+# Failure logs and status formatting.
+# #############################################################################
+
+
+def download_failed_run_log(
+    workload_id: str, workflow: str, branch_name: str
+) -> str:
+    """
+    Download the log of a failed GH run to a local file.
+
+    The log is saved to `tmp.failure.<workflow>.<branch>.txt`, which is the name
+    that `.claude/skills/pytest.fix_ci_tests/SKILL.md` relies on.
+
+    :param workload_id: GH run id, e.g., `1477484584`
+    :param workflow: workflow name, e.g., `Fast tests`
+    :param branch_name: name of the branch the run belongs to
+    :return: name of the file the log was saved to
+    """
+    # > gh run view 1477484584 --log-failed
+    log_file_name = f"tmp.failure.{workflow}.{branch_name}.txt"
+    log_file_name = log_file_name.replace(" ", "_").lower()
+    cmd = f"gh run view {workload_id} --log-failed >{log_file_name}"
+    hsystem.system(cmd)
+    # Remove non-printable chars.
+    # TODO(heanh): Consider adding all the helpers util scripts to the `PATH`
+    # (when inside the container) so we can just use them without specifying
+    # the full path.
+    helpers_root_dir = hgit.find_helpers_root()
+    file_path = f"{helpers_root_dir}/dev_scripts_helpers/system_tools"
+    cmd = f"{file_path}/remove_escape_chars.py -i {log_file_name}"
+    hsystem.system(cmd)
+    return log_file_name
+
+
+def download_failure_logs(
+    latest_runs: Dict[str, Dict[str, Any]], branch_name: str
+) -> Dict[str, str]:
+    """
+    Download the log of each workflow whose latest completed run failed.
+
+    :param latest_runs: workflow name -> its latest completed run, as returned
+        by `get_latest_runs_per_workflow()`
+    :param branch_name: name of the branch the runs belong to
+    :return: workflow name -> name of the file with its failure log, only for
+        the failed workflows
+    """
+    log_files: Dict[str, str] = {}
+    for workflow_name in get_failed_workflows(latest_runs):
+        run = latest_runs[workflow_name]
+        log_file_name = download_failed_run_log(
+            str(run["databaseId"]), workflow_name, branch_name
         )
-    # Report the full status.
-    print(table_str)
+        _LOG.info(
+            "Downloaded log for '%s' to '%s'", workflow_name, log_file_name
+        )
+        log_files[workflow_name] = log_file_name
+    return log_files
 
 
-# TODO(Grisha): seems like GH changed the output format, we should update accordingly,
-# see CmTask #4672 "Slow tests fail (9835540316)" for details.
+# Map a workflow status to the color used to highlight it.
+_STATUS_COLOR_MAP = {
+    "success": "green",
+    "failure": "red",
+    "in progress": "yellow",
+}
+
+
+def colorize_status(status: str) -> str:
+    """
+    Highlight `status` with its color from `_STATUS_COLOR_MAP`.
+
+    :param status: workflow status/conclusion, e.g., `success`, `failure`
+    :return: `status` wrapped in ANSI color codes, or unchanged if `status`
+        has no entry in `_STATUS_COLOR_MAP`
+    """
+    if status in _STATUS_COLOR_MAP:
+        status = hprint.color_highlight(status, _STATUS_COLOR_MAP[status])
+    return status
+
+
+# #############################################################################
+# Tables.
+# #############################################################################
+
+
+def _get_run_time_cells(run: Dict[str, Any]) -> List[str]:
+    """
+    Get the time, duration and age cells of a run.
+
+    :param run: run object with the keys `createdAt`, `updatedAt`
+    :return: cells `[time, duration, age]`, e.g.,
+        `["22:08", "12m", "3 days ago"]`
+    """
+    created_at = parse_timestamp(run["createdAt"])
+    updated_at = parse_timestamp(run["updatedAt"])
+    duration_min = int((updated_at - created_at).total_seconds() / 60)
+    cells = [
+        updated_at.strftime("%H:%M"),
+        f"{duration_min}m",
+        format_days_ago(updated_at),
+    ]
+    return cells
+
+
+def build_table_rows(
+    latest_runs: Dict[str, Dict[str, Any]],
+    in_progress: Set[str],
+    log_files: Dict[str, str],
+) -> List[List[str]]:
+    """
+    Build the rows of the table with the latest state of each workflow.
+
+    :param latest_runs: workflow name -> its latest completed run, as returned
+        by `get_latest_runs_per_workflow()`
+    :param in_progress: workflows with a newer run in progress, as returned by
+        `get_latest_runs_per_workflow()`; they get a marker in the status
+    :param log_files: workflow name -> failure log file, as returned by
+        `download_failure_logs()`
+    :return: table rows with the header as the first row, one row per workflow
+        sorted by name
+    """
+    header = ["Workflow", "Status", "Time", "Duration", "Date", "Log"]
+    rows = [header]
+    for workflow_name in sorted(latest_runs):
+        run = latest_runs[workflow_name]
+        status = colorize_status(run["conclusion"])
+        # The verdict is still the latest completed run, but a newer one is
+        # running and can change it.
+        if workflow_name in in_progress:
+            status += " (newer run in progress)"
+        row = [workflow_name, status]
+        row += _get_run_time_cells(run)
+        row.append(log_files.get(workflow_name, "-"))
+        rows.append(row)
+    return rows
+
+
+def build_runs_table_rows(runs: List[Dict[str, Any]]) -> List[List[str]]:
+    """
+    Build the rows of a table listing every run, with no verdict.
+
+    :param runs: run objects, as returned by `fetch_runs()`
+    :return: table rows with the header as the first row, one row per run in
+        the order of `runs`
+    """
+    header = ["Workflow", "Branch", "Status", "Time", "Duration", "Date"]
+    rows = [header]
+    for run in runs:
+        # A run that is not completed has no conclusion yet: show its status.
+        status = run["conclusion"] or run["status"].replace("_", " ")
+        row = [run["name"], run["headBranch"], colorize_status(status)]
+        row += _get_run_time_cells(run)
+        rows.append(row)
+    return rows
+
+
+def format_table(rows: List[List[str]], *, max_col_width: int = -1) -> str:
+    """
+    Format `rows` as a markdown table sized to fit each column's content.
+
+    :param rows: table rows, with the header as the first row
+    :param max_col_width: max number of chars for a column, see
+        `htable.compute_column_widths()`
+        - `-1`: no limit
+    :return: markdown formatted table
+    """
+    widths = htable.compute_column_widths(rows, max_width=max_col_width)
+    lines = []
+    for row_idx, row in enumerate(rows):
+        cells = []
+        for cell, width in zip(row, widths):
+            content_width = width - 2
+            # Pad/truncate using the visible length, ignoring ANSI color
+            # codes (e.g., from `colorize_status()`), since those don't count
+            # towards the rendered width.
+            visible_len = len(hprint.remove_non_printable_chars(cell))
+            if visible_len > content_width and "\033[" not in cell:
+                cell = cell[:content_width]
+                visible_len = content_width
+            padding = " " * (content_width - visible_len)
+            cells.append(f"{cell}{padding}")
+        lines.append("| " + " | ".join(cells) + " |")
+        if row_idx == 0:
+            # Header separator row.
+            sep = "|".join("-" * width for width in widths)
+            lines.append(f"|{sep}|")
+    return "\n".join(lines)
+
+
+def print_summary(
+    latest_runs: Dict[str, Dict[str, Any]], in_progress: Set[str]
+) -> None:
+    """
+    Print a summary of the workflows that need attention.
+
+    Only `failure` counts as a failure for the exit code, but the other
+    non-green conclusions and the workflows without a verdict are reported too.
+
+    :param latest_runs: workflow name -> its latest completed run, as returned
+        by `get_latest_runs_per_workflow()`
+    :param in_progress: workflows with a newer run in progress, as returned by
+        `get_latest_runs_per_workflow()`
+    """
+    issues = {
+        "failure": "Failed",
+        "cancelled": "Cancelled",
+        "skipped": "Skipped",
+        "startup_failure": "Startup failure",
+    }
+    lines = []
+    for conclusion, label in issues.items():
+        names = [
+            workflow_name
+            for workflow_name, run in latest_runs.items()
+            if run["conclusion"] == conclusion
+        ]
+        if names:
+            lines.append("  %s: %s" % (label, ", ".join(sorted(names))))
+    # A workflow with only runs in progress has no verdict yet.
+    no_verdict = sorted(in_progress - set(latest_runs))
+    if no_verdict:
+        lines.append("  No completed run yet: %s" % ", ".join(no_verdict))
+    if lines:
+        _LOG.info("Issues found:")
+        for line in lines:
+            _LOG.info(line)
+
+
+# #############################################################################
+# GH workflow report.
+# #############################################################################
+
+
+def _report_workflow_status(
+    ctx: Any,
+    *,
+    filter_by_branch: str,
+    filter_by_completed: str,
+    report_only_status: bool,
+    show_stack_trace: bool,
+    print_table: bool,
+    repo_short_name: str,
+) -> int:
+    """
+    Report the status of the GH workflows once.
+
+    See `gh_workflow_list()` for the meaning of the parameters.
+
+    :return: number of workflows whose latest completed run failed, always 0
+        when the runs are only listed (no verdict is computed)
+    """
+    _LOG.debug(
+        hprint.to_str(
+            "filter_by_branch filter_by_completed report_only_status "
+            "show_stack_trace print_table repo_short_name"
+        )
+    )
+    # Login.
+    gh_login(ctx)
+    repo_full_name_with_host, _ = _get_repo_full_name_from_cmd(repo_short_name)
+    # Keep the branch that was asked for in all the messages and in the log file
+    # names, even when it is not the current Git branch.
+    branch_name = _get_branch_name(filter_by_branch)
+    num_failed = 0
+    if branch_name is None or not report_only_status:
+        # List the runs without a verdict.
+        runs = fetch_runs(repo_full_name_with_host=repo_full_name_with_host)
+        if branch_name is not None:
+            runs = [run for run in runs if run["headBranch"] == branch_name]
+        if filter_by_completed != "all":
+            runs = [
+                run
+                for run in runs
+                if filter_by_completed in (run["status"], run["conclusion"])
+            ]
+        if not runs:
+            _LOG.warning(
+                "No workflow runs found for filter_by_branch=%s "
+                "filter_by_completed=%s",
+                filter_by_branch,
+                filter_by_completed,
+            )
+        else:
+            print(format_table(build_runs_table_rows(runs)))
+    else:
+        # Get the verdict of each workflow from its latest completed run.
+        latest_runs, in_progress = get_latest_runs_per_workflow(
+            branch_name, repo_full_name_with_host=repo_full_name_with_host
+        )
+        if filter_by_completed != "all":
+            latest_runs = {
+                workflow_name: run
+                for workflow_name, run in latest_runs.items()
+                if filter_by_completed in (run["status"], run["conclusion"])
+            }
+        if not latest_runs and not in_progress:
+            _LOG.warning(
+                "No workflow runs found for filter_by_branch=%s "
+                "filter_by_completed=%s",
+                filter_by_branch,
+                filter_by_completed,
+            )
+        else:
+            log_files = download_failure_logs(latest_runs, branch_name)
+            if print_table:
+                rows = build_table_rows(latest_runs, in_progress, log_files)
+                print(format_table(rows))
+            for workflow_name in sorted(latest_runs):
+                conclusion = latest_runs[workflow_name]["conclusion"]
+                if conclusion == "success":
+                    print(
+                        f"Workflow '{workflow_name}' for '{branch_name}' is ok"
+                    )
+                elif conclusion == "failure":
+                    _LOG.error(
+                        "Workflow '%s' for '%s' is broken",
+                        workflow_name,
+                        branch_name,
+                    )
+                    log_file_name = log_files[workflow_name]
+                    print(f"# Log is in '{log_file_name}'")
+                    # Run_fast_tests  Run fast tests  2021-12-19T00:19:38.3394316Z FAILED data
+                    # cmd = rf"grep 'Z FAILED ' {log_file_name}"
+                    workflow_as_str = workflow_name.lower().replace(" ", "_")
+                    script_name = f"./tmp.pytest_repro.{workflow_as_str}.sh"
+                    cmd = f"invoke pytest_repro --file-name {log_file_name} --script-name {script_name}"
+                    if show_stack_trace:
+                        cmd += " -s"
+                    hsystem.system(
+                        cmd, suppress_output=False, abort_on_error=False
+                    )
+                else:
+                    # `cancelled`, `skipped` and `startup_failure` give no
+                    # verdict: they are shown in the table and the summary.
+                    _LOG.debug(
+                        "Workflow '%s' for '%s' has conclusion '%s', no verdict",
+                        workflow_name,
+                        branch_name,
+                        conclusion,
+                    )
+            print_summary(latest_runs, in_progress)
+            num_failed = len(get_failed_workflows(latest_runs))
+    _LOG.debug(hprint.to_str("num_failed"))
+    return num_failed
+
+
 @task
 def gh_workflow_list(  # type: ignore
     ctx,
@@ -189,159 +638,97 @@ def gh_workflow_list(  # type: ignore
     print_table=True,
     daemon=False,
     interval=60,
+    repo_short_name="current",
 ):
     """
     Report the status of the GH workflows.
 
+    The verdict of each workflow comes from its latest completed run. A newer
+    run in progress is marked in the table. The task exits with code 1 if the
+    latest completed run of a workflow has `conclusion == "failure"`. The
+    conclusions `cancelled`, `skipped` and `startup_failure` are shown but do
+    not count as a failure.
+
     :param filter_by_branch: name of the branch to check
         - `current_branch` for the current Git branch
         - `master` for master branch
-        - `all` for all branches
-    :param filter_by_completed: filter table by the status of the workflow
-        - E.g., "failure", "success"
+        - `all` for all branches: list the runs, with no verdict
+    :param filter_by_completed: keep only the workflows (or the runs, when
+        listing runs) whose status or conclusion has this value
+        - E.g., "failure", "success", "completed"
     :param report_only_status: if True, report only the status of the workflows
+        - If False, list the runs with no verdict
     :param show_stack_trace: in case of error run `pytest_repro` reporting also
         the stack trace
     :param print_table: if True, print the table with the status of the workflows
     :param daemon: if True, periodically clear the screen and re-run this
         same report every `interval` seconds instead of running once (this
-        merges the old standalone `gh_watch` flow)
+        is what `invoke gh_watch` does)
+        - The task never exits in this mode
     :param interval: seconds between periodic runs in daemon mode
+    :param repo_short_name: `current` refer to the repo where we are in,
+        otherwise a `repo_short_name` (e.g., "amp")
     """
+    # `report_task()` prints the name of its caller, so call it here and not
+    # from `_report_workflow_status()`.
+    hltltaut.report_task(
+        txt=hprint.to_str("filter_by_branch filter_by_completed")
+    )
+
+    def _report() -> int:
+        num_failed = _report_workflow_status(
+            ctx,
+            filter_by_branch=filter_by_branch,
+            filter_by_completed=filter_by_completed,
+            report_only_status=report_only_status,
+            show_stack_trace=show_stack_trace,
+            print_table=print_table,
+            repo_short_name=repo_short_name,
+        )
+        return num_failed
+
     if daemon:
-        # Periodically re-run this same report (with `daemon=False`),
-        # replacing the standalone `gh_watch` flow.
+        # Periodically re-run the report. A failure must not stop the loop, so
+        # the number of failures is ignored.
         def _run() -> None:
-            subprocess.run("clear", shell=True)
-            gh_workflow_list(
-                ctx,
-                filter_by_branch=filter_by_branch,
-                filter_by_completed=filter_by_completed,
-                report_only_status=report_only_status,
-                show_stack_trace=show_stack_trace,
-                print_table=print_table,
-            )
+            subprocess.run("clear", shell=True, check=False)
+            _report()
 
         hdaemon.run_periodic_daemon_mode(
             _run, interval, window_name_str="*GH_WATCH*"
         )
         return
-    hltltaut.report_task(
-        txt=hprint.to_str("filter_by_branch filter_by_completed")
-    )
-    # Login.
-    gh_login(ctx)
-    # Get the table.
-    table = _get_workflow_table()
-    # Filter table based on the branch.
-    if filter_by_branch != "all":
-        field = "branch"
-        value = _get_branch_name(filter_by_branch)
-        print(f"Filtering table by {field}={value}")
-        table = table.filter_rows(field, value)
-    # Filter table by the workflow status.
-    if filter_by_completed != "all":
-        field = "completed"
-        value = filter_by_completed
-        print(f"Filtering table by {field}={value}")
-        table = table.filter_rows(field, value)
-    if (
-        filter_by_branch not in ("current_branch", "master")
-        or not report_only_status
-    ):
-        _print_table(table)
-        return
-    # For each workflow find the last success.
-    branch_name = hgit.get_branch_name()
-    workflows = table.unique("workflow")
-    print(f"workflows={workflows}")
-    for workflow in workflows:
-        table_tmp = table.filter_rows("workflow", workflow)
-        if print_table:
-            print(hprint.frame(workflow))
-            _print_table(table_tmp)
-        # Find the first success.
-        num_rows = table.size()[0]
-        _LOG.debug("num_rows=%s", num_rows)
-        for i in range(num_rows):
-            status_column = table_tmp.get_column("status")
-            _LOG.debug("status_column=%s", str(status_column))
-            hdbg.dassert_lt(
-                i, len(status_column), "status_column=", status_column
-            )
-            status = status_column[i]
-            if status == "success":
-                print(f"Workflow '{workflow}' for '{branch_name}' is ok")
-                break
-            if status == "failure":
-                _LOG.error(
-                    "Workflow '%s' for '%s' is broken", workflow, branch_name
-                )
-                # Get the output of the broken run.
-                # > gh run view 1477484584 --log-failed
-                workload_id = table_tmp.get_column("id")[i]
-                log_file_name = f"tmp.failure.{workflow}.{branch_name}.txt"
-                log_file_name = log_file_name.replace(" ", "_").lower()
-                cmd = f"gh run view {workload_id} --log-failed >{log_file_name}"
-                hsystem.system(cmd)
-                # Remove non-printable chars.
-                # TODO(heanh): Consider adding all the helpers util scripts
-                # to the `PATH` (when inside the container) so we can just use
-                # them without specifying the full path.
-                helpers_root_dir = hgit.find_helpers_root()
-                file_path = (
-                    f"{helpers_root_dir}/dev_scripts_helpers/system_tools"
-                )
-                cmd = f"{file_path}/remove_escape_chars.py -i {log_file_name}"
-                hsystem.system(cmd)
-                print(f"# Log is in '{log_file_name}'")
-                # Run_fast_tests  Run fast tests  2021-12-19T00:19:38.3394316Z FAILED data
-                # cmd = rf"grep 'Z FAILED ' {log_file_name}"
-                workflow_as_str = workflow.lower().replace(" ", "_")
-                script_name = f"./tmp.pytest_repro.{workflow_as_str}.sh"
-                cmd = f"invoke pytest_repro --file-name {log_file_name} --script-name {script_name}"
-                if show_stack_trace:
-                    cmd += " -s"
-                hsystem.system(cmd, suppress_output=False, abort_on_error=False)
-                break
-            if status in ("startup_failure", "cancelled", "skipped"):
-                _LOG.debug(
-                    "Workflow '%s' for '%s' has status '%s', skipping",
-                    workflow,
-                    branch_name,
-                    status,
-                )
-                break
-            if status == "":
-                if i == (len(status_column) - 1):
-                    # If all the runs in the table are in progress, i.e. there is no
-                    # failed or succesful run, issue a warning and exit. E.g.,
-                    # #########################################################
-                    # Superslow tests
-                    # #########################################################
-                    # completed   | status | workflow        | branch | event             | id         | elapsed | age |
-                    # ----------- | ------ | --------------- | ------ | ----------------- | ---------- | ------- | --- |
-                    # in_progress |        | Superslow tests | master | workflow_dispatch | 5421740561 | 13m25s  | 13m |
-                    _LOG.warning(
-                        "No failed/successful run found for workflow=%s for branch=%s, all runs are in progress, exiting.",
-                        workflow,
-                        branch_name,
-                    )
-                else:
-                    _LOG.debug(
-                        "Workflow=%s for branch %s is in progress, skipping further checks",
-                        workflow,
-                        branch_name,
-                    )
-                break
-            else:
-                raise ValueError(f"Invalid status='{status}'")
+    num_failed = _report()
+    if num_failed > 0:
+        # Exit with a non-zero code so that a script can gate on it.
+        raise invexc.Exit(
+            f"{num_failed} workflow(s) failed for '{filter_by_branch}'", code=1
+        )
 
 
 @task
-def gh_workflow_run(ctx, branch="current_branch", workflows="all"):  # type: ignore
+def gh_watch(ctx, *, interval=60):  # type: ignore
+    """
+    Watch GitHub workflow status with periodic updates.
+
+    Alias of `invoke gh_workflow_list --daemon`. If running in tmux,
+    temporarily renames the window to "*GH_WATCH*" for visibility and restores it
+    on exit.
+
+    :param interval: Update interval in seconds
+    """
+    gh_workflow_list(ctx, daemon=True, interval=interval)
+
+
+@task
+def gh_workflow_run(  # type: ignore
+    ctx, branch="current_branch", workflows="all", repo_short_name="current"
+):
     """
     Run GH workflows in a branch.
+
+    :param repo_short_name: `current` refer to the repo where we are in,
+        otherwise a `repo_short_name` (e.g., "amp")
     """
     hltltaut.report_task(txt=hprint.to_str("branch workflows"))
     # Login.
@@ -360,11 +747,15 @@ def gh_workflow_run(ctx, branch="current_branch", workflows="all"):  # type: ign
     else:
         gh_tests = [workflows]
     _LOG.debug(hprint.to_str("workflows"))
+    repo_full_name_with_host, _ = _get_repo_full_name_from_cmd(repo_short_name)
     # Run.
     for gh_test in gh_tests:
         gh_test += ".yml"
         # gh workflow run fast_tests.yml --ref AmpTask1251_Update_GH_actions_for_amp
-        cmd = f"gh workflow run {gh_test} --ref {branch_name}"
+        cmd = (
+            f"gh workflow run {gh_test} --ref {branch_name}"
+            f" --repo {repo_full_name_with_host}"
+        )
         hltltaut.run(ctx, cmd)
 
 
@@ -400,6 +791,41 @@ def _get_repo_full_name_from_cmd(repo_short_name: str) -> Tuple[str, str]:
     return repo_full_name_with_host, ret_repo_short_name
 
 
+def _dassert_no_duplicate_open_issue(
+    repo_full_name_with_host: str, title: str
+) -> None:
+    """
+    Assert that no open issue titled exactly `title` already exists.
+
+    Guards against creating duplicate issues when a caller (e.g.,
+    `git_create_issue_and_branch.py`) is re-run after a later step (e.g.,
+    branch creation) failed, since a naive retry would otherwise create a
+    fresh issue every time instead of reusing the one already created.
+
+    :param repo_full_name_with_host: e.g., "github.com/org/repo"
+    :param title: exact issue title to check for
+    """
+    cmd = (
+        "gh issue list"
+        + f" --repo {repo_full_name_with_host}"
+        + " --state open"
+        + " --json number,title"
+        + " --limit 200"
+    )
+    _, output = hsystem.system_to_string(cmd)
+    issues = json.loads(output)
+    duplicate_ids = [
+        str(issue["number"]) for issue in issues if issue["title"] == title
+    ]
+    hdbg.dassert(
+        not duplicate_ids,
+        "An open issue titled '%s' already exists: #%s. Pass "
+        "--gh_issue_id to reuse it instead of creating a duplicate.",
+        title,
+        ", #".join(duplicate_ids),
+    )
+
+
 def _get_gh_issue_title(issue_id: int, repo_short_name: str) -> Tuple[str, str]:
     """
     Get the title of a GitHub issue.
@@ -427,13 +853,13 @@ def _get_gh_issue_title(issue_id: int, repo_short_name: str) -> Tuple[str, str]:
     url = dict_["url"]
     _LOG.debug("url=%s", url)
     # Remove some annoying chars.
-    for char in ": + ( ) / ` *".split():
+    for char in [":", "+", "(", ")", "/", "`", "*"]:
         title = title.replace(char, "")
     # Replace multiple spaces with one.
     title = re.sub(r"\s+", " ", title)
     title = title.replace(" ", "_")
     # Replace problematic branch name chars with underscore.
-    for char in ". - ' ` \" ; < > !".split():
+    for char in [".", "-", "'", "`", '"', ";", "<", ">", "!"]:
         title = title.replace(char, "_")
     # Add the prefix `AmpTaskXYZ_...`
     task_prefix = hrecouti.get_repo_config().get_issue_prefix()
@@ -462,7 +888,6 @@ def gh_issue_title(ctx, issue_id, repo_short_name="current", pbcopy=True):  # ty
     hltltaut.report_task(txt=hprint.to_str("issue_id repo_short_name"))
     # Login.
     gh_login(ctx)
-    #
     issue_id = int(issue_id)
     hdbg.dassert_lte(1, issue_id)
     title, url = _get_gh_issue_title(issue_id, repo_short_name)
@@ -518,34 +943,48 @@ def gh_issue_create(  # type: ignore
     hltltaut.report_task(txt=hprint.to_str("title repo_short_name"))
     # Login.
     gh_login(ctx)
-    #
     hdbg.dassert(title, "Title is required")
     hdbg.dassert_eq(repo_short_name, "current")
     repo_full_name_with_host, repo_short_name = _get_repo_full_name_from_cmd(
         repo_short_name
     )
+    # Avoid creating a duplicate issue, e.g., when a caller is re-run after a
+    # later step (like branch creation) failed.
+    _dassert_no_duplicate_open_issue(repo_full_name_with_host, title)
     _LOG.info(
         "Creating issue with title '%s' in %s",
         title,
         repo_full_name_with_host,
     )
-    # Build the command.
-    cmd = (
-        "gh issue create"
-        + f" --repo {repo_full_name_with_host}"
-        + f' --title "{title}"'
-        + f' --body "{body}"'
-    )
-    if labels:
-        cmd += f' --label "{labels}"'
-    if assignees:
-        cmd += f' --assignee "{assignees}"'
-    if project:
-        cmd += f' --project "{project}"'
-    # Execute the command and capture output.
-    # gh issue create outputs the URL of the created issue, e.g.,
-    # https://github.com/cryptokaizen/csfy/issues/7572
-    _, output = hsystem.system_to_string(cmd)
+    # Write the body to a temp file and pass it to `gh` via `--body-file`
+    # instead of interpolating it inline as `--body "{body}"`: `hsystem.system*`
+    # runs the command through a shell, so an inline double-quoted body with
+    # backticks or `$(...)` (e.g., a body listing shell commands or code
+    # snippets) gets executed as command substitution instead of being passed
+    # through literally.
+    body_file_name = "tmp.gh_issue_create.body.txt"
+    hio.to_file(body_file_name, body)
+    try:
+        # Build the command.
+        cmd = [
+            "gh issue create",
+            f"--repo {repo_full_name_with_host}",
+            f"--title {shlex.quote(title)}",
+            f"--body-file {shlex.quote(body_file_name)}",
+        ]
+        if labels:
+            cmd.append(f"--label {shlex.quote(labels)}")
+        if assignees:
+            cmd.append(f"--assignee {shlex.quote(assignees)}")
+        if project:
+            cmd.append(f"--project {shlex.quote(project)}")
+        cmd = " ".join(cmd)
+        # Execute the command and capture output.
+        # gh issue create outputs the URL of the created issue, e.g.,
+        # https://github.com/cryptokaizen/csfy/issues/7572
+        _, output = hsystem.system_to_string(cmd)
+    finally:
+        os.remove(body_file_name)
     _LOG.debug("gh issue create output: %s", output)
     # Extract the issue ID from the URL.
     # The URL format is: https://github.com/org/repo/issues/123
@@ -595,6 +1034,7 @@ def gh_create_pr(  # type: ignore
     reviewer="",
     labels="",
     assignee="",
+    dry_run=False,
 ):
     """
     Create a draft PR for the current branch in the corresponding
@@ -617,11 +1057,12 @@ def gh_create_pr(  # type: ignore
     :param reviewer: GitHub username to request review from
     :param labels: comma-separated list of labels to apply
     :param assignee: GitHub username to assign the PR to
+    :param dry_run: if True, log the `gh pr create`/`gh pr ready`/
+        `gh pr merge` commands without running them
     """
     hltltaut.report_task()
     # Login.
     gh_login(ctx)
-    #
     branch_name = hgit.get_branch_name()
     if not title:
         # Use the branch name as title.
@@ -650,28 +1091,40 @@ def gh_create_pr(  # type: ignore
         if issue_id and str(issue_id) not in body:
             body += f"\n\n#{issue_id}"
             _LOG.info("Added issue id %s to the PR body", issue_id)
-        cmd = (
-            "gh pr create"
-            + f" --repo {repo_full_name_with_host}"
-            + (" --draft" if draft else "")
-            + f' --title "{title}"'
-            + f' --body "{body}"'
-        )
-        if reviewer:
-            cmd += f" --reviewer {reviewer}"
-            _LOG.info("Added reviewer %s to the PR", reviewer)
-        if labels:
-            cmd += f' --label "{labels}"'
-            _LOG.info("Added labels %s to the PR", labels)
-        if assignee:
-            cmd += f" --assignee {assignee}"
-        # TODO(gp): Use _to_single_line_cmd
-        hltltaut.run(ctx, cmd)
+        # Write the body to a temp file and pass it to `gh` via `--body-file`
+        # instead of interpolating it inline as `--body "{body}"`: `ctx.run()`
+        # runs the command through a shell, so an inline double-quoted body
+        # with backticks or `$(...)` (e.g., a body listing shell commands or
+        # code snippets) gets executed as command substitution instead of
+        # being passed through literally.
+        body_file_name = "tmp.gh_create_pr.body.txt"
+        hio.to_file(body_file_name, body)
+        try:
+            cmd = [
+                "gh pr create",
+                f"--repo {repo_full_name_with_host}",
+                "--draft" if draft else "",
+                f"--title {shlex.quote(title)}",
+                f"--body-file {shlex.quote(body_file_name)}",
+            ]
+            if reviewer:
+                cmd.append(f"--reviewer {reviewer}")
+                _LOG.info("Added reviewer %s to the PR", reviewer)
+            if labels:
+                cmd.append(f"--label {shlex.quote(labels)}")
+                _LOG.info("Added labels %s to the PR", labels)
+            if assignee:
+                cmd.append(f"--assignee {assignee}")
+            cmd = " ".join(part for part in cmd if part)
+            # TODO(gp): Use _to_single_line_cmd
+            hltltaut.run(ctx, cmd, dry_run=dry_run)
+        finally:
+            os.remove(body_file_name)
     if auto_merge:
         cmd = f"gh pr ready {title}"
-        hltltaut.run(ctx, cmd)
+        hltltaut.run(ctx, cmd, dry_run=dry_run)
         cmd = f"gh pr merge {title} --auto --delete-branch --squash"
-        hltltaut.run(ctx, cmd)
+        hltltaut.run(ctx, cmd, dry_run=dry_run)
 
 
 # TODO(Grisha): probably the section deserves a separate lib.
@@ -682,14 +1135,22 @@ def gh_create_pr(  # type: ignore
 
 # TODO(Grisha): consider moving to cmamp as we run the workflow from cmamp.
 @task
-def gh_publish_buildmeister_dashboard_to_s3(ctx, mark_as_latest=True):  # type: ignore
+def gh_publish_buildmeister_dashboard_to_s3(  # type: ignore
+    ctx, mark_as_latest=True, repo_short_name="current"
+):
     """
     Run the buildmeister dashboard notebook and publish it to S3.
 
     :param mark_as_latest: if True, mark the dashboard as `latest`, otherwise
         just publish a timestamped copy
+    :param repo_short_name: `current` refer to the repo where we are in,
+        otherwise a `repo_short_name` (e.g., "amp")
     """
     hltltaut.report_task()
+    # Resolve the repo (used only for consistency/validation: this task has
+    # no other repo-scoped `gh` command to thread it into beyond the login
+    # step below).
+    _get_repo_full_name_from_cmd(repo_short_name)
     # Login to GH CLI.
     if hserver.is_inside_ci():
         _LOG.info("Skipping login since running inside CI")
@@ -1176,9 +1637,9 @@ def get_workflow_run_ids(
         #   Only runs where created_at timestamp < cutoff are selected
         cutoff_seconds = older_than_days * 86400
         # Log the cutoff date for debugging.
-        cutoff_date = datetime.datetime.now(
-            datetime.timezone.utc
-        ) - datetime.timedelta(days=older_than_days)
+        cutoff_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+            days=older_than_days
+        )
         _LOG.debug("Filtering runs created before: %s", cutoff_date.isoformat())
         jq_filter = (
             f".workflow_runs[] | "
@@ -1214,7 +1675,12 @@ def get_workflow_run_ids(
 
 @task
 def gh_delete_workflow_runs(  # type: ignore
-    ctx, workflow_name, older_than_days=None, dry_run=False, confirmation=True
+    ctx,
+    workflow_name,
+    older_than_days=None,
+    dry_run=False,
+    confirmation=True,
+    repo_short_name="current",
 ):
     """
     Delete all workflow runs for a given workflow.
@@ -1227,6 +1693,8 @@ def gh_delete_workflow_runs(  # type: ignore
         deleting
     :param confirmation: if True, prompt user for confirmation before
         deletion (default: True)
+    :param repo_short_name: `current` refer to the repo where we are in,
+        otherwise a `repo_short_name` (e.g., "amp")
     """
     hltltaut.report_task(
         txt=hprint.to_str("workflow_name older_than_days dry_run confirmation")
@@ -1237,8 +1705,7 @@ def gh_delete_workflow_runs(  # type: ignore
         hdbg.dassert_lte(1, older_than_days)
     # Login.
     gh_login(ctx)
-    #
-    repo_full_name_with_host, _ = _get_repo_full_name_from_cmd("current")
+    repo_full_name_with_host, _ = _get_repo_full_name_from_cmd(repo_short_name)
     # Get workflow ID by name.
     repo_path = repo_full_name_with_host.replace("github.com/", "")
     workflows = gh_get_workflows(repo_path)

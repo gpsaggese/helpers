@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import logging
 import os
@@ -66,6 +67,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "# Methods"
+        end_header = "# Results"
         # Prepare outputs.
         expected = """
         # Methods
@@ -81,7 +85,7 @@ class Test__extract_markdown_section(hunitest.TestCase):
         expected = hprint.dedent(expected)
         # Run test.
         result = dshdmtosp._extract_markdown_section(
-            in_file, "# Methods", "# Results"
+            in_file, start_header, end_header, tmp_dir=tmp_dir
         )
         # Check outputs.
         self.assert_equal(result, expected)
@@ -92,6 +96,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "# Methods"
+        end_header = ""
         # Prepare outputs.
         expected = """
         # Methods
@@ -106,7 +113,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         expected = hprint.dedent(expected)
         # Run test.
-        result = dshdmtosp._extract_markdown_section(in_file, "# Methods", "")
+        result = dshdmtosp._extract_markdown_section(
+            in_file, start_header, end_header, tmp_dir=tmp_dir
+        )
         # Check outputs.
         self.assert_equal(result, expected)
 
@@ -114,9 +123,16 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         Test error when start header not found.
         """
+        # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "# Nonexistent"
+        end_header = ""
+        # Run test and check output.
         with self.assertRaises(Exception):
-            dshdmtosp._extract_markdown_section(in_file, "# Nonexistent", "")
+            dshdmtosp._extract_markdown_section(
+                in_file, start_header, end_header, tmp_dir=tmp_dir
+            )
 
     def test4(self) -> None:
         """
@@ -124,6 +140,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "Results"
+        end_header = ""
         # Prepare outputs.
         expected = """
         # Results
@@ -132,7 +151,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         expected = hprint.dedent(expected)
         # Run test.
-        result = dshdmtosp._extract_markdown_section(in_file, "Results", "")
+        result = dshdmtosp._extract_markdown_section(
+            in_file, start_header, end_header, tmp_dir=tmp_dir
+        )
         # Check outputs.
         self.assert_equal(result, expected)
 
@@ -142,6 +163,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "# Methods"
+        end_header = "END"
         # Prepare outputs.
         expected = """
         # Methods
@@ -160,7 +184,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         expected = hprint.dedent(expected)
         # Run test.
-        result = dshdmtosp._extract_markdown_section(in_file, "# Methods", "END")
+        result = dshdmtosp._extract_markdown_section(
+            in_file, start_header, end_header, tmp_dir=tmp_dir
+        )
         # Check outputs.
         self.assert_equal(result, expected)
 
@@ -170,6 +196,9 @@ class Test__extract_markdown_section(hunitest.TestCase):
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "Data Collection"
+        end_header = "END"
         # Prepare outputs - should include everything from "Data Collection" to end.
         expected = """
         ## Data Collection
@@ -187,7 +216,7 @@ class Test__extract_markdown_section(hunitest.TestCase):
         expected = hprint.dedent(expected)
         # Run test.
         result = dshdmtosp._extract_markdown_section(
-            in_file, "Data Collection", "END"
+            in_file, start_header, end_header, tmp_dir=tmp_dir
         )
         # Check outputs.
         self.assert_equal(result, expected)
@@ -195,17 +224,25 @@ class Test__extract_markdown_section(hunitest.TestCase):
     @pytest.mark.slow
     def test7(self) -> None:
         """
-        Test that intermediate file is created.
+        Test that a uniquely-named intermediate file is created in `tmp_dir`.
         """
         # Prepare inputs.
         in_file = self._create_input_file()
+        tmp_dir = self.get_scratch_space()
+        start_header = "# Methods"
+        end_header = "# Results"
         # Run test.
-        dshdmtosp._extract_markdown_section(in_file, "# Methods", "# Results")
+        dshdmtosp._extract_markdown_section(
+            in_file, start_header, end_header, tmp_dir=tmp_dir
+        )
         # Check outputs.
-        tmp_file = dshdmtosp._TMP_EXTRACT_FILE
+        tmp_file_pattern = os.path.join(
+            tmp_dir, f"{dshdmtosp._TMP_EXTRACT_FILE}.*.md"
+        )
+        tmp_files = glob.glob(tmp_file_pattern)
         self.assertTrue(
-            os.path.exists(tmp_file),
-            f"Intermediate file {tmp_file} was not created",
+            tmp_files,
+            f"No intermediate file matching {tmp_file_pattern} was created",
         )
 
 
@@ -225,7 +262,8 @@ class Test__read_markdown_file(hunitest.TestCase):
         """
         # Prepare inputs.
         content = "# Title\n\nSome text.\n"
-        file_path = os.path.join(self.get_scratch_space(), "input.md")
+        scratch_dir = self.get_scratch_space()
+        file_path = os.path.join(scratch_dir, "input.md")
         hio.to_file(file_path, content)
         # Prepare outputs.
         expected = content
@@ -239,7 +277,8 @@ class Test__read_markdown_file(hunitest.TestCase):
         Test reading a nonexistent file raises an assertion error.
         """
         # Prepare inputs.
-        file_path = os.path.join(self.get_scratch_space(), "missing.md")
+        scratch_dir = self.get_scratch_space()
+        file_path = os.path.join(scratch_dir, "missing.md")
         # Run test and check output.
         with self.assertRaises(AssertionError):
             dshdmtosp._read_markdown_file(file_path)
@@ -712,6 +751,7 @@ class Test__generate_audio(hunitest.TestCase):
         mock_process = mock.MagicMock()
         mock_process.communicate.return_value = ("", "")
         mock_process.returncode = 0
+        timeout_val = 300
         # Prepare outputs.
         expected_cmd = [
             "piper",
@@ -733,7 +773,9 @@ class Test__generate_audio(hunitest.TestCase):
                 text, voice=voice, output_file=output_file
             )
         # Check outputs.
-        mock_process.communicate.assert_called_once_with(input=text, timeout=300)
+        mock_process.communicate.assert_called_once_with(
+            input=text, timeout=timeout_val
+        )
         self.assertEqual(mock_popen.call_args.args[0], expected_cmd)
 
     def test2(self) -> None:
@@ -751,7 +793,7 @@ class Test__generate_audio(hunitest.TestCase):
         mock_process.communicate.return_value = ("", "piper error")
         mock_process.returncode = 1
         # Run test and check output.
-        # TODO(ai_gp): Use hunteuti.capture_sys_calls() instead of mocking
+        # TODO(ai_gp): Use hunitest.capture_sys_calls() instead of mocking
         #  `subprocess.Popen` directly, once it supports Popen.
         with (
             mock.patch.object(
@@ -784,7 +826,7 @@ class Test__apply_speed_with_ffmpeg(hunitest.TestCase):
         output_file = "output.wav"
         speed = 1.0
         # Run test.
-        # TODO(ai_gp): Use hunteuti.capture_sys_calls() instead of mocking
+        # TODO(ai_gp): Use hunitest.capture_sys_calls() instead of mocking
         #  `subprocess.Popen` directly, once it supports Popen.
         with mock.patch("subprocess.Popen") as mock_popen:
             dshdmtosp._apply_speed_with_ffmpeg(
@@ -808,15 +850,18 @@ class Test__apply_speed_with_ffmpeg(hunitest.TestCase):
         mock_process = mock.MagicMock()
         mock_process.communicate.return_value = ("", "")
         mock_process.returncode = 0
+        filter_audio = f"atempo={speed}"
+        acodec = "pcm_s16le"
+        update_val = 1
         # Prepare outputs.
         expected_cmd = [
             "ffmpeg",
             "-i",
             input_file,
             "-filter:a",
-            "atempo=1.5",
+            filter_audio,
             "-acodec",
-            "pcm_s16le",
+            acodec,
             "-y",
             output_file,
         ]
@@ -832,7 +877,7 @@ class Test__apply_speed_with_ffmpeg(hunitest.TestCase):
             )
         # Check outputs.
         self.assertEqual(mock_popen.call_args.args[0], expected_cmd)
-        progress_bar.update.assert_called_once_with(1)
+        progress_bar.update.assert_called_once_with(update_val)
 
     def test3(self) -> None:
         """
@@ -841,12 +886,14 @@ class Test__apply_speed_with_ffmpeg(hunitest.TestCase):
         # Prepare inputs.
         input_file = "input.wav"
         speed = 2.0
-        output_file = os.path.join(self.get_scratch_space(), "output.wav")
+        scratch_dir = self.get_scratch_space()
+        output_file = os.path.join(scratch_dir, "output.wav")
         mock_process = mock.MagicMock()
-        mock_process.communicate.return_value = ("", "ffmpeg error")
+        error_msg = "ffmpeg error"
+        mock_process.communicate.return_value = ("", error_msg)
         mock_process.returncode = 1
         # Run test and check output.
-        # TODO(ai_gp): Use hunteuti.capture_sys_calls() instead of mocking
+        # TODO(ai_gp): Use hunitest.capture_sys_calls() instead of mocking
         #  `subprocess.Popen` directly, once it supports Popen.
         with mock.patch("subprocess.Popen", return_value=mock_process):
             with self.assertRaises(AssertionError):
@@ -961,9 +1008,10 @@ class Test__process_chunk_audio(hunitest.TestCase):
         lang_code = "a"
         device = ""
         speed = 1.0
+        normal_speed = 1.0
         # Prepare outputs.
         expected = dshdmtosp._get_chunk_filename(
-            chunk, chunk_idx=chunk_idx, engine=engine, voice=voice, speed=1.0
+            chunk, chunk_idx=chunk_idx, engine=engine, voice=voice, speed=normal_speed
         )
         # Run test.
         try:
@@ -1046,6 +1094,7 @@ class Test__process_chunk_audio(hunitest.TestCase):
         lang_code = "a"
         device = ""
         speed = 1.5
+        progress_update = 2
         final_audio_file = dshdmtosp._get_chunk_filename(
             chunk, chunk_idx=chunk_idx, engine=engine, voice=voice, speed=speed
         )
@@ -1075,7 +1124,7 @@ class Test__process_chunk_audio(hunitest.TestCase):
         self.assertEqual(actual, final_audio_file)
         mock_generate.assert_not_called()
         mock_ffmpeg.assert_not_called()
-        progress_bar.update.assert_called_once_with(2)
+        progress_bar.update.assert_called_once_with(progress_update)
 
 
 # #############################################################################
@@ -1112,6 +1161,7 @@ class Test__handle_final_output(hunitest.TestCase):
         audio_files = ["a.wav", "b.wav"]
         chunks = ["chunk a", "chunk b"]
         no_play = False
+        quiet_mode = False
         # Run test.
         with mock.patch.object(
             dshdmtosp, "_play_audio_with_controls"
@@ -1119,7 +1169,7 @@ class Test__handle_final_output(hunitest.TestCase):
             dshdmtosp._handle_final_output(audio_files, chunks, no_play=no_play)
         # Check outputs.
         mock_play.assert_called_once_with(
-            audio_files, chunks=chunks, quiet=False
+            audio_files, chunks=chunks, quiet=quiet_mode
         )
 
     def test3(self) -> None:
@@ -1155,7 +1205,10 @@ class Test__parse(hunitest.TestCase):
         """
         # Prepare inputs.
         parser = dshdmtosp._parse()
-        argv = ["md_to_speech.py", "--input", "README.md"]
+        script_name = "md_to_speech.py"
+        input_flag = "--input"
+        input_file = "README.md"
+        argv = [script_name, input_flag, input_file]
         # Prepare outputs.
         expected_speed = dshdmtosp._DEFAULT_SPEED
         expected_engine = dshdmtosp._DEFAULT_ENGINE
@@ -1164,7 +1217,7 @@ class Test__parse(hunitest.TestCase):
         with mock.patch("sys.argv", argv):
             args = parser.parse_args()
         # Check outputs.
-        self.assertEqual(args.input, "README.md")
+        self.assertEqual(args.input, input_file)
         self.assertEqual(args.speed, expected_speed)
         self.assertEqual(args.engine, expected_engine)
         # `--voice` defaults to `None` at parse time; `_main()` resolves it
@@ -1180,16 +1233,21 @@ class Test__parse(hunitest.TestCase):
         """
         # Prepare inputs.
         parser = dshdmtosp._parse()
+        script_name = "md_to_speech.py"
+        input_file = "README.md"
+        speed_val = "1.5"
+        voice_val = "en_US-joe-medium"
+        max_length_val = "500"
         argv = [
-            "md_to_speech.py",
+            script_name,
             "--input",
-            "README.md",
+            input_file,
             "--speed",
-            "1.5",
+            speed_val,
             "--voice",
-            "en_US-joe-medium",
+            voice_val,
             "--max_length",
-            "500",
+            max_length_val,
             "--no_play",
             "--dry_run",
         ]
@@ -1198,7 +1256,7 @@ class Test__parse(hunitest.TestCase):
             args = parser.parse_args()
         # Check outputs.
         self.assertEqual(args.speed, 1.5)
-        self.assertEqual(args.voice, "en_US-joe-medium")
+        self.assertEqual(args.voice, voice_val)
         self.assertEqual(args.max_length, 500)
         self.assertTrue(args.no_play)
         self.assertTrue(args.dry_run)
@@ -1226,15 +1284,19 @@ class Test__main(hunitest.TestCase):
         - Second bullet point.
         """
         content = hprint.dedent(content)
-        in_file = os.path.join(self.get_scratch_space(), "input.md")
+        scratch_dir = self.get_scratch_space()
+        in_file = os.path.join(scratch_dir, "input.md")
         hio.to_file(in_file, content)
         parser = dshdmtosp._parse()
+        script_name = "md_to_speech.py"
+        dry_run_flag = "--dry_run"
+        no_play_flag = "--no_play"
         argv = [
-            "md_to_speech.py",
+            script_name,
             "--input",
             in_file,
-            "--dry_run",
-            "--no_play",
+            dry_run_flag,
+            no_play_flag,
         ]
         # Run test.
         with (
@@ -1251,19 +1313,26 @@ class Test__main(hunitest.TestCase):
         file.
         """
         # Prepare inputs.
-        in_file = os.path.join(self.get_scratch_space(), "input.md")
+        scratch_dir = self.get_scratch_space()
+        in_file = os.path.join(scratch_dir, "input.md")
         hio.to_file(in_file, "unused content")
         parser = dshdmtosp._parse()
+        script_name = "md_to_speech.py"
+        select_val = "# Methods:# Results"
+        dry_run_flag = "--dry_run"
+        no_play_flag = "--no_play"
         argv = [
-            "md_to_speech.py",
+            script_name,
             "--input",
             in_file,
             "--select",
-            "# Methods:# Results",
-            "--dry_run",
-            "--no_play",
+            select_val,
+            dry_run_flag,
+            no_play_flag,
         ]
         extracted_content = "Intro text.\n- A bullet point."
+        start_header = "# Methods"
+        end_header = "# Results"
         # Run test.
         with (
             mock.patch.object(
@@ -1276,7 +1345,7 @@ class Test__main(hunitest.TestCase):
         ):
             dshdmtosp._main(parser)
         # Check outputs.
-        mock_extract.assert_called_once_with(in_file, "# Methods", "# Results")
+        mock_extract.assert_called_once_with(in_file, start_header, end_header)
         mock_generate.assert_not_called()
 
 

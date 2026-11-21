@@ -16,7 +16,6 @@ model: opus
 - Read the text passed by the user carefully
 
 ## Identify and Rank Mistakes
-- Identify mistakes in the passed text
 
 ### Definition
 - Criteria for mistakes:
@@ -41,10 +40,10 @@ model: opus
 ### Definition
 
 - Types of improvements:
-  - Clarity: Making text easier to understand
-  - Completeness: Adding missing context or examples
-  - Consistency: Aligning terminology or formatting
-  - Readability: Breaking up dense sections or improving flow
+  - **Clarity**: Making text easier to understand
+  - **Completeness**: Adding missing context or examples
+  - **Consistency**: Aligning terminology or formatting
+  - **Readability**: Breaking up dense sections or improving flow
 
 - Ranking severity:
   - _High_: Significantly improves comprehension or prevents misunderstanding

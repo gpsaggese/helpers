@@ -9,42 +9,38 @@ model: haiku
 # Workflow
 
 ## Find Files
-- Look for all the markdown files both `SKILL.md` and `<TOPIC>.rules.md`
+- Find all markdown files, both `SKILL.md` and `<TOPIC>.rules.md`
   ```bash
   > find website/docs/blog/posts -name "*.md"
   ```
 
 ## Read Context
 
-- Read context about rules from
+- Read the rules in
   - `.claude/skills/blog.rules.md`
   - `.claude/skills/markdown.rules.md`
   - `.claude/skills/text.rules.md`
 
 ## Check Rules
-- For each file apply all the following rules and report violations as described
-  below
+- Apply all the rules below to each file and report violations
 
 ### Check Front Matter
-- Make sure to follow the section `# Blog Document Structure` from the file
-  `.claude/skills/blog.rules.md`
+- Follow `# Blog Document Structure` in `.claude/skills/blog.rules.md`
 
 ### Check that Has a TL;DR
-- Make sure to follow the section `# Blog Document Structure` from the file
-  `.claude/skills/blog.rules.md`
+- Follow `# Blog Document Structure` in `.claude/skills/blog.rules.md`
 
 ### Check for Other Violations
-- Use the rules in `.claude/skills/blog.rules.md` to look for clear violations
+- Use `.claude/skills/blog.rules.md` to find clear violations
 - Report a violation only when confident about it
 
 ## Report Violations
 
-- Report all the violations in a file `cfile` using the format in
+- Report all violations in a file `cfile` using the format in
   `.claude/skills/cfile.rules.md`
 
 ## Ask Users Whether to Fix the Problems
-- Ask for the user which problems should be fixed by printing a list of problem
-  with indices
+- Print a list of problems with indices and ask the user which to fix
 
 # Verification
 - [ ] Confirm `cfile` lists concrete file and line references for each

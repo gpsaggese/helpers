@@ -9,25 +9,24 @@ model: haiku
   corresponding source file
 
 # Conventions
-- For all the code you must follow the instructions in
-  - `.claude/skills/coding.rules.md`
-  - `.claude/skills/testing.rules.md`
+- For all the code, follow `.claude/skills/coding.rules.md` and
+  `.claude/skills/testing.rules.md`
 
 # Workflow
 
 ## Find Test Code
-- Find the functions in `<FILENAME>.py` that are tested in the file
+- Find the functions in `<FILENAME>.py` that are tested in
   `test/test_<FILENAME>.py`
 
 ## Prepare a Plan
-- Prepare a plan that shows a mapping between
+- Prepare a plan that maps:
   - Test classes
-  - The functions tested by each class
-  - The file containing the tested functions
+  - The functions each class tests
+  - The file that contains those functions
 
 ### Order the Testing Classes in the Same Order as the Python File
-- Reorganize the code in `test/test_<FILENAME>.py` to match the order of the
-  functions declared in `<FILENAME>.py`
+- Reorganize `test/test_<FILENAME>.py` to match the order of the functions declared
+  in `<FILENAME>.py`
 
 - E.g., if in a Python `.../file.py`
   ```python
@@ -61,7 +60,7 @@ model: haiku
   - Modifying formatting beyond what is required for reorganization
 
 ## Implement the Plan
-- Implement the plan moving the code without changing it
+- Implement the plan by moving the code without changing it
 - Run the related unit tests to make sure everything works
 
 # Verification

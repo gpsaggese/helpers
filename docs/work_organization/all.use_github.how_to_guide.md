@@ -1,32 +1,5 @@
 # Use Github
 
-<!-- toc -->
-
-- [Introduction](#introduction)
-- [Concepts](#concepts)
-  * [Sprints](#sprints)
-  * [Projects](#projects)
-  * [Issue](#issue)
-  * [GH Actions](#gh-actions)
-  * [Label](#label)
-    + [List of Labels](#list-of-labels)
-  * [Status](#status)
-  * [PR](#pr)
-- [Issue Workflows](#issue-workflows)
-  * [Naming an Issue](#naming-an-issue)
-  * [Filing a New Issue](#filing-a-new-issue)
-  * [Updating an Issue](#updating-an-issue)
-  * [Closing an Issue](#closing-an-issue)
-- [PR Workflows](#pr-workflows)
-  * [PR Labels](#pr-labels)
-  * [Filing a New PR](#filing-a-new-pr)
-    + [General Tips](#general-tips)
-    + [Filing Process](#filing-process)
-  * [Review](#review)
-  * [Addressing a Comment](#addressing-a-comment)
-
-<!-- tocstop -->
-
 ## Introduction
 
 - In the following we use the abbreviations below:
@@ -69,13 +42,29 @@
   - It may take multiple Sprints to complete all the Issues in an Project
   - Most Projects are created around software components or user workflows
     (which may cross software components)
+- Unlike an idea, a Project has:
+  - Clear goals
+  - Defined scope
+  - Tangible outcomes
+  - Time constraints
+- Team leaders are responsible for converting ideas into Projects
+  - The outcome is a GH Project with clear objectives, start/end dates,
+    assignees, and filed Issues
+  - See
+    [Create an End-to-End Plan](/docs/planning/all.plan_work.how_to_guide.md#create-an-end-to-end-plan)
+    for the analysis to perform
+- Do not create a new board for each milestone or feature
 - For more information on GH Projects, see
   [all.github_projects_process.reference.md](/docs/work_organization/all.github_projects_process.reference.md)
 
 ### Issue
 
 - Each Issue is a piece of work to be done
+  - A task is a specific, actionable item, usually small in scope and focused on
+    a single activity within a Project
 - Issues are combined into Projects by topic
+  - Every Issue should belong to a GH Project
+- An Issue has one accountable owner and a testable result
 - An Issue has certain characteristics, i.e. labels
 - An Issue has a progress status, (e.g., `Todo`, `In progress`, `Done`)
 - PRs are linked to work needed to complete an Issue
@@ -83,9 +72,9 @@
   be resolved
 - An issue may be labeled as "Epic" if it has associated sub-issues.
   - However, this is not a standard in our workflow.
-- See also
-  [all.issue_workflow.explanation.md](/docs/work_organization/all.issue_workflow.explanation.md)
-  for the description of the concept of Issues as opposed to Ideas/Projects.
+- See
+  [Planning Hierarchy](/docs/planning/all.plan_work.how_to_guide.md#planning-hierarchy)
+  for how Issues relate to Ideas and Projects
 
 ### GH Actions
 
@@ -95,6 +84,10 @@
   each repo
 - These actions run automatically based on defined triggers such as pushes, pull
   requests, or scheduled events
+- Inspect the actual checks of a repo before relying on them
+  - E.g., a green PR does not prove that the tests of a directory ran if the
+    workflow excludes that directory
+  - Review changes to the workflow behavior like any other change
 
 Disabling a GitHub Actions Workflow
 
@@ -167,6 +160,9 @@ out the code:
   - `Done`
     - Issues that are done and are waiting for closing
     - Integrators / team leaders are responsible for closing
+- Small projects can use a lean board with fewer statuses
+  - See
+    [all.github_projects_process.reference.md](/docs/work_organization/all.github_projects_process.reference.md#lean-board-with-four-statuses)
 
 ```mermaid
 stateDiagram
@@ -214,6 +210,12 @@ stateDiagram
 
 ### Filing a New Issue
 
+- Describe the task so that it is actionable
+  - Problem and why it matters
+  - Scope and explicit exclusions
+  - Acceptance criteria: the evidence that shows the task is complete
+  - Dependencies, owner, and effort estimate
+  - Relevant design notes, PRs, and findings
 - If it is a "serious" problem (bug) put as much information about the Issue as
   possible, e.g.,:
   - What you are trying to achieve
@@ -267,6 +269,14 @@ stateDiagram
   Issue, Google Doc, or design PR) before starting to write a code
   - A team leader / integrator should review the design
 - When you start working on an Issue, change its status to `In Progress`
+  - Post a comment on the Issue with:
+    - A realistic ETA
+      - See "Morning TODO email" in
+        [`all.team_collaboration.how_to_guide.md`](/docs/work_organization/all.team_collaboration.how_to_guide.md#morning-todo-email)
+        for how to estimate and update an ETA
+    - A short plan of 3-4 bullet points
+      - The plan shows that you understood the goal
+      - If the plan is unclear, ask on the Issue before you start
   - Try to use `In Progress` only for Issues you are actively working on
   - A rule of thumb is that you should not have more than 2-3 `In Progress`
     Issues
@@ -276,6 +286,17 @@ stateDiagram
   - Show the progress to the team with quick updates
   - Update your Issue with pointers to gdocs, PRs, notebooks
   - If you have questions, post them on the bug and tag people
+- If you are blocked, report it on the Issue right away
+  - Do not wait for the next sync-up to ask for help
+  - Tag the person who can unblock you
+  - Use this template:
+    ```text
+    Blocker:
+    Impact:
+    Help needed from:
+    Next action and owner:
+    Follow-up date:
+    ```
 - Once the task, in your opinion, is done, change the status to `To Review` so
   that Integrator / team leaders can review it
 - If we decide to stop the work, add a `Paused` label
@@ -283,6 +304,11 @@ stateDiagram
 ### Closing an Issue
 
 - A task is closed when PR has been reviewed and merged into `master`
+  - For research or coordination work without a PR, attach the result and get
+    the agreed review before closing
+    - E.g., "Run the model benchmark" is complete when the selected
+      configuration, the results, the costs, and the question set are
+      documented and reviewed
 - When, in your opinion, there is no more work to be done on your side on an
   Issue, change its status to `Done` but do not close it
   - Integrators / team leaders will close it after review
@@ -291,15 +317,22 @@ stateDiagram
 - Done means that something is "DONE", not "99% done"
   - "DONE" means that the code is tested, readable, and usable by other
     teammates
+  - Work that is complete from the author's point of view is not Done while
+    review or acceptance is pending
 - Together we can decide that 99% done is good enough, but it should be a
   conscious decision and not comes as a surprise
 - There should be a reason when closing an issue
   - E.g. - closing as PR is merged
   - E.g. - closing since obsolete
+  - Record an issue closed as obsolete or duplicate in the weekly summary and do
+    not report it as delivered work
 
 ## PR Workflows
 
 ### PR Labels
+
+- Labels do not replace GitHub review requests, draft state, and approvals
+  - The GitHub review state is the source of truth
 
 - `PR_for_authors`
   - There are changes to be addressed by an author of a PR
@@ -315,6 +348,8 @@ stateDiagram
 
 - Implement a feature in a branch (not `master`), once it is ready for review
   push it and file a PR via GH interface
+- Stage and inspect only the files intended for the PR
+  - Keep unrelated changes in separate PRs
 - We have `invoke` tasks to automate some of these tasks:
   ```bash
   > i git_branch_create -i 828
@@ -337,14 +372,14 @@ stateDiagram
   you want the focus to be
 - Add a pointer in the description to the issue that PR is related to - this
   will ease the GH navigation for you and reviewers
-  - Do **not** link the PR to the issue through the dedicated GH functionality.
-    The reason is that when they are linked, GH automatically closes the issue
-    when the PR is merged, and this is inconvenient if there is more work to do.
-    We always want to have control over when the issue is closed.
-  - Sometimes GH creates these links itself - usually when the PR description
-    contains keywords like "Fixes #<issue_number>". So please avoid such
-    phrasing and instead use something more abstract like "Related to
-    #<issue_number>".
+  - If the PR completes the issue, start the description with
+    `Closes #<issue_number>`
+    - GH links the PR to the issue and closes the issue when the PR is merged
+  - If there is more work to do on the issue (e.g., more PRs are needed), use
+    `Related to #<issue_number>` instead
+    - Do not use closing keywords like "Closes" or "Fixes" in a PR that does not
+      complete the issue, since GH closes the issue when the PR is merged
+    - We always want to have control over when the issue is closed
 - Put yourself in the "Assignees" field
 - Add reviewers to the reviewers list
   - For optional review just do `FYI @username` in the description
@@ -352,6 +387,10 @@ stateDiagram
   - Usually the first label in the filed PR is `PR_for_reviewers`
   - If it is urgent/blocking, use the `Blocking` label
 - Make sure that the corresponding tests pass
+  - Run the relevant tests and the required repo checks
+  - For documentation, check links, accuracy, and formatting
+  - For websites, also check layout and interactions
+  - Report the checks that could not be run
 - Always lint (and commit files modified by Linter) before asking for a review
 
 ### Review
@@ -363,6 +402,7 @@ stateDiagram
   - Interfaces
   - Mistakes
   - Readability
+  - Validation evidence
 - There are 2 possible outcomes of a review:
   - There are changes to be addressed by author
     - A reviewer leaves comments to the code

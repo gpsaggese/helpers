@@ -48,7 +48,7 @@
 
 - You can find all the Python dockerized executable with:
   ```bash
-  > ffind.py dockerized | grep py
+  > ffind dockerized | grep py
   ./dev_scripts_helpers/dockerize/dockerized_template.py
   ./dev_scripts_helpers/documentation/dockerized_graphviz.py
   ./dev_scripts_helpers/documentation/dockerized_latex.py
@@ -67,7 +67,8 @@
 - Examples of dockerized shell scripts are:
   - [`/dev_scripts_helpers/documentation/OLD/lint_latex.sh`](/dev_scripts_helpers/documentation/OLD/lint_latex.sh)
   - [`/dev_scripts_helpers/documentation/latexdockercmd.sh`](/dev_scripts_helpers/documentation/latexdockercmd.sh)
-  - [`/dev_scripts_helpers/documentation/run_latex.sh`](/dev_scripts_helpers/documentation/run_latex.sh)
+  - [`/dev_scripts_helpers/documentation/run_latex.sh`](/dev_scripts_helpers/documentation/run_latex.sh),
+    obsolete: use `run_latex.py`
   - TODO(gp): Convert the scripts in Python and remove these
 
 ## Directory and Module Structure

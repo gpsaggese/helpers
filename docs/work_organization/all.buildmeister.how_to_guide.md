@@ -39,7 +39,7 @@
 ## Notification System
 
 - `Kaizen GitHub actions app` notifies the team about breaks via Slack channel
-  [#build-notifications](https://causify.slack.com/archives/C07QS9P4N78)
+  `#build-notifications`
 - A notification contains:
   - Failing tests type: fast/slow/super-slow
   - Repo
@@ -49,7 +49,7 @@
 
 Example:
 
-- <img src="figs/all.buildmeister.how_to_guide.md.figs/Slack_Image.png">
+- <img src="figs/buildmeister/Slack_Image.png">
 
 ## Buildmeister Instructions
 
@@ -61,7 +61,7 @@ Example:
     the only ones with write access
 
 - Post on the
-  [#build-notifications](https://causify.slack.com/archives/C07QS9P4N78) Slack
+  `#build-notifications` Slack
   channel what tests broke, e.g.,
   `FAILED knowledge_graph/vendors/test/test_utils.py::TestClean::test_clean`
   - If unsure about the cause of failure (there is a chance that a failure is
@@ -81,7 +81,7 @@ Example:
     - Example: `Build fail - Cmamp fast_tests (1442077107)`
   - Paste the URL of the failing run
     - Example:
-      [https://github.com/causify-ai/cmamp/actions/runs/12738914526](https://github.com/causify-ai/cmamp/actions/runs/12738914526)
+      `https://github.com/<org>/cmamp/actions/runs/12738914526`
   - Provide as much information as possible to give an understanding of the
     problem
   - List all the tests with FAILED status in a GitHub run, e.g.,
@@ -109,7 +109,7 @@ Example:
   - Keep issues grouped according to the codebase organization
 
 - Post the issue reference on Slack channel
-  [#build-notifications](https://causify.slack.com/archives/C07QS9P4N78)
+  `#build-notifications`
   - You can quickly discuss there who will take care of the broken tests, assign
     that person
   - Otherwise, assign it to the person who can reroute
@@ -134,8 +134,17 @@ Example:
 
 ### `Update_Helpers_Submodule` Fails
 
-- When this happens, the first thing to do is attempt to update the `helpers`
-  pointer manually
+- The workflow `update_helpers_submodule.yml` runs every day, runs the
+  regressions with the latest `helpers`, and moves the `helpers_root` pointer
+  forward only if they pass
+  - See `docs/tools/dev_system/all.update_helpers_submodule.how_to_guide.md` for
+    how it works and for the troubleshooting steps
+
+- When it fails, the first thing to do is check if the regressions fail with the
+  new `helpers` code
+  - If they fail, fix the cause: the pointer cannot move until they pass
+  - If they pass, or the failure is not related to the code, attempt to update
+    the `helpers` pointer manually
 
 - Instructions:
   ```bash
@@ -148,6 +157,7 @@ Example:
   > cd ..
   > git add helpers_root
   > git commit -m "Update helpers pointer"
+  > git push
   ```
 
 ## Daily Reporting and Handover Process
@@ -207,7 +217,7 @@ current state of the results of all GitHub Actions workflows. See
 [run and publish the buildmeister dashboard](/dev_scripts_helpers/update_devops_packages/notebooks/Master_buildmeister_dashboard.ipynb)
 for detailed information.
 
-<img src="figs/all.buildmeister.how_to_guide.md.figs/Buildmeister_Image.png"/>
+<img src="figs/buildmeister/Buildmeister_Image.png"/>
 
 ### Logic Used to Determine Workflow Status
 
@@ -277,20 +287,20 @@ status of each GitHub Actions workflow:
       vertical line corresponds to a certain version of the test report, with
       the last line on the right corresponding to the current version
 
-      <img src="figs/all.buildmeister.how_to_guide.md.figs/Trend_Image.png"/>
+      <img src="figs/buildmeister/Trend_Image.png"/>
     - Monitor the `Duration Trend` to check the time taken to the run all tests
       comparing to historical trends
 
-      <img src="figs/all.buildmeister.how_to_guide.md.figs/Duration_trend.png"/>
+      <img src="figs/buildmeister/Duration_trend.png"/>
     - Monitor the `Duration Distribution`, where all the tests are divided into
       groups based on how long it took to complete them, and manually compare
       with the last week results
 
-      <img src="figs/all.buildmeister.how_to_guide.md.figs/Duration_Distribution.png"/>
+      <img src="figs/buildmeister/Duration_Distribution.png"/>
     - Monitor the `Retries Trend` to check the number of retries occurred in a
       particular run
 
-      <img src="figs/all.buildmeister.how_to_guide.md.figs/Retries_Image.png"/>
+      <img src="figs/buildmeister/Retries_Image.png"/>
     - The idea is to make sure it doesn't have drastic change in the values
 
 - Steps to perform if a test fails, timeouts or breaks

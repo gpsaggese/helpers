@@ -20,13 +20,14 @@ import logging
 import os
 from typing import List, Optional
 
+import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
+import dev_scripts_helpers.documentation.lib_lint_text as dshdllite
 import helpers.hdbg as hdbg
 import helpers.hdocker as hdocker
-import helpers.hprint as hprint
-import helpers.hselect_input_output as hseinout
 import helpers.hparser as hparser
+import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
-import dev_scripts_helpers.documentation.lib_lint_text as dshdllite
+import helpers.hselect_input_output as hseinout
 
 _LOG = logging.getLogger(__name__)
 
@@ -63,9 +64,7 @@ def _resolve_extension(
     """
     if args.type:
         return args.type
-    extensions = {
-        os.path.splitext(f)[1].lstrip(".") for f in files if f != "-"
-    }
+    extensions = {os.path.splitext(f)[1].lstrip(".") for f in files if f != "-"}
     if len(extensions) != 1:
         return None
     return extensions.pop()
@@ -134,6 +133,28 @@ def _parser() -> argparse.ArgumentParser:
             "For flowmark: 'library', 'uvx-rs', 'uvx', 'global', or 'global-rs'."
         ),
     )
+    parser.add_argument(
+        "--tmp_dir",
+        action="store",
+        type=str,
+        default="",
+        help=(
+            "Directory to save the intermediate files used by `prettier` "
+            "(default: current dir). It must be reachable from the Docker "
+            "mount, e.g., a dir under the Git root"
+        ),
+    )
+    parser.add_argument(
+        "--use_hash",
+        action="store_true",
+        default=False,
+        help=(
+            "Append a random hash to the intermediate files used by "
+            "`prettier` (e.g., `tmp.prettier.<hash>.md`) so concurrent calls "
+            "do not collide. By default fixed names are used, to avoid "
+            "leaving hashed files around (unit tests set this)"
+        ),
+    )
     # TODO(gp): Convert to backend "global", "dockerized".
     parser.add_argument(
         "--use_dockerized_prettier",
@@ -163,6 +184,19 @@ def _parser() -> argparse.ArgumentParser:
         default=False,
         help="Revert a file from its backup copy",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        default=False,
+        help=(
+            "After processing, run `pandoc` on the text before and after and "
+            "fail if the content differs (e.g., lost words, tables, or code), "
+            "ignoring line wrapping, letter case, `.`, `:`, `—`, ordered "
+            "list delimiters, and paragraph breaks. Only for `md` and `smd` "
+            "files"
+        ),
+    )
+    dshdlipa.add_pandoc_backend_arg(parser)
     hselacti.add_action_arg(
         parser,
         _VALID_ACTIONS,
@@ -226,12 +260,23 @@ def _main(parser: argparse.ArgumentParser) -> None:
     _LOG.info("\n%s", actions_as_str)
     # Process the selected file(s).
     _LOG.info("Processing %d file(s)", len(in_file_names))
+    failed_files = []
     for in_file_name in in_file_names:
         out_file_name = args.output if args.output else in_file_name
         _LOG.info("Processing: %s", in_file_name)
-        dshdllite._process_single_file(
+        is_ok = dshdllite._process_single_file(
             in_file_name, out_file_name, args, actions
         )
+        if not is_ok:
+            failed_files.append(in_file_name)
+    # Fail at the end, so that all the files are processed and checked.
+    hdbg.dassert_eq(
+        len(failed_files),
+        0,
+        "The check failed for %d file(s): %s",
+        len(failed_files),
+        failed_files,
+    )
 
 
 if __name__ == "__main__":

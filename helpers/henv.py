@@ -4,6 +4,7 @@ Import as:
 import helpers.henv as henv
 """
 
+import importlib
 import logging
 import os
 from typing import Any, List, Tuple, Union
@@ -385,15 +386,15 @@ def _get_psutil_info() -> str:
 
 
 def _get_library_version(lib_name: str) -> str:
+    # Use `importlib` instead of `exec("import ...")` since, starting from
+    # Python 3.13, `exec()` inside a function doesn't bind the imported name in
+    # the function locals (PEP 667), so a following `eval()` raises `NameError`.
     try:
-        cmd = f"import {lib_name}"
-        # pylint: disable=exec-used
-        exec(cmd)
+        lib = importlib.import_module(lib_name)
     except ImportError:
         version = "?"
     else:
-        cmd = f"{lib_name}.__version__"
-        version = eval(cmd)
+        version = lib.__version__
     return version
 
 

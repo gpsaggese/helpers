@@ -458,6 +458,89 @@ class Test__combine_raindrop_with_gsheet_links(hunitest.TestCase):
         # Check outputs.
         self.assert_equal(str(actual_rows), str(expected_rows))
 
+    def test6(self) -> None:
+        """
+        Test multiple Raindrop rows are all prepended before the existing
+        gsheet row, preserving their input order.
+        """
+        # Prepare inputs.
+        gsheet_columns = ["Title", "Hn_url", "Article_url", "Timestamp"]
+        gsheet_rows = [
+            {
+                "Title": "Existing",
+                "Hn_url": "https://news.ycombinator.com/item?id=0",
+                "Article_url": "",
+                "Timestamp": "2023-01-01 00:00:00",
+            },
+        ]
+        raindrop_rows = [
+            {
+                "id": "1",
+                "title": "First",
+                "url": "https://news.ycombinator.com/item?id=1",
+                "created": "2024-06-01T00:00:00.000Z",
+            },
+            {
+                "id": "2",
+                "title": "Second",
+                "url": "https://news.ycombinator.com/item?id=2",
+                "created": "2024-06-02T00:00:00.000Z",
+            },
+            {
+                "id": "3",
+                "title": "Third",
+                "url": "https://news.ycombinator.com/item?id=3",
+                "created": "2024-06-03T00:00:00.000Z",
+            },
+        ]
+        # Prepare outputs. All 3 Raindrop rows are prepended, in the same
+        # order as `raindrop_rows`, before the existing gsheet row.
+        expected_rows = [
+            {
+                "Title": "First",
+                "Hn_url": "https://news.ycombinator.com/item?id=1",
+                "Article_url": "",
+                "Timestamp": "2024-06-01 00:00:00",
+            },
+            {
+                "Title": "Second",
+                "Hn_url": "https://news.ycombinator.com/item?id=2",
+                "Article_url": "",
+                "Timestamp": "2024-06-02 00:00:00",
+            },
+            {
+                "Title": "Third",
+                "Hn_url": "https://news.ycombinator.com/item?id=3",
+                "Article_url": "",
+                "Timestamp": "2024-06-03 00:00:00",
+            },
+            gsheet_rows[0],
+        ]
+        # Run test.
+        actual_rows = self.helper(gsheet_columns, gsheet_rows, raindrop_rows)
+        # Check outputs.
+        self.assert_equal(str(actual_rows), str(expected_rows))
+
+    def test7(self) -> None:
+        """
+        Test empty gsheet rows raise `ValueError` since the gsheet column
+        schema can only be derived from the keys of an existing row.
+        """
+        # Prepare inputs.
+        gsheet_columns = ["Title", "Hn_url", "Article_url", "Timestamp"]
+        gsheet_rows: list = []
+        raindrop_rows = [
+            {
+                "id": "1",
+                "title": "Some Title",
+                "url": "https://news.ycombinator.com/item?id=1",
+                "created": "2024-06-01T12:30:00.000Z",
+            },
+        ]
+        # Run test and check output.
+        with self.assertRaises(ValueError):
+            self.helper(gsheet_columns, gsheet_rows, raindrop_rows)
+
 
 # #############################################################################
 # Test__download_raindrop_data
@@ -843,6 +926,36 @@ class Test__get_latest_timestamp_from_file(hunitest.TestCase):
         expected = "2024-01-01 00:00:00"
         # Run test.
         self.helper(rows, expected)
+
+    def test3(self) -> None:
+        """
+        Test a single-row gsheet CSV returns that row's own timestamp.
+        """
+        # Prepare inputs.
+        rows = [
+            {"Timestamp": "2024-03-15 08:00:00"},
+        ]
+        # Prepare outputs.
+        expected = "2024-03-15 08:00:00"
+        # Run test.
+        self.helper(rows, expected)
+
+    def test4(self) -> None:
+        """
+        Test all rows with an empty `Timestamp` value raise `ValueError`
+        since no timestamp is available to compute the cutoff.
+        """
+        # Prepare inputs.
+        scratch_dir = self.get_scratch_space()
+        gsheet_csv = os.path.join(scratch_dir, "gsheet.csv")
+        rows = [
+            {"Timestamp": ""},
+            {"Timestamp": ""},
+        ]
+        dshdbou.write_csv(gsheet_csv, rows, fieldnames=list(rows[0].keys()))
+        # Run test and check output.
+        with self.assertRaises(ValueError):
+            dsbfr._get_latest_timestamp_from_file(gsheet_csv)
 
 
 # #############################################################################

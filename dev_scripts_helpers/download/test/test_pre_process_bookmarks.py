@@ -11,6 +11,7 @@ import helpers.hcache_simple as hcacsimp
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
 import dev_scripts_helpers.download.bookmark_utils as dshdbou
+import dev_scripts_helpers.download.download_utils as dshddut
 import dev_scripts_helpers.download.pre_process_bookmarks as dspprbo
 
 _LOG = logging.getLogger(__name__)
@@ -215,6 +216,87 @@ class Test__update_article_urls(hunitest.TestCase):
             rows, extracted_url, expected
         )
 
+    def test6(self) -> None:
+        """
+        Test multiple non-HN URLs are each copied as-is into `Article_url`.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Hn_url": "https://example.com/a",
+                "Article_url": "",
+            },
+            {
+                "Title": "Article B",
+                "Hn_url": "https://example.com/b",
+                "Article_url": "",
+            },
+        ]
+        # Prepare outputs.
+        expected = ["https://example.com/a", "https://example.com/b"]
+        # Run test.
+        actual_rows = self.helper(rows)
+        actual = [row["Article_url"] for row in actual_rows]
+        # Check outputs.
+        self.assert_equal(str(actual), str(expected))
+
+    def test7(self) -> None:
+        """
+        Test multiple HN URLs are each resolved independently through the
+        HN API.
+        """
+        # Prepare inputs.
+        extracted_url = "https://example.com/extracted"
+        rows = [
+            {
+                "Title": "Article A",
+                "Hn_url": "https://news.ycombinator.com/item?id=123",
+                "Article_url": "",
+            },
+            {
+                "Title": "Article B",
+                "Hn_url": "https://news.ycombinator.com/item?id=456",
+                "Article_url": "",
+            },
+        ]
+        # Prepare outputs.
+        expected = [extracted_url, extracted_url]
+        # Run test.
+        actual_rows = self.helper1(rows, extracted_url)
+        actual = [row["Article_url"] for row in actual_rows]
+        # Check outputs.
+        self.assert_equal(str(actual), str(expected))
+
+    def test8(self) -> None:
+        """
+        Test multiple rows with an already-filled `Article_url` are all
+        left untouched.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Hn_url": "https://news.ycombinator.com/item?id=123",
+                "Article_url": "https://example.com/existing-a",
+            },
+            {
+                "Title": "Article B",
+                "Hn_url": "https://news.ycombinator.com/item?id=456",
+                "Article_url": "https://example.com/existing-b",
+            },
+        ]
+        # Prepare outputs.
+        expected = [
+            "https://example.com/existing-a",
+            "https://example.com/existing-b",
+        ]
+        # Run test.
+        actual_rows = self.helper(rows)
+        actual = [row["Article_url"] for row in actual_rows]
+        # Check outputs.
+        self.assert_equal(str(actual), str(expected))
+
 
 # #############################################################################
 # Test__update_article_clusters
@@ -405,6 +487,85 @@ class Test__update_article_clusters(hunitest.TestCase):
         # Run test and check outputs.
         self.helper3(rows, expected)
 
+    def test6(self) -> None:
+        """
+        Test multiple rows with a wrapped tag are each normalized and
+        clustered independently.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Article_url": "https://example.com/a",
+                "Article_tag": (
+                    "The best tag for this article is **AI Agents**."
+                ),
+                "Article_cluster": "",
+            },
+            {
+                "Title": "Article B",
+                "Article_url": "https://example.com/b",
+                "Article_tag": (
+                    "The best tag for this article is **Open Source**."
+                ),
+                "Article_cluster": "",
+            },
+        ]
+        # Prepare outputs.
+        expected = ["AI", "Dev tools"]
+        # Run test and check outputs.
+        self.helper3(rows, expected)
+
+    def test7(self) -> None:
+        """
+        Test multiple rows with an already-filled `Article_cluster` are
+        all left untouched.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Article_url": "https://example.com/a",
+                "Article_tag": "Open Source",
+                "Article_cluster": "Dev tools",
+            },
+            {
+                "Title": "Article B",
+                "Article_url": "https://example.com/b",
+                "Article_tag": "AI Agents",
+                "Article_cluster": "AI",
+            },
+        ]
+        # Prepare outputs.
+        expected = ["Dev tools", "AI"]
+        # Run test and check outputs.
+        self.helper3(rows, expected)
+
+    def test8(self) -> None:
+        """
+        Test multiple rows with an unrecognized tag are all left with an
+        empty cluster.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Article_url": "https://example.com/a",
+                "Article_tag": "Programming Languages",
+                "Article_cluster": "",
+            },
+            {
+                "Title": "Article B",
+                "Article_url": "https://example.com/b",
+                "Article_tag": "Some Other Topic",
+                "Article_cluster": "",
+            },
+        ]
+        # Prepare outputs.
+        expected = ["", ""]
+        # Run test and check outputs.
+        self.helper3(rows, expected)
+
 
 # #############################################################################
 # Test__normalize_tag
@@ -542,3 +703,41 @@ class Test__normalize_tag(hunitest.TestCase):
         expected = ""
         # Run test.
         self.helper(raw_tag, expected)
+
+
+# #############################################################################
+# Test__parse
+# #############################################################################
+
+
+class Test__parse(hunitest.TestCase):
+    """
+    Test the command-line arguments of `pre_process_bookmarks.py`.
+    """
+
+    def test1(self) -> None:
+        """
+        Test the default tagging model is `download_utils.SUMMARY_MODEL`.
+        """
+        # Prepare inputs.
+        parser = dspprbo._parse()
+        # Prepare outputs.
+        expected = dshddut.SUMMARY_MODEL
+        # Run test.
+        args = parser.parse_args(["--target", "gsheet"])
+        # Check outputs.
+        self.assert_equal(args.model, expected)
+
+    def test2(self) -> None:
+        """
+        Test the tagging model can be changed with `--model`.
+        """
+        # Prepare inputs.
+        parser = dspprbo._parse()
+        model = "openrouter/anthropic/claude-haiku-4.5"
+        # Prepare outputs.
+        expected = model
+        # Run test.
+        args = parser.parse_args(["--target", "gsheet", "--model", model])
+        # Check outputs.
+        self.assert_equal(args.model, expected)

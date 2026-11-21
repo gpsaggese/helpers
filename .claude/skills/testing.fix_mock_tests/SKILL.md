@@ -4,11 +4,11 @@ model: haiku
 ---
 
 # Goal
-- When the user passes a test file, apply the following transformations to
-  remove mocking from unit testing code without changing behavior
-- Mocking often signals that your design could be more modular
-  - Avoiding mocking in Python unit tests means designing code so dependencies
-    are easy to control naturally, rather than being intercepted artificially
+- When the user passes a test file, apply these transformations to remove
+  mocking without changing behavior
+- Mocking often signals a design that could be more modular
+  - Avoid mocking by designing code so dependencies are easy to control, not
+    intercepted artificially
 
 # Workflow
 - Avoid mocking using the strategies below
@@ -20,7 +20,7 @@ model: haiku
     def add(a: int, b: int) -> int:
         return a + b
     ```
-- No mocking needed because there are no external dependencies
+- No mocking needed: there are no external dependencies
 
 ## Design for Dependency Injection (DI)
 - Instead of hard coding dependencies inside functions or classes, pass them in
@@ -94,12 +94,12 @@ model: haiku
   def process_user(user: Any, send_email_fn: Callable[[Any], None]) -> None:
       send_email_fn(user)
   ```
-- Now you can test logic without mocking the database or email system
+- Test the logic without mocking the database or email system
 
 ## Test Behavior Via Public Interfaces
-- Avoid testing internal calls (which often leads to mocking)
+- Avoid testing internal calls, which often leads to mocking
 - Focus on outputs and state changes
-  - Verify the final result or state instead of verifying a method was called
+  - Verify the final result or state, not that a method was called
 
 ## Use Real Collaborators When Cheap
 - If a dependency is fast and deterministic, just use it
@@ -109,8 +109,8 @@ model: haiku
 - Mocking these adds unnecessary complexity
 
 ## Use Integration Tests Strategically
-- Sometimes the best way to avoid mocking is not to unit test in isolation, but
-  to test a small system working together
+- Sometimes the best way to avoid mocking is to test a small system working
+  together, not to unit test in isolation
 
 # Important
 - All invariants and conventions for unit tests are documented in

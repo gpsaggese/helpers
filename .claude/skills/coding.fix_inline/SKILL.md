@@ -3,10 +3,10 @@ description: Find and remove the functions that are too thin
 model: haiku
 ---
 
-- I will pass you one or more files `<FILES>`
+- Given one or more files `<FILES>`
 
-- Look for functions that are too "thin", i.e., that call another function
-  directly without doing much else
+- Find functions that are too "thin": they call another function directly with
+  little else
   - E.g.,
 		```python
 		def cell1_plot_dag(
@@ -34,8 +34,7 @@ model: haiku
 
 - Ask the user if it's ok to remove them
 
-- Remove the functions and then look for all the invocations of the removed
-	function and inline the called function
+- Remove the functions, then inline the called function at every invocation
 
 - Read and apply to `<FILES>` the rules from `.claude/skills/coding.rules.md`
 

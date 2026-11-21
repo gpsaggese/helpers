@@ -4,28 +4,24 @@ model: haiku
 ---
 
 # Goal
-- The user will pass you:
-  - `<FILE>` a pointer to a file storing slides
-  - `<NUM_SLIDES>` a number of files to fix at the time (the default is 5)
-    - The user can specify to fix all the slides in one shot
-
-- You will fix the slides in `<FILE>`, `<NUM_SLIDES>` slides at the time, to
-  allow the user to review and fix things up
+- The user passes:
+  - `<FILE>`: a pointer to a file storing slides
+  - `<NUM_SLIDES>`: number of slides to fix at a time (default: 5). The user can
+    ask to fix all slides in one shot
+- Fix the slides in `<FILE>`, `<NUM_SLIDES>` at a time, so the user can review
+  each chunk
 
 # Workflow
 - Read `.claude/skills/slides.rules.md`
 
 ## Process Slides
-- Process `<NUM_SLIDES>` slides at the time from `<FILE>`
+- Process `<NUM_SLIDES>` slides at a time from `<FILE>`
   - Each slide is a chunk of text starting with `* <TITLE>`
-
-- Find which rules from `.claude/skills/slides.rules.md` are not followed by the
-  `<NUM_SLIDES>` slides being processed
-
-- Apply changes to make the current `<NUM_SLIDES>` slides follow the rules
+- Find the rules in `.claude/skills/slides.rules.md` that the current slides break
+- Apply changes so the slides follow the rules
 
 ## Wait for Confirmation
-- Wait for the user to confirm before moving forward to the next chunk of
+- Wait for the user to confirm before moving on to the next chunk of
   `<NUM_SLIDES>` slides
 
 # Verification

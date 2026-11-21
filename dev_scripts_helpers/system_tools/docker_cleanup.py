@@ -8,10 +8,14 @@ Cleans up, for the selected engine(s):
 - Unused networks (`docker` only)
 - Dangling volumes
 - Build cache (`docker`: pruned in place; `apple`: builder container reset)
+- Hash-tagged images superseded by a more recently built one (i.e., images
+  that only differ by their build-hash tag: all but the most recent are
+  removed)
 - Dangling images
 
 Prints `system df` (or `container system df`) before and after all operations,
-per engine, and a report of all images sorted by size and by creation date.
+per engine, and a report of all images sorted by size or by creation date
+(`--images_order`).
 
 Defaults to `--no_dry_run`, so it actually deletes unless `--dry_run` is
 passed.
@@ -27,6 +31,13 @@ passed.
 - Actually reclaim space on the Apple `container` engine:
   > docker_cleanup.py --docker_engine apple
 
+- Only print all images (name, size, creation date) for both engines, without
+  running any cleanup, sorted by size (default):
+  > docker_cleanup.py --images_only
+
+- Same, sorted by creation date:
+  > docker_cleanup.py --images_only --images_order date
+
 Import as:
 
 import dev_scripts_helpers.system_tools.docker_cleanup as dsstdocl
@@ -36,7 +47,7 @@ import argparse
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import helpers.hdbg as hdbg
 import helpers.hdocker as hdocker
@@ -70,17 +81,6 @@ def _run(cmd: str) -> str:
     return output
 
 
-# Multiplier for each unit reported by `docker images` / `docker system df`
-# (decimal, matching Docker's own SI-style formatting).
-_DOCKER_SIZE_UNIT_MULTIPLIERS = {
-    "B": 1.0,
-    "KB": 1e3,
-    "MB": 1e6,
-    "GB": 1e9,
-    "TB": 1e12,
-}
-
-
 def _parse_docker_size_to_bytes(size_str: str) -> float:
     """
     Convert a Docker human-readable size to bytes.
@@ -89,20 +89,28 @@ def _parse_docker_size_to_bytes(size_str: str) -> float:
         `"25.21GB"`, `"0B"`)
     :return: size in bytes
     """
+    # Multiplier for each unit reported by `docker images` / `docker system
+    # df` (decimal, matching Docker's own SI-style formatting).
+    docker_size_unit_multipliers = {
+        "B": 1.0,
+        "KB": 1e3,
+        "MB": 1e6,
+        "GB": 1e9,
+        "TB": 1e12,
+    }
     match = re.match(r"^([\d.]+)\s*([A-Za-z]+)$", size_str.strip())
-    # TODO(ai_gp): Use dassert_re_match and update coding.rules.md to explain to use this.
-    hdbg.dassert(
-        match is not None, "Cannot parse Docker size string '%s'", size_str
+    match = hdbg.dassert_re_match(
+        match, "Cannot parse Docker size string '%s'", size_str
     )
     value_str, unit = match.groups()
     unit = unit.upper()
     hdbg.dassert_in(
         unit,
-        _DOCKER_SIZE_UNIT_MULTIPLIERS,
+        docker_size_unit_multipliers,
         "Unsupported size unit in '%s'",
         size_str,
     )
-    size_bytes = float(value_str) * _DOCKER_SIZE_UNIT_MULTIPLIERS[unit]
+    size_bytes = float(value_str) * docker_size_unit_multipliers[unit]
     return size_bytes
 
 
@@ -123,21 +131,6 @@ def _format_bytes(num_bytes: float) -> str:
     return formatted
 
 
-# Matches one row of `docker system df` output, e.g.:
-#   Images          26        1         25.21GB   13.03GB (51%)
-# The row type (e.g., "Local Volumes", "Build Cache") can contain internal
-# spaces, so it is separated from the numeric columns via `\s{2,}`.
-# TODO(ai_gp): Inline it and add verbose + comments.
-_SYSTEM_DF_ROW_RE = re.compile(
-    r"^(?P<type>[A-Za-z ]+?)\s{2,}"
-    r"(?P<total>\d+)\s+"
-    r"(?P<active>\d+)\s+"
-    r"(?P<size>\S+)\s+"
-    r"(?P<reclaimable>\S+)"
-    r"(?:\s+\(\d+%\))?\s*$"
-)
-
-
 def _parse_docker_system_df(output: str) -> Dict[str, Dict[str, str]]:
     """
     Parse `docker system df` tabular output into a dict keyed by row type.
@@ -156,9 +149,31 @@ def _parse_docker_system_df(output: str) -> Dict[str, Dict[str, str]]:
                           "reclaimable": "2.541GB"}}
         ```
     """
+    # Compiled regex matches one row of `docker system df` output, e.g.:
+    #   Images          26        1         25.21GB   13.03GB (51%)
+    system_df_row_re = re.compile(
+        r"""
+        ^
+        (?P<type>[A-Za-z ]+?)      # row type (e.g., "Local Volumes", "Build
+                                   # Cache"); can contain internal spaces, so
+                                   # it is matched non-greedily
+        \s{2,}                     # 2+ spaces separate the type from columns
+        (?P<total>\d+)             # total count
+        \s+
+        (?P<active>\d+)            # active count
+        \s+
+        (?P<size>\S+)              # total size (e.g., "25.21GB")
+        \s+
+        (?P<reclaimable>\S+)       # reclaimable size
+        (?:\s+\(\d+%\))?           # optional "(NN%)" reclaimable percentage
+        \s*
+        $
+        """,
+        re.VERBOSE,
+    )
     result: Dict[str, Dict[str, str]] = {}
     for line in output.splitlines():
-        match = _SYSTEM_DF_ROW_RE.match(line)
+        match = system_df_row_re.match(line)
         if match is None:
             # Skip the header row and any other non-matching line.
             continue
@@ -180,7 +195,7 @@ def _report_system_df(engine: str, *, label: str) -> str:
     """
     Print `system df` (or `container system df`) for `engine`.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :param label: short label identifying when this snapshot was taken (e.g.,
         `"before"`, `"after"`)
     :return: raw command output, for callers that need to parse it further
@@ -200,7 +215,7 @@ def _report_active_containers(engine: str) -> None:
     Only stopped containers are removed by `container prune`, so this is
     informational context showing what is being preserved.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     """
     hdocker.set_docker_engine(engine)
     cmd_name = hdocker.get_docker_command()
@@ -229,10 +244,12 @@ def _list_images_docker() -> List[Dict[str, Any]]:
     """
     hdocker.set_docker_engine("docker")
     cmd_name = hdocker.get_docker_command()
-    list_cmd = (
-        f"{cmd_name} images --format "
-        '"{{.ID}} {{.Repository}}:{{.Tag}} {{.Size}}"'
-    )
+    list_cmd = [
+        cmd_name,
+        "images",
+        '--format "{{.ID}} {{.Repository}}:{{.Tag}} {{.Size}}"',
+    ]
+    list_cmd = " ".join(list_cmd)
     output = _run(list_cmd)
     images = []
     for line in output.splitlines():
@@ -283,6 +300,22 @@ def _list_images_apple() -> List[Dict[str, Any]]:
     return images
 
 
+def _list_images(engine: str) -> List[Dict[str, Any]]:
+    """
+    List all images for `engine` with their size and creation date.
+
+    :param engine: `"docker"` or `"apple"`
+    :return: list of dicts with keys `name`, `created`, `size_bytes`
+    """
+    if engine == "docker":
+        images = _list_images_docker()
+    elif engine == "apple":
+        images = _list_images_apple()
+    else:
+        raise ValueError(f"Invalid engine='{engine}'")
+    return images
+
+
 def _format_images_table(images: List[Dict[str, Any]]) -> str:
     """
     Format a list of images as a human-readable table.
@@ -299,35 +332,34 @@ def _format_images_table(images: List[Dict[str, Any]]) -> str:
     return table
 
 
-def _report_all_images(engine: str) -> None:
+def _report_all_images(engine: str, *, images_order: str) -> None:
     """
-    Print all images, sorted by size (descending) and by creation date
-    (descending).
+    Print all images once, sorted by size or by creation date (descending).
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
+    :param images_order: `"size"` or `"date"`, the field to sort images by
     """
-    if engine == "docker":
-        images = _list_images_docker()
-    elif engine == "apple":
-        images = _list_images_apple()
-    else:
-        raise ValueError(f"Invalid engine='{engine}'")
-    images_by_size = sorted(
-        images, key=lambda image: image["size_bytes"], reverse=True
+    # Field each `--images_order` choice sorts images by, and the label used
+    # when logging the resulting table.
+    images_order_keys = {
+        "size": ("size_bytes", "size"),
+        "date": ("created", "creation date"),
+    }
+    images = _list_images(engine)
+    hdbg.dassert_in(
+        images_order,
+        images_order_keys,
+        "Invalid images_order specified",
     )
-    images_by_date = sorted(
-        images, key=lambda image: image["created"], reverse=True
+    sort_field, sort_label = images_order_keys[images_order]
+    images_sorted = sorted(
+        images, key=lambda image: image[sort_field], reverse=True
     )
-    _LOG.info(
-        "## All images (%d), sorted by size (descending)\n%s",
-        len(images),
-        _format_images_table(images_by_size),
+    title = (
+        f"All images ({len(images)}), sorted by {sort_label} (descending), "
+        f"engine='{engine}'"
     )
-    _LOG.info(
-        "## All images (%d), sorted by creation date (descending)\n%s",
-        len(images),
-        _format_images_table(images_by_date),
-    )
+    _LOG.info("%s\n%s", hprint.frame(title), _format_images_table(images_sorted))
 
 
 # #############################################################################
@@ -339,17 +371,21 @@ def _cleanup_stopped_containers(engine: str, *, dry_run: bool) -> None:
     """
     Remove stopped containers.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :param dry_run: if True, only report what would be removed
     """
     hdocker.set_docker_engine(engine)
     cmd_name = hdocker.get_docker_command()
     if engine == "docker":
-        list_cmd = (
-            f'{cmd_name} ps -a --filter "status=exited" '
-            '--filter "status=created" --filter "status=dead" '
-            '--format "{{.ID}}: {{.Names}} ({{.Status}})"'
-        )
+        list_cmd = [
+            cmd_name,
+            "ps -a",
+            '--filter "status=exited"',
+            '--filter "status=created"',
+            '--filter "status=dead"',
+            '--format "{{.ID}}: {{.Names}} ({{.Status}})"',
+        ]
+        list_cmd = " ".join(list_cmd)
         candidates = _run(list_cmd)
         if dry_run:
             _LOG.warning(
@@ -388,10 +424,13 @@ def _cleanup_unused_networks(engine: str, *, dry_run: bool) -> None:
     hdocker.set_docker_engine(engine)
     cmd_name = hdocker.get_docker_command()
     if engine == "docker":
-        list_cmd = (
-            f'{cmd_name} network ls --filter "dangling=true" '
-            '--format "{{.ID}}: {{.Name}}"'
-        )
+        list_cmd = [
+            cmd_name,
+            "network ls",
+            '--filter "dangling=true"',
+            '--format "{{.ID}}: {{.Name}}"',
+        ]
+        list_cmd = " ".join(list_cmd)
         candidates = _run(list_cmd)
         if dry_run:
             _LOG.warning(
@@ -415,7 +454,7 @@ def _cleanup_dangling_volumes(engine: str, *, dry_run: bool) -> None:
     """
     Remove dangling volumes.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :param dry_run: if True, only report what would be removed
     """
     hdocker.set_docker_engine(engine)
@@ -535,7 +574,7 @@ def _cleanup_dangling_images(engine: str, *, dry_run: bool) -> None:
     """
     Remove dangling images.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :param dry_run: if True, only report what would be removed
     """
     hdocker.set_docker_engine(engine)
@@ -577,23 +616,120 @@ def _cleanup_dangling_images(engine: str, *, dry_run: bool) -> None:
         raise ValueError(f"Invalid engine='{engine}'")
 
 
+def _get_image_dedup_key(name: str) -> Optional[str]:
+    """
+    Compute the group key for images that differ only by their hash tag.
+
+    :param name: image name as `<repository>:<tag>` (or just `<repository>`)
+    :return: `<repository base>:<tag>`, with the trailing hash (and, if
+        present, date) suffix stripped from the repository, or `None` if
+        `name` does not follow the hash-tagged convention minted by
+        `hdocker.get_container_image_name()`
+    """
+    # Matches the `<image_name>.<arch>.<hash>` image-tagging convention
+    # minted by `hdocker.get_container_image_name()`, e.g.
+    # `tmp.pandoc_texlive.arm64.4867bd42`, or, for images built before the
+    # tag was made purely hash-based, the legacy date-prefixed
+    # `<date>_<hash>` (or `<date>.<time>_<hash>`) tag.
+    image_hash_tag_re = re.compile(
+        r"^(?P<base>.+)\.(?:\d{8}(?:\.\d{6})?_)?(?P<hash>[0-9a-f]{8})$"
+    )
+    repository, _, tag = name.partition(":")
+    match = image_hash_tag_re.match(repository)
+    if match is None:
+        return None
+    key = f"{match.group('base')}:{tag}"
+    return key
+
+
+def _get_duplicate_hash_images(
+    images: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Find hash-tagged images superseded by a more recently created one.
+
+    Images that share the same `_get_image_dedup_key()` are only rebuilds of
+    the same Dockerfile at different points in time (or with different
+    content, in which case the hash also differs), so all but the most
+    recently created one in each group are redundant.
+
+    :param images: list of dicts with keys `name`, `created`, `size_bytes`
+    :return: images to remove, i.e., every image in a group of 2+ images
+        sharing the same dedup key except the most recently created one
+    """
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for image in images:
+        key = _get_image_dedup_key(image["name"])
+        if key is None:
+            # Not a hash-tagged image: never a dedup candidate.
+            continue
+        groups.setdefault(key, []).append(image)
+    to_remove = []
+    for group in groups.values():
+        if len(group) <= 1:
+            continue
+        group_by_date = sorted(
+            group, key=lambda image: image["created"], reverse=True
+        )
+        # Keep the most recently created image, remove the rest.
+        to_remove.extend(group_by_date[1:])
+    return to_remove
+
+
+def _cleanup_duplicate_hash_images(engine: str, *, dry_run: bool) -> None:
+    """
+    Remove hash-tagged images superseded by a more recently created one.
+
+    :param engine: `"docker"` or `"apple"`
+    :param dry_run: if True, only report what would be removed
+    """
+    hdocker.set_docker_engine(engine)
+    cmd_name = hdocker.get_docker_command()
+    images = _list_images(engine)
+    to_remove = _get_duplicate_hash_images(images)
+    if not to_remove:
+        _LOG.info("No duplicate hash-tagged images to remove")
+        return
+    names = [image["name"] for image in to_remove]
+    if dry_run:
+        _LOG.warning(
+            "[DRY_RUN] Would remove %d duplicate hash-tagged image(s): %s",
+            len(names),
+            ", ".join(names),
+        )
+    else:
+        # Never run the removal command with an empty argument list: guarded
+        # by the `if not to_remove: return` check above.
+        if engine == "docker":
+            rm_cmd = f"{cmd_name} rmi -f " + " ".join(names)
+        elif engine == "apple":
+            rm_cmd = f"{cmd_name} image delete " + " ".join(names)
+        else:
+            raise ValueError(f"Invalid engine='{engine}'")
+        hsystem.system(rm_cmd)
+        _LOG.info(
+            "Removed %d duplicate hash-tagged image(s): %s",
+            len(names),
+            ", ".join(names),
+        )
+
+
 # #############################################################################
 # Orchestration.
 # #############################################################################
 
 
-def _cleanup_engine(engine: str, *, dry_run: bool) -> None:
+def _cleanup_engine(engine: str, *, dry_run: bool, images_order: str) -> None:
     """
     Run all cleanup steps for a single engine.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :param dry_run: if True, only report what would be removed
+    :param images_order: `"size"` or `"date"`, the field to sort the final
+        images report by
     """
     hdocker.set_docker_engine(engine)
-    # TODO(ai_gp): Use hprint.frame
-    _LOG.info("%s", "#" * 80)
-    _LOG.info("Engine: '%s'", engine)
-    _LOG.info("%s", "#" * 80)
+    _LOG.info("\n%s", hprint.frame(f"Engine: '{engine}'"))
     # Disk usage before any operation.
     before_output = _report_system_df(engine, label="before")
     system_df = (
@@ -602,17 +738,27 @@ def _cleanup_engine(engine: str, *, dry_run: bool) -> None:
     # Containers not touched by pruning (informational only).
     _report_active_containers(engine)
     # Remove stopped containers.
+    _LOG.info("\n%s", hprint.frame("Stopped containers", char1="/"))
     _cleanup_stopped_containers(engine, dry_run=dry_run)
     # Remove unused networks.
+    _LOG.info("\n%s", hprint.frame("Unused networks", char1="/"))
     _cleanup_unused_networks(engine, dry_run=dry_run)
     # Remove dangling volumes.
+    _LOG.info("\n%s", hprint.frame("Dangling volumes", char1="/"))
     _cleanup_dangling_volumes(engine, dry_run=dry_run)
     # Remove build cache.
+    _LOG.info("\n%s", hprint.frame("Build cache", char1="/"))
     _cleanup_build_cache(engine, dry_run=dry_run, system_df=system_df)
+    # Remove hash-tagged images superseded by a more recent rebuild (run
+    # before the dangling-image cleanup, so any layers it frees up are swept
+    # up right after).
+    _LOG.info("\n%s", hprint.frame("Duplicate hash-tagged images", char1="/"))
+    _cleanup_duplicate_hash_images(engine, dry_run=dry_run)
     # Remove dangling images.
+    _LOG.info("\n%s", hprint.frame("Dangling images", char1="/"))
     _cleanup_dangling_images(engine, dry_run=dry_run)
-    # Report all images, sorted by size and by creation date.
-    _report_all_images(engine)
+    # Report all images, sorted by `images_order`.
+    _report_all_images(engine, images_order=images_order)
     # Disk usage after all operations.
     _report_system_df(engine, label="after")
 
@@ -624,7 +770,7 @@ def _is_engine_available(engine: str) -> bool:
     Logs a warning (not an error) when unavailable, so callers can skip the
     engine instead of crashing.
 
-    :param engine:`"docker"` or `"apple"`
+    :param engine: `"docker"` or `"apple"`
     :return: True if the engine's CLI is installed and its daemon/service is
         running
     """
@@ -684,6 +830,22 @@ def _parse() -> argparse.ArgumentParser:
         default_value=False,
         help_="Print what would be deleted instead of actually deleting it",
     )
+    hparser.add_bool_arg(
+        parser,
+        "images_only",
+        default_value=False,
+        help_=(
+            "Only print all images (name, size, creation date) for the "
+            "selected engine(s); skip all cleanup operations"
+        ),
+    )
+    parser.add_argument(
+        "--images_order",
+        action="store",
+        choices=["size", "date"],
+        default="size",
+        help="Field to sort the images report by",
+    )
     hparser.add_verbosity_arg(parser)
     return parser
 
@@ -691,12 +853,21 @@ def _parse() -> argparse.ArgumentParser:
 def _main(parser: argparse.ArgumentParser) -> None:
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
-    _LOG.debug(hprint.to_str("args.docker_engine args.dry_run"))
+    _LOG.debug(
+        hprint.to_str(
+            "args.docker_engine args.dry_run args.images_only args.images_order"
+        )
+    )
     engines = _get_engines(args.docker_engine)
     for engine in engines:
         if not _is_engine_available(engine):
             continue
-        _cleanup_engine(engine, dry_run=args.dry_run)
+        if args.images_only:
+            _report_all_images(engine, images_order=args.images_order)
+        else:
+            _cleanup_engine(
+                engine, dry_run=args.dry_run, images_order=args.images_order
+            )
 
 
 if __name__ == "__main__":
