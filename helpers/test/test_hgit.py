@@ -1279,6 +1279,60 @@ class Test_find_git_root7(hunitest.TestCase):
 
 
 # #############################################################################
+# Test_find_git_root8
+# #############################################################################
+
+
+class Test_find_git_root8(hunitest.TestCase):
+    """
+    Check that the function returns the worktree root, and not the main repo
+    root, when called from a worktree of a submodule.
+
+    Directory structure:
+    main_repo/
+    `-- .git/
+        `-- modules/
+            `-- helpers_root/
+                `-- worktrees/
+                    `-- helpers_worktree_1354/
+    helpers_worktree_1354/ (worktree of the submodule)
+    `-- .git (points to
+        /main_repo/.git/modules/helpers_root/worktrees/helpers_worktree_1354)
+    """
+
+    def set_up_test(self) -> None:
+        temp_dir = self.get_scratch_space()
+        # Create the git metadata of the worktree of the submodule.
+        self.main_repo_dir = os.path.join(temp_dir, "main_repo")
+        self.worktree_git_dir = os.path.join(
+            self.main_repo_dir,
+            ".git",
+            "modules",
+            "helpers_root",
+            "worktrees",
+            "helpers_worktree_1354",
+        )
+        hio.create_dir(self.worktree_git_dir, incremental=False)
+        # Create worktree directory.
+        self.worktree_dir = os.path.join(temp_dir, "helpers_worktree_1354")
+        hio.create_dir(self.worktree_dir, incremental=False)
+        hio.to_file(
+            os.path.join(self.worktree_dir, ".git"),
+            f"gitdir: {self.worktree_git_dir}\n",
+        )
+
+    def test1(self) -> None:
+        """
+        Check that the function returns the worktree root when called from a
+        worktree of a submodule.
+        """
+        self.set_up_test()
+        with hsystem.cd(self.worktree_dir):
+            git_root = hgit.find_git_root(".")
+            self.assert_equal(git_root, self.worktree_dir)
+
+
+# #############################################################################
 # Test_find_git_root_in_active_worktree
 # #############################################################################
 

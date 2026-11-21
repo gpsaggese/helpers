@@ -556,6 +556,17 @@
     > git -c url."https://github.com/".insteadOf="git@github.com:" \
         submodule update --init
     ```
+- To open a worktree and a tmux session for an existing branch or PR in one step,
+  run `git_worktree_tmux.py` from the repo that owns the branch, or pass its short
+  name with `--repo_short_name`
+  ```bash
+  > git_worktree_tmux.py --pr_number <PR>
+  > git_worktree_tmux.py --branch_name <BRANCH>
+  > git_worktree_tmux.py --repo_short_name <REPO> --pr_number <PR>
+  ```
+  - It creates the worktree as `<dir_suffix>_worktree_<issue_id>` in `~/src`
+  - It then runs the `thin_client/tmux.py` of the repo on it
+  - Run it outside tmux
 - When the PR is merged, remove the worktree
   - The branch is not deleted
   ```bash

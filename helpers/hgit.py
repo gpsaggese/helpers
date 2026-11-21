@@ -483,13 +483,21 @@ def find_git_root(path: str = ".") -> str:
                     is_submodule_of_worktree = (
                         is_worktree_dir and "/modules/" in git_dir_path
                     )
+                    # A worktree of a submodule has its git dir in the
+                    # `worktrees` dir of the git dir of the submodule (e.g.,
+                    # `main_repo/.git/modules/helpers_root/worktrees/name`).
+                    is_worktree_of_submodule = (
+                        not is_worktree_dir
+                        and os.path.basename(os.path.dirname(git_dir_path))
+                        == "worktrees"
+                    )
                     if is_submodule_of_worktree:
                         # The submodule is not the root: keep going up to find
                         # the worktree that contains it. Using the path to the
                         # git dir would return the main repo instead of the
                         # worktree.
                         pass
-                    elif is_worktree_dir:
+                    elif is_worktree_dir or is_worktree_of_submodule:
                         # For worktrees, the current path is the root of the
                         # worktree. The worktree's `.git` file points to the
                         # shared git directory (e.g.,

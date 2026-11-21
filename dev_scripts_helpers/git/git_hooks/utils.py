@@ -9,6 +9,7 @@ import inspect
 import logging
 import os
 import re
+import shutil
 import string
 import subprocess
 import sys
@@ -94,7 +95,7 @@ def get_function_name(count: int = 0) -> str:
 def _system_to_string(
     cmd: str, abort_on_error: bool = True, verbose: bool = False
 ) -> Tuple[int, str]:
-    assert isinstance(cmd, str), f"Type of '{str(cmd)}' is {type(cmd)}"
+    assert isinstance(cmd, str), f"Type of '{cmd!s}' is {type(cmd)}"
     if verbose:
         print(f"> {cmd}")
     stdout = subprocess.PIPE
@@ -132,7 +133,7 @@ def _system(cmd: str, abort_on_error: bool = True, verbose: bool = False) -> int
     :param verbose: if True, print the command before execution
     :return: return code of the command
     """
-    assert isinstance(cmd, str), f"Type of '{str(cmd)}' is {type(cmd)}"
+    assert isinstance(cmd, str), f"Type of '{cmd!s}' is {type(cmd)}"
     if verbose:
         print(f"> {cmd}")
     rc = subprocess.call(cmd, shell=True, executable="/bin/bash")
@@ -369,7 +370,9 @@ def _check_merge_conflict_markers_files(file_list: List[str]) -> bool:
     # Scan all the files.
     violations = []
     for file_name in file_list:
-        if any(file_name.endswith(ext) for ext in "jpg png zip pkl gz".split()):
+        if any(
+            file_name.endswith(ext) for ext in ["jpg", "png", "zip", "pkl", "gz"]
+        ):
             _LOG.warning("Skipping '%s'", file_name)
             continue
         if not os.path.exists(file_name):
@@ -389,7 +392,6 @@ def _check_merge_conflict_markers_files(file_list: List[str]) -> bool:
         violations.extend(
             _check_merge_conflict_markers_in_text(file_name, lines)
         )
-    #
     error = False
     if violations:
         file_content = "\n".join(map(str, violations))
@@ -423,7 +425,6 @@ def check_merge_conflict_markers(
     if file_list is None:
         file_list = _get_files()
     _LOG.info("Files:\n%s", "\n".join(file_list))
-    #
     error = _check_merge_conflict_markers_files(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -602,7 +603,6 @@ def check_author(abort_on_error: bool = True) -> None:
     _system(cmd, verbose=verbose)
     cmd = f"{_GIT_BINARY_PATH} config --show-origin {var}"
     _system(cmd, verbose=verbose)
-    #
     var = "user.email"
     cmd = f"{_GIT_BINARY_PATH} config {var}"
     rc, user_email = _system_to_string(cmd, verbose=verbose)
@@ -669,15 +669,17 @@ def check_file_size(
         size = stat.st_size
         size_as_str = _sizeof_fmt(stat.st_size)
         _LOG.debug("%s: %s", file_name, size_as_str)
-        if not file_name.endswith(".ipynb"):
-            if size > _MAX_FILE_SIZE_IN_KB * 1024:
-                # File is to big, abort the commit.
-                msg = (
-                    f"Filename '{file_name}' is too big to be committed"
-                    + f": {size_as_str} > {_MAX_FILE_SIZE_IN_KB} KB"
-                )
-                _LOG.error(msg)
-                error = True
+        if (
+            not file_name.endswith(".ipynb")
+            and size > _MAX_FILE_SIZE_IN_KB * 1024
+        ):
+            # File is to big, abort the commit.
+            msg = (
+                f"Filename '{file_name}' is too big to be committed"
+                + f": {size_as_str} > {_MAX_FILE_SIZE_IN_KB} KB"
+            )
+            _LOG.error(msg)
+            error = True
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
 
@@ -766,7 +768,9 @@ def _check_words_files(file_list: List[str]) -> bool:
     # Scan all the files.
     violations = []
     for file_name in file_list:
-        if any(file_name.endswith(ext) for ext in "jpg png zip pkl gz".split()):
+        if any(
+            file_name.endswith(ext) for ext in ["jpg", "png", "zip", "pkl", "gz"]
+        ):
             _LOG.warning("Skipping '%s'", file_name)
             continue
         if not os.path.exists(file_name):
@@ -779,7 +783,6 @@ def _check_words_files(file_list: List[str]) -> bool:
         with open(file_name) as f:
             lines = f.readlines()
         violations.extend(_check_words_in_text(file_name, lines))
-    #
     error = False
     if violations:
         file_content = "\n".join(map(str, violations))
@@ -804,7 +807,6 @@ def check_words(
     if file_list is None:
         file_list = _get_files()
     _LOG.info("Files:\n%s", "\n".join(file_list))
-    #
     error = _check_words_files(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -851,7 +853,6 @@ def check_python_compile(
     # Keep only the python files.
     file_list = [f for f in file_list if f.endswith(".py")]
     _LOG.info("Python files:\n%s", "\n".join(file_list))
-    #
     error = _check_python_compile(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -865,6 +866,9 @@ def check_python_compile(
 def check_gitleaks(abort_on_error: bool = True) -> None:
     """
     Check that the code does not contain any leaked secrets.
+
+    Run the native `gitleaks` binary if it is in the PATH, otherwise run
+    `gitleaks` in a container.
     """
     func_name = _report()
     # Get absolute paths for worktree handling.
@@ -876,7 +880,6 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
     common_path = common_path.strip()
     # Check if we're in a worktree.
     in_worktree = repo_path != common_path
-    docker_cmd = hdocker.get_docker_command()
     # Find gitleaks config relative to dev_scripts_helpers (handles subrepo case).
     dev_scripts_helpers_dir = hsystem.find_file_in_repo(
         "dev_scripts_helpers", root_dir=None
@@ -884,7 +887,20 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
     config_path = os.path.join(
         dev_scripts_helpers_dir, "git", "gitleaks", "gitleaks-rules.toml"
     )
-    if in_worktree:
+    if shutil.which("gitleaks") is not None:
+        # Use the native binary since it is ~10x faster than starting a
+        # container. It works in worktrees without extra mounts.
+        cmd_parts = [
+            "gitleaks",
+            f"-c {config_path}",
+            f"git {repo_path}",
+            "--pre-commit",
+            "--staged",
+            "--verbose",
+        ]
+        cmd = " ".join(cmd_parts)
+    elif in_worktree:
+        docker_cmd = hdocker.get_docker_command()
         # Worktree-compatible command with common directory mounting.
         cmd = f"""
         {docker_cmd} run --rm \
@@ -900,6 +916,7 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
         """
     else:
         # Standard (non-worktree) command.
+        docker_cmd = hdocker.get_docker_command()
         cmd = rf"""
         {docker_cmd} run --rm \
           -v {repo_path}:{repo_path} \
