@@ -8,12 +8,13 @@ import helpers.hgoogle_drive_api as hgodrapi
 """
 
 import datetime
+import functools
 import importlib
 import logging
 import os
 import re
 import sys
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Keep try-except to avoid `ModuleNotFoundError` in CI/CD (HelpersTask #1183).
 try:
@@ -37,6 +38,8 @@ import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hmodule as hmodule
 import helpers.hpandas as hpandas
+import helpers.hprint as hprint
+import helpers.htimer as htimer
 
 _LOG = logging.getLogger(__name__)
 
@@ -128,9 +131,16 @@ def get_credentials(
 
 # TODO(gp): Extend this to work with v3, v4, etc.
 # TODO(gp): Make it private if it's not called by anybody else.
+# Each service opens its own HTTP connection, i.e., a new TCP and TLS handshake
+# for each call (about 0.2 secs). Reuse the service of the same credentials
+# instead of building a new one in each helper.
+@functools.lru_cache(maxsize=8)
 def get_sheets_service(credentials: "goasea.Credentials") -> "godisc.Resource":
     """
     Get Google Sheets service with provided credentials.
+
+    The service is cached for each `credentials` object, so the HTTP connection
+    is reused across calls. The service is not thread-safe.
 
     :param credentials: Google credentials object.
     :return: Google Sheets service instance.
@@ -220,6 +230,66 @@ def get_tabs_from_gsheet(
     return [sheet.title for sheet in spreadsheet.worksheets()]
 
 
+def delete_tab_from_gsheet(
+    url: str,
+    tab_name: str,
+    *,
+    credentials: Optional["goasea.Credentials"] = None,
+) -> None:
+    """
+    Delete a tab (worksheet) from a Google Sheet.
+
+    :param url: URL of the Google Sheet.
+    :param tab_name: Name of the tab to delete.
+    :param credentials: Google credentials object.
+    """
+    _LOG.debug(hprint.to_str("url tab_name"))
+    if credentials is None:
+        credentials = get_credentials()
+    client = gspread.authorize(credentials)  # type: ignore[possibly-unbound]
+    spreadsheet = client.open_by_url(url)
+    worksheet = spreadsheet.worksheet(tab_name)
+    spreadsheet.del_worksheet(worksheet)
+    _LOG.debug("Deleted tab '%s'", tab_name)
+
+
+def reorder_tabs_in_gsheet(
+    url: str,
+    tab_names: List[str],
+    *,
+    credentials: Optional["goasea.Credentials"] = None,
+) -> None:
+    """
+    Set the order of the tabs (worksheets) of a Google Sheet.
+
+    The tabs that are not in `tab_names` are placed after the others, in
+    their current order.
+
+    :param url: URL of the Google Sheet.
+    :param tab_names: Names of the tabs, in the desired order.
+    :param credentials: Google credentials object.
+    """
+    _LOG.debug(hprint.to_str("url tab_names"))
+    if credentials is None:
+        credentials = get_credentials()
+    client = gspread.authorize(credentials)  # type: ignore[possibly-unbound]
+    spreadsheet = client.open_by_url(url)
+    # Map each tab name to its worksheet, to get the worksheets in the order
+    # of `tab_names`.
+    tab_name_to_worksheet = {
+        worksheet.title: worksheet for worksheet in spreadsheet.worksheets()
+    }
+    worksheets = []
+    for tab_name in tab_names:
+        hdbg.dassert_in(
+            tab_name,
+            tab_name_to_worksheet,
+            "The tab to reorder is not in the Google Sheet",
+        )
+        worksheets.append(tab_name_to_worksheet[tab_name])
+    spreadsheet.reorder_worksheets(worksheets)
+
+
 # #############################################################################
 
 
@@ -297,6 +367,22 @@ def get_tab_name_from_gid(
     raise ValueError(f"Sheet with gid '{gid}' not found in spreadsheet.")
 
 
+def _build_gsheet_tab_url(sheet_id: str, gid: Union[int, str]) -> str:
+    """
+    Build the URL of a tab from the ID of the Google Sheet and the tab gid.
+
+    This does not call the Google API, so use it when the gid is already known
+    (e.g., `gspread.Worksheet.id`) instead of `get_gsheet_tab_url()`.
+
+    :param sheet_id: ID of the Google Sheet (spreadsheet ID).
+    :param gid: ID of the tab.
+    :return: Full URL with the gid parameter.
+    """
+    full_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?gid={gid}#gid={gid}"
+    _LOG.debug("Generated full URL: '%s'", full_url)
+    return full_url
+
+
 def get_gsheet_tab_url(
     url: str,
     tab_name: str,
@@ -325,222 +411,212 @@ def get_gsheet_tab_url(
     # Get the gid for the specified tab.
     gid = _get_gsheet_id(credentials, sheet_id, tab_name=tab_name)
     _LOG.debug("Retrieved gid: '%s' for tab: '%s'", gid, tab_name)
-    # Construct the full URL with the gid parameter.
-    full_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?gid={gid}#gid={gid}"
-    _LOG.debug("Generated full URL: '%s'", full_url)
+    full_url = _build_gsheet_tab_url(sheet_id, gid)
     return full_url
 
 
-def _freeze_rows_in_gsheet(
+def _batch_update_gsheet(
     credentials: "goasea.Credentials",
     sheet_id: str,
-    num_rows_to_freeze: int,
-    *,
-    tab_name: Optional[str] = None,
-    bold: bool = True,
+    requests: List[Dict[str, Any]],
 ) -> None:
     """
-    Freeze specified rows in the given sheet.
+    Apply many requests to a Google Sheet with a single API call.
+
+    Each API call costs a network round trip (about 0.5 secs), so the requests
+    are sent together instead of one by one. The requests are applied in order.
 
     :param credentials: Google credentials object.
     :param sheet_id: ID of the Google Sheet (spreadsheet ID).
-    :param num_rows_to_freeze: Number of rows to freeze (starting from
-        row 0).
-    :param tab_name: Name of the sheet (tab) to freeze rows in. Defaults
-        to the first tab if not provided.
-    :param bold: If True, make the frozen rows bold.
+    :param requests: requests of `spreadsheets.batchUpdate`, e.g., the ones
+        built by `_get_freeze_rows_request()`
+    """
+    _LOG.debug(hprint.to_str("sheet_id"))
+    hdbg.dassert_lt(0, len(requests), "At least one request is needed")
+    sheets_service = get_sheets_service(credentials)
+    response = (
+        sheets_service.spreadsheets()
+        .batchUpdate(spreadsheetId=sheet_id, body={"requests": requests})
+        .execute()
+    )
+    _LOG.debug("response: %s", response)
+
+
+def _get_freeze_rows_request(
+    tab_id: int, num_rows_to_freeze: int
+) -> Dict[str, Any]:
+    """
+    Get the request to freeze the first rows of a sheet.
+
+    The rows are not made bold: use `_get_bold_rows_request()` for that.
+
+    :param tab_id: ID of the sheet (tab) to freeze rows in, e.g.,
+        `gspread.Worksheet.id`. Passing the ID avoids a read request to
+        look it up from the tab name.
+    :param num_rows_to_freeze: number of rows to freeze (starting from row 0)
+    :return: request for `_batch_update_gsheet()`
     """
     hdbg.dassert_lt(0, num_rows_to_freeze)
-    tab_id = _get_gsheet_id(credentials, sheet_id=sheet_id, tab_name=tab_name)
-    sheets_service = get_sheets_service(credentials)
-    # Build the batch update request.
-    requests = []
-    # Add freeze rows request.
-    requests.append(
-        {
-            "updateSheetProperties": {
-                "properties": {
-                    "sheetId": tab_id,
-                    "gridProperties": {"frozenRowCount": num_rows_to_freeze},
-                },
-                "fields": "gridProperties.frozenRowCount",
+    request = {
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": tab_id,
+                "gridProperties": {"frozenRowCount": num_rows_to_freeze},
+            },
+            "fields": "gridProperties.frozenRowCount",
+        }
+    }
+    return request
+
+
+def _get_bold_rows_request(tab_id: int, num_rows_to_bold: int) -> Dict[str, Any]:
+    """
+    Get the request to make the first rows of a sheet bold.
+
+    :param tab_id: ID of the sheet (tab) to make the rows bold in
+    :param num_rows_to_bold: number of rows to make bold (starting from row 0)
+    :return: request for `_batch_update_gsheet()`
+    """
+    _LOG.debug(hprint.to_str("tab_id num_rows_to_bold"))
+    hdbg.dassert_lt(0, num_rows_to_bold, "At least one row must be bold")
+    request = {
+        "repeatCell": {
+            "range": {
+                "sheetId": tab_id,
+                "startRowIndex": 0,
+                "endRowIndex": num_rows_to_bold,
+            },
+            "cell": {
+                "userEnteredFormat": {
+                    "textFormat": {
+                        "bold": True,
+                    }
+                }
+            },
+            "fields": "userEnteredFormat.textFormat.bold",
+        }
+    }
+    return request
+
+
+def _get_row_height_request(tab_id: int, height: int) -> Dict[str, Any]:
+    """
+    Get the request to set the height of all the rows of a sheet.
+
+    :param tab_id: ID of the sheet (tab) to set the row height in
+    :param height: height of the rows in pixels
+    :return: request for `_batch_update_gsheet()`
+    """
+    _LOG.debug(hprint.to_str("tab_id height"))
+    # A range with no `endIndex` is unbounded, i.e., it goes up to the last row
+    # of the tab, so there is no need to read the number of rows.
+    request = {
+        "updateDimensionProperties": {
+            "range": {
+                "sheetId": tab_id,
+                "dimension": "ROWS",
+                "startIndex": 0,
+            },
+            "properties": {"pixelSize": height},
+            "fields": "pixelSize",
+        }
+    }
+    return request
+
+
+# Map the cell style exposed to the users to the Sheets API `wrapStrategy`.
+CELL_STYLE_TO_WRAP_STRATEGY: Dict[str, str] = {
+    "clip": "CLIP",
+    "wrap": "WRAP",
+    "overflow": "OVERFLOW_CELL",
+}
+
+
+def _get_text_wrapping_request(tab_id: int, cell_style: str) -> Dict[str, Any]:
+    """
+    Get the request to set the text wrapping of all the cells of a sheet.
+
+    :param tab_id: ID of the sheet (tab) to set text wrapping in
+    :param cell_style: style of the cells, i.e., a key of
+        `CELL_STYLE_TO_WRAP_STRATEGY`
+        - `clip`: cut the text at the cell border
+        - `wrap`: wrap the text in multiple lines
+        - `overflow`: let the text spill over the empty neighbor cells
+    :return: request for `_batch_update_gsheet()`
+    """
+    _LOG.debug(hprint.to_str("tab_id cell_style"))
+    hdbg.dassert_in(
+        cell_style,
+        CELL_STYLE_TO_WRAP_STRATEGY,
+        "Invalid cell style",
+    )
+    wrap_strategy = CELL_STYLE_TO_WRAP_STRATEGY[cell_style]
+    # A range with only the `sheetId` is unbounded, i.e., it covers all the rows
+    # and columns of the tab, so there is no need to read the size of the tab.
+    request = {
+        "repeatCell": {
+            "range": {
+                "sheetId": tab_id,
+            },
+            "cell": {
+                "userEnteredFormat": {
+                    "wrapStrategy": wrap_strategy,
+                }
+            },
+            "fields": "userEnteredFormat.wrapStrategy",
+        }
+    }
+    return request
+
+
+def _get_auto_resize_rows_request(tab_id: int, num_rows: int) -> Dict[str, Any]:
+    """
+    Get the request to fit the height of the first rows to their content.
+
+    This is needed for wrapped cells, since a fixed row height would hide the
+    wrapped lines. The request must come after the data is written, since the
+    Sheets API computes the height from the content of the rows.
+
+    :param tab_id: ID of the sheet (tab) to resize the rows in
+    :param num_rows: number of rows to resize (starting from row 0)
+    :return: request for `_batch_update_gsheet()`
+    """
+    _LOG.debug(hprint.to_str("tab_id num_rows"))
+    hdbg.dassert_lt(0, num_rows, "At least one row must be resized")
+    request = {
+        "autoResizeDimensions": {
+            "dimensions": {
+                "sheetId": tab_id,
+                "dimension": "ROWS",
+                "startIndex": 0,
+                "endIndex": num_rows,
             }
         }
-    )
-    # Add bold formatting request if requested.
-    if bold:
-        requests.append(
-            {
-                "repeatCell": {
-                    "range": {
-                        "sheetId": tab_id,
-                        "startRowIndex": 0,
-                        "endRowIndex": num_rows_to_freeze,
-                    },
-                    "cell": {
-                        "userEnteredFormat": {
-                            "textFormat": {
-                                "bold": True,
-                            }
-                        }
-                    },
-                    "fields": "userEnteredFormat.textFormat.bold",
-                }
-            }
-        )
-        _LOG.debug(
-            "Adding bold formatting to %s frozen rows", num_rows_to_freeze
-        )
-    # Execute the batch update.
-    freeze_request = {"requests": requests}
-    response = (
-        sheets_service.spreadsheets()
-        .batchUpdate(spreadsheetId=sheet_id, body=freeze_request)
-        .execute()
-    )
-    _LOG.debug("response: %s", response)
-
-
-def _set_row_height_in_gsheet(
-    credentials: "goasea.Credentials",
-    sheet_id: str,
-    height: int,
-    *,
-    start_index: Optional[int] = None,
-    end_index: Optional[int] = None,
-    tab_name: Optional[str] = None,
-) -> None:
-    """
-    Set the height for rows in the given Google sheet.
-
-    :param credentials: Google credentials object.
-    :param sheet_id: ID of the Google Sheet (spreadsheet ID).
-    :param height: Height of the rows in pixels.
-    :param start_index: Starting index of the rows (zero-based). If
-        None, applies to all rows.
-    :param end_index: Ending index of the rows (zero-based). If None,
-        applies to all rows.
-    :param tab_name: Name of the sheet (tab) to set row height in.
-        Defaults to the first tab if not provided.
-    """
-    tab_id = _get_gsheet_id(credentials, sheet_id=sheet_id, tab_name=tab_name)
-    sheets_service = get_sheets_service(credentials)
-    if start_index is None and end_index is None:
-        sheet_metadata = (
-            sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        )
-        sheet_properties = next(
-            sheet
-            for sheet in sheet_metadata.get("sheets", [])
-            if sheet.get("properties", {}).get("sheetId") == tab_id
-        ).get("properties", {})
-        grid_properties = sheet_properties.get("gridProperties", {})
-        start_index, end_index = 0, grid_properties.get("rowCount", 1000)
-    elif start_index is None:
-        start_index = 0
-    elif end_index is None:
-        sheet_metadata = (
-            sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        )
-        sheet_properties = next(
-            sheet
-            for sheet in sheet_metadata.get("sheets", [])
-            if sheet.get("properties", {}).get("sheetId") == tab_id
-        ).get("properties", {})
-        grid_properties = sheet_properties.get("gridProperties", {})
-        end_index = grid_properties.get("rowCount", 1000)
-    elif start_index >= end_index:
-        raise ValueError(
-            f"Invalid params: start_index ({start_index}) must be less than end_index ({end_index})."
-        )
-    # Create request.
-    set_row_height_request = {
-        "requests": [
-            {
-                "updateDimensionProperties": {
-                    "range": {
-                        "sheetId": tab_id,
-                        "dimension": "ROWS",
-                        "startIndex": start_index,
-                        "endIndex": end_index,
-                    },
-                    "properties": {"pixelSize": height},
-                    "fields": "pixelSize",
-                }
-            }
-        ]
     }
-    # Get response.
-    response = (
-        sheets_service.spreadsheets()
-        .batchUpdate(spreadsheetId=sheet_id, body=set_row_height_request)
-        .execute()
-    )
-    _LOG.debug("response: %s", response)
+    return request
 
 
-def _set_text_wrapping_clip_in_gsheet(
-    credentials: "goasea.Credentials",
-    sheet_id: str,
-    *,
-    tab_name: Optional[str] = None,
-) -> None:
+def _read_worksheet(worksheet: "gspread.Worksheet") -> pd.DataFrame:
     """
-    Set text wrapping to "CLIP" for all columns in the given Google sheet.
+    Read the content of a worksheet (tab) as a DataFrame.
 
-    :param credentials: Google credentials object.
-    :param sheet_id: ID of the Google Sheet (spreadsheet ID).
-    :param tab_name: Name of the sheet (tab) to set text wrapping in.
-        Defaults to the first tab if not provided.
+    The first row is the header. A tab with only the header gives a DataFrame
+    with the columns and no rows. A tab with no cells gives a DataFrame with no
+    columns.
+
+    :param worksheet: worksheet to read
+    :return: DataFrame with the content of the worksheet
     """
-    tab_id = _get_gsheet_id(credentials, sheet_id=sheet_id, tab_name=tab_name)
-    sheets_service = get_sheets_service(credentials)
-    # Get sheet metadata to determine the range.
-    sheet_metadata = (
-        sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-    )
-    sheet_properties = next(
-        sheet
-        for sheet in sheet_metadata.get("sheets", [])
-        if sheet.get("properties", {}).get("sheetId") == tab_id
-    ).get("properties", {})
-    grid_properties = sheet_properties.get("gridProperties", {})
-    row_count = grid_properties.get("rowCount", 1000)
-    col_count = grid_properties.get("columnCount", 26)
-    _LOG.debug(
-        "Setting text wrapping to CLIP for sheet with %s rows and %s columns",
-        row_count,
-        col_count,
-    )
-    # Create request to set text wrapping to CLIP.
-    set_wrapping_request = {
-        "requests": [
-            {
-                "repeatCell": {
-                    "range": {
-                        "sheetId": tab_id,
-                        "startRowIndex": 0,
-                        "endRowIndex": row_count,
-                        "startColumnIndex": 0,
-                        "endColumnIndex": col_count,
-                    },
-                    "cell": {
-                        "userEnteredFormat": {
-                            "wrapStrategy": "CLIP",
-                        }
-                    },
-                    "fields": "userEnteredFormat.wrapStrategy",
-                }
-            }
-        ]
-    }
-    # Execute the batch update.
-    response = (
-        sheets_service.spreadsheets()
-        .batchUpdate(spreadsheetId=sheet_id, body=set_wrapping_request)
-        .execute()
-    )
-    _LOG.debug("response: %s", response)
+    _LOG.debug("Reading worksheet '%s'", worksheet.title)
+    data = worksheet.get_all_records()
+    if data:
+        df = pd.DataFrame(data)
+    else:
+        # There are no data rows: keep the header, if any, so that the columns
+        # are not lost.
+        header = worksheet.row_values(1)
+        df = pd.DataFrame(columns=header)
+    return df
 
 
 def from_gsheet(
@@ -568,11 +644,116 @@ def from_gsheet(
     else:
         # Read the specified sheet.
         worksheet = spreadsheet.worksheet(tab_name)
-    data = worksheet.get_all_records()
-    hdbg.dassert(data, "The sheet '%s' is empty", tab_name)
-    df = pd.DataFrame(data)
+    df = _read_worksheet(worksheet)
+    hdbg.dassert_lt(0, len(df), "The sheet '%s' is empty", tab_name)
     _LOG.debug("Data fetched")
     return df
+
+
+def from_gsheet_all_tabs(
+    url: str,
+    *,
+    credentials: Optional["goasea.Credentials"] = None,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Read all the tabs (worksheets) from a Google Sheet, including empty ones.
+
+    The data is read directly from the Google Sheet, without using the cache.
+
+    :param url: URL of the Google Sheets file.
+    :param credentials: Google credentials object.
+    :return: map from the tab name to its DataFrame, in the order of the tabs
+        in the Google Sheet
+    """
+    _LOG.debug(hprint.to_str("url"))
+    if credentials is None:
+        credentials = get_credentials()
+    client = gspread.authorize(credentials)  # type: ignore[possibly-unbound]
+    spreadsheet = client.open_by_url(url)
+    # Read every tab, keeping the empty ones so that there is one DataFrame per
+    # tab. The tab names are unique in a Google Sheet.
+    tab_name_to_df: Dict[str, pd.DataFrame] = {}
+    for worksheet in spreadsheet.worksheets():
+        tab_name_to_df[worksheet.title] = _read_worksheet(worksheet)
+    _LOG.debug("Read %s tabs", len(tab_name_to_df))
+    return tab_name_to_df
+
+
+def _add_worksheet(
+    spreadsheet: "gspread.Spreadsheet", tab_name: str
+) -> "gspread.Worksheet":
+    """
+    Add an empty tab at the end of a Google Sheet.
+
+    :param spreadsheet: Google Sheet to add the tab to
+    :param tab_name: name of the new tab
+    :return: the new tab
+    """
+    _LOG.debug("Tab '%s' not found, creating a new tab with that name", tab_name)
+    worksheet = spreadsheet.add_worksheet(title=tab_name, rows="100", cols="20")
+    return worksheet
+
+
+def _write_df_to_worksheet(
+    df: pd.DataFrame,
+    spreadsheet: "gspread.Spreadsheet",
+    worksheet: "gspread.Worksheet",
+    *,
+    url: str,
+    freeze_rows: bool,
+    bold_header: bool,
+    cell_style: str,
+    credentials: "goasea.Credentials",
+) -> None:
+    """
+    Replace the content of a tab with a DataFrame and format the tab.
+
+    :param df: data to write
+    :param spreadsheet: Google Sheet that holds the tab
+    :param worksheet: tab to write to
+    :param url: URL of the Google Sheet, only used for logging
+    :param freeze_rows: whether to freeze the header row
+    :param bold_header: whether to make the header row bold
+    :param cell_style: style of the cells, as in `to_gsheet()`
+    :param credentials: Google credentials object
+    """
+    # The ID of the tab is known from the worksheet, so there is no need to look
+    # it up from the tab name with a read request.
+    tab_id = worksheet.id
+    # Clear and write data.
+    worksheet.clear()
+    # Replace NaN/inf values with empty strings for JSON compatibility.
+    df_clean = df.fillna("").replace([float("inf"), float("-inf")], "")
+    values = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
+    # A DataFrame with no columns (i.e., an empty tab) has nothing to write.
+    if len(df.columns) > 0:
+        worksheet.update("A1", values)
+    # Format the tab, after writing the data. The requests are applied in order
+    # with a single API call, instead of one API call for each format.
+    requests: List[Dict[str, Any]] = []
+    # Freeze the header row and set the row height.
+    if freeze_rows:
+        requests.append(_get_freeze_rows_request(tab_id, 1))
+        requests.append(_get_row_height_request(tab_id, 20))
+    # Make the header row bold.
+    if bold_header:
+        requests.append(_get_bold_rows_request(tab_id, 1))
+    # Set the style of the cells.
+    if cell_style:
+        requests.append(_get_text_wrapping_request(tab_id, cell_style))
+    # A fixed row height (e.g., set above when freezing the rows) would hide the
+    # wrapped lines, so fit the height of the rows (header and data) to their
+    # content.
+    if cell_style == "wrap":
+        requests.append(_get_auto_resize_rows_request(tab_id, len(df) + 1))
+    if requests:
+        _batch_update_gsheet(credentials, spreadsheet.id, requests)
+    _LOG.info(
+        "Data written to:\ntab '%s'\nGoogle Sheet '%s'", worksheet.title, url
+    )
+    # Build the URL from the known ID instead of reading it from the Google
+    # Sheet.
+    _LOG.info("url=%s", _build_gsheet_tab_url(spreadsheet.id, tab_id))
 
 
 def to_gsheet(
@@ -581,7 +762,8 @@ def to_gsheet(
     *,
     tab_name: Optional[str] = "new_data",
     freeze_rows: bool = False,
-    set_text_wrapping_clip: bool = False,
+    bold_header: bool = False,
+    cell_style: str = "",
     credentials: Optional["goasea.Credentials"] = None,
 ) -> None:
     """
@@ -591,9 +773,22 @@ def to_gsheet(
     :param url: URL of the Google Sheet.
     :param tab_name: Name of the tab where the data will be written.
     :param freeze_rows: If True, freeze the header row.
-    :param set_text_wrapping_clip: If True, set text wrapping to CLIP.
+    :param bold_header: If True, make the header row bold.
+    :param cell_style: Style of the cells, i.e., a key of
+        `CELL_STYLE_TO_WRAP_STRATEGY`
+        - `""`: leave the style of the cells untouched
+        - `clip`: cut the text at the cell border
+        - `wrap`: wrap the text in multiple lines
+        - `overflow`: let the text spill over the empty neighbor cells
     :param credentials: Google credentials object.
     """
+    # Check the style before touching the Google Sheet.
+    if cell_style:
+        hdbg.dassert_in(
+            cell_style,
+            CELL_STYLE_TO_WRAP_STRATEGY,
+            "Invalid cell style",
+        )
     if credentials is None:
         credentials = get_credentials()
     client = gspread.authorize(credentials)  # type: ignore[possibly-unbound]
@@ -602,45 +797,210 @@ def to_gsheet(
     try:
         worksheet = spreadsheet.worksheet(tab_name)
     except gspread.exceptions.WorksheetNotFound:  # type: ignore[possibly-unbound]
-        _LOG.debug(
-            "Tab '%s' not found, creating a new tab with that name",
-            tab_name,
-        )
-        worksheet = spreadsheet.add_worksheet(
-            title=tab_name, rows="100", cols="20"
-        )
-    #
-    if freeze_rows:
-        _freeze_rows_in_gsheet(
-            credentials,
-            spreadsheet.id,
-            num_rows_to_freeze=1,
-            tab_name=tab_name,
-        )
-        #
-        _set_row_height_in_gsheet(
-            credentials,
-            spreadsheet.id,
-            height=20,
-            tab_name=tab_name,
-        )
-    # Clear and write data.
-    worksheet.clear()
-    # Replace NaN/inf values with empty strings for JSON compatibility.
-    df_clean = df.fillna("").replace([float("inf"), float("-inf")], "")
-    values = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
-    worksheet.update("A1", values)
-    #
-    if set_text_wrapping_clip:
-        _set_text_wrapping_clip_in_gsheet(
-            credentials,
-            spreadsheet.id,
-            tab_name=tab_name,
-        )
-    _LOG.info("Data written to:\ntab '%s'\nGoogle Sheet '%s'", tab_name, url)
-    _LOG.info(
-        "url=%s", get_gsheet_tab_url(url, tab_name, credentials=credentials)
+        worksheet = _add_worksheet(spreadsheet, tab_name)
+    _write_df_to_worksheet(
+        df,
+        spreadsheet,
+        worksheet,
+        url=url,
+        freeze_rows=freeze_rows,
+        bold_header=bold_header,
+        cell_style=cell_style,
+        credentials=credentials,
     )
+
+
+def to_gsheet_tabs(
+    tab_name_to_df: Dict[str, pd.DataFrame],
+    url: str,
+    *,
+    freeze_rows: bool = False,
+    bold_header: bool = False,
+    cell_style: str = "",
+    credentials: Optional["goasea.Credentials"] = None,
+) -> None:
+    """
+    Write many DataFrames to a Google Sheet, one tab for each.
+
+    This is faster than calling `to_gsheet()` for each tab, since the Google
+    Sheet is opened and its tabs are listed only once.
+
+    :param tab_name_to_df: Map from the name of the tab to the data to write.
+        The tabs that do not exist are added at the end.
+    :param url: URL of the Google Sheet.
+    :param freeze_rows: If True, freeze the header row.
+    :param bold_header: If True, make the header row bold.
+    :param cell_style: Style of the cells, as in `to_gsheet()`.
+    :param credentials: Google credentials object.
+    """
+    _LOG.debug(hprint.to_str("url freeze_rows bold_header cell_style"))
+    # Check the style before touching the Google Sheet.
+    if cell_style:
+        hdbg.dassert_in(
+            cell_style,
+            CELL_STYLE_TO_WRAP_STRATEGY,
+            "Invalid cell style",
+        )
+    if credentials is None:
+        credentials = get_credentials()
+    client = gspread.authorize(credentials)  # type: ignore[possibly-unbound]
+    spreadsheet = client.open_by_url(url)
+    # Get all the existing tabs with a single request, instead of one request
+    # for each tab.
+    tab_name_to_worksheet = {
+        worksheet.title: worksheet for worksheet in spreadsheet.worksheets()
+    }
+    for tab_name, df in tab_name_to_df.items():
+        with htimer.TimedScope(logging.INFO, f"Writing tab '{tab_name}'"):
+            if tab_name in tab_name_to_worksheet:
+                worksheet = tab_name_to_worksheet[tab_name]
+            else:
+                worksheet = _add_worksheet(spreadsheet, tab_name)
+            _write_df_to_worksheet(
+                df,
+                spreadsheet,
+                worksheet,
+                url=url,
+                freeze_rows=freeze_rows,
+                bold_header=bold_header,
+                cell_style=cell_style,
+                credentials=credentials,
+            )
+
+
+# #############################################################################
+# Tabs stored in CSV files
+# #############################################################################
+
+
+def _get_csv_prefix(csv_file: str) -> str:
+    """
+    Get the prefix of the CSV files that store the tabs of a Google Sheet.
+
+    E.g., `dir/data.csv` -> `dir/data`, `dir/data.v2` -> `dir/data.v2`
+
+    :param csv_file: file name passed by the user, with or without the `.csv`
+        extension
+    :return: file name without the `.csv` extension
+    """
+    prefix, ext = os.path.splitext(csv_file)
+    if ext != ".csv":
+        prefix = csv_file
+    return prefix
+
+
+def _encode_tab_name(tab_name: str) -> str:
+    """
+    Encode a tab name so that it can be used in a file name.
+
+    Only the characters that are not safe in a file name are replaced with
+    `%XX`, where `XX` is the hex code of the character. The other characters,
+    including the spaces, are kept. `_decode_tab_name()` reverses it.
+
+    E.g., `My Data` -> `My Data`, `a/b` -> `a%2Fb`, `100%` -> `100%25`
+
+    :param tab_name: name of the tab
+    :return: encoded name
+    """
+    # Match `%`, so that the decoding is not ambiguous, the path separators,
+    # the characters that some file systems do not allow, and the control
+    # characters.
+    unsafe_chars_re = r'[%/\\:*?"<>|\x00-\x1f\x7f]'
+    tab_name_enc = re.sub(
+        unsafe_chars_re, lambda m: "%%%02X" % ord(m.group()), tab_name
+    )
+    return tab_name_enc
+
+
+def _decode_tab_name(tab_name_enc: str) -> str:
+    """
+    Decode a tab name encoded with `_encode_tab_name()`.
+
+    :param tab_name_enc: encoded name
+    :return: name of the tab
+    """
+    # Replace each `%XX` with the character that has the hex code `XX`.
+    tab_name = re.sub(
+        r"%([0-9A-F]{2})", lambda m: chr(int(m.group(1), 16)), tab_name_enc
+    )
+    return tab_name
+
+
+def get_tab_csv_file_name(output_file: str, tab_id: int, tab_name: str) -> str:
+    """
+    Build the name of the CSV file that stores a tab of a Google Sheet.
+
+    The name is `<output_file without .csv>.<tab_id>.<tab_name>.csv`, where
+    the tab name is encoded to be safe in a file name.
+
+    E.g., `data.csv`, `1`, `My Data` -> `data.1.My Data.csv`
+
+    :param output_file: file name passed by the user, with or without the
+        `.csv` extension
+    :param tab_id: position of the tab in the Google Sheet, starting from 0
+    :param tab_name: name of the tab
+    :return: name of the CSV file storing the tab
+    """
+    _LOG.debug(hprint.to_str("output_file tab_id tab_name"))
+    prefix = _get_csv_prefix(output_file)
+    tab_name_enc = _encode_tab_name(tab_name)
+    tab_file = f"{prefix}.{tab_id}.{tab_name_enc}.csv"
+    _LOG.debug("return=%s", tab_file)
+    return tab_file
+
+
+def get_tab_csv_files(input_file: str) -> List[Tuple[int, str, str]]:
+    """
+    Find the CSV files that store the tabs of a Google Sheet.
+
+    This is the inverse of `get_tab_csv_file_name()`. It looks in the dir of
+    `input_file` for the files named `<input_file without .csv>.<ID>.<name>.csv`
+    and ignores the other files.
+
+    :param input_file: file name passed by the user, with or without the
+        `.csv` extension
+    :return: `(tab_id, tab_name, tab_file)` for each file, sorted by `tab_id`
+        ```
+        [(0, 'Sheet1', 'dir/data.0.Sheet1.csv'),
+         (1, 'My Data', 'dir/data.1.My Data.csv')]
+        ```
+    """
+    _LOG.debug(hprint.to_str("input_file"))
+    prefix = _get_csv_prefix(input_file)
+    dir_name = os.path.dirname(prefix)
+    prefix_name = os.path.basename(prefix)
+    # Match `<prefix>.<ID>.<encoded tab name>.csv`, e.g., `data.2.My Data.csv`.
+    tab_file_re = re.compile(
+        rf"""
+        ^{re.escape(prefix_name)}
+        \.(?P<tab_id>\d+)       # Position of the tab.
+        \.(?P<tab_name_enc>.+)  # Encoded tab name.
+        \.csv$
+        """,
+        re.VERBOSE,
+    )
+    # Collect the files that match.
+    tab_files = []
+    for file_name in os.listdir(dir_name or "."):
+        tab_file = os.path.join(dir_name, file_name)
+        match = tab_file_re.match(file_name)
+        if match and os.path.isfile(tab_file):
+            tab_id = int(match.group("tab_id"))
+            tab_name = _decode_tab_name(match.group("tab_name_enc"))
+            tab_files.append((tab_id, tab_name, tab_file))
+    hdbg.dassert_lt(0, len(tab_files), "No tab files found for '%s'", input_file)
+    # Sort by position, so that the order of the tabs is the same as the
+    # original Google Sheet.
+    tab_files = sorted(tab_files, key=lambda x: x[0])
+    # Each tab must have its own position and name.
+    hdbg.dassert_no_duplicates(
+        [tab_id for tab_id, _, _ in tab_files], "Duplicated tab IDs"
+    )
+    hdbg.dassert_no_duplicates(
+        [tab_name for _, tab_name, _ in tab_files], "Duplicated tab names"
+    )
+    _LOG.debug("Found %s tab files", len(tab_files))
+    return tab_files
 
 
 # #############################################################################
@@ -905,6 +1265,7 @@ _TMP_GDRIVE_FOLDER_ID = "1HTyRpbb4tFqRxjX6yQgosmCcpVxcF6X9"
 
 def create_tmp_gsheet(
     *,
+    folder_id: str = "",
     credentials: Optional["goasea.Credentials"] = None,
 ) -> str:
     """
@@ -915,20 +1276,48 @@ def create_tmp_gsheet(
 
     E.g., a new Sheet named `tmp_file_2026-09-19_14-03-22`.
 
+    :param folder_id: ID of the Google Drive folder where to create the Sheet
+        - Default: the temporary Google Drive folder
     :param credentials: Google credentials object.
     :return: URL of the new Google Sheet.
     """
     if credentials is None:
         credentials = get_credentials()
+    if not folder_id:
+        folder_id = _TMP_GDRIVE_FOLDER_ID
     file_id = create_or_overwrite_with_timestamp(
         "tmp_file",
-        _TMP_GDRIVE_FOLDER_ID,
+        folder_id,
         file_type="sheets",
         credentials=credentials,
     )
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/edit"
     _LOG.debug("Created temporary Google Sheet: '%s'", url)
     return url
+
+
+def delete_gdrive_file(
+    file_id: str,
+    *,
+    credentials: Optional["goasea.Credentials"] = None,
+) -> None:
+    """
+    Permanently delete a file or a folder from Google Drive.
+
+    The file is not moved to the trash. Deleting a folder also deletes all the
+    files it contains that are owned by the user.
+
+    :param file_id: ID of the file or folder to delete
+    :param credentials: Google credentials object.
+    """
+    _LOG.debug(hprint.to_str("file_id"))
+    if credentials is None:
+        credentials = get_credentials()
+    gdrive_service = _get_gdrive_service(credentials)
+    gdrive_service.files().delete(
+        fileId=file_id, supportsAllDrives=True
+    ).execute()
+    _LOG.debug("Deleted Google Drive file '%s'", file_id)
 
 
 # #############################################################################
@@ -969,6 +1358,41 @@ def create_google_drive_folder(
     _LOG.debug("Created a new Google Drive folder '%s'", folder_name)
     _LOG.debug("The new folder id is '%s'", folder.get("id"))
     return folder.get("id")
+
+
+def create_tmp_gdrive_folder(
+    name_prefix: str,
+    *,
+    credentials: Optional["goasea.Credentials"] = None,
+) -> str:
+    """
+    Create an empty temporary Google Drive folder with a timestamp in its name.
+
+    The folder is created in the temporary Google Drive folder, so it inherits
+    the sharing settings of that folder. Use `delete_gdrive_file()` to delete it
+    with all its content.
+
+    E.g., a new folder named `tmp_test_2026-09-19_14-03-22`.
+
+    :param name_prefix: prefix of the name of the new folder
+    :param credentials: Google credentials object.
+    :return: ID of the new Google Drive folder
+    """
+    _LOG.debug(hprint.to_str("name_prefix"))
+    if credentials is None:
+        credentials = get_credentials()
+    # Add a timestamp to the name, as done for the temporary Google Sheets.
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    folder_name = f"{name_prefix}_{timestamp}"
+    folder_id = create_google_drive_folder(
+        folder_name, _TMP_GDRIVE_FOLDER_ID, credentials=credentials
+    )
+    _LOG.debug(
+        "Created temporary Google Drive folder '%s' with id '%s'",
+        folder_name,
+        folder_id,
+    )
+    return folder_id
 
 
 def _get_folders_in_gdrive(*, credentials: "goasea.Credentials") -> list:
@@ -1179,7 +1603,7 @@ def save_df_to_tmp_gsheet(
     if tab_name == "":
         # Find the first tab name that is not empty.
         tab_names = get_tabs_from_gsheet(url, credentials=credentials)
-        for i in range(0, 100):
+        for i in range(100):
             tab_name = "Sheet" + str(i)
             if tab_name not in tab_names:
                 break
@@ -1189,7 +1613,8 @@ def save_df_to_tmp_gsheet(
         url,
         tab_name=tab_name,
         freeze_rows=True,
-        set_text_wrapping_clip=True,
+        bold_header=True,
+        cell_style="clip",
         credentials=credentials,
     )
 

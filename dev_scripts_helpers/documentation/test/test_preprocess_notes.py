@@ -2,9 +2,10 @@ import os
 from collections.abc import Sequence
 from typing import Dict, List, Optional
 
-import dev_scripts_helpers.documentation.preprocess_notes as dshdprno
 import helpers.hunit_test as hunitest
 from helpers import hdbg, hgit, hio, hprint, hsystem
+
+import dev_scripts_helpers.documentation.preprocess_notes as dshdprno
 
 # #############################################################################
 # Test_colorize_backticks
@@ -270,7 +271,9 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
         txt_in = "The `store` variable is used."
         # Prepare outputs.
         # Wrapped in backticks with {=typst} so pandoc treats as raw typst code.
-        expected = "The `#text(fill: blue)[store]`{=typst} variable is used."
+        expected = (
+            'The `#text(fill: blue)[#raw("store")]`{=typst} variable is used.'
+        )
         # Run test.
         self.helper(txt_in, expected)
 
@@ -281,19 +284,19 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
         # Prepare inputs.
         txt_in = "Use `function1` and `function2` to process data."
         # Prepare outputs.
-        expected = "Use `#text(fill: blue)[function1]`{=typst} and `#text(fill: blue)[function2]`{=typst} to process data."
+        expected = 'Use `#text(fill: blue)[#raw("function1")]`{=typst} and `#text(fill: blue)[#raw("function2")]`{=typst} to process data.'
         # Run test.
         self.helper(txt_in, expected)
 
     def test3(self) -> None:
         """
-        Test backticks with underscores in Typst (always escaped).
+        Test backticks with underscores in Typst (kept literal in `raw()`).
         """
         # Prepare inputs.
         txt_in = "Use the `_private_func` naming."
         # Prepare outputs.
         expected = (
-            r"Use the `#text(fill: blue)[\_private\_func]`{=typst} naming."
+            r'Use the `#text(fill: blue)[#raw("_private_func")]`{=typst} naming.'
         )
         # Run test.
         self.helper(txt_in, expected)
@@ -305,7 +308,7 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
         # Prepare inputs.
         txt_in = "The `main function` is important."
         # Prepare outputs.
-        expected = "The `#text(fill: blue)[main function]`{=typst} is important."
+        expected = 'The `#text(fill: blue)[#raw("main function")]`{=typst} is important.'
         # Run test.
         self.helper(txt_in, expected)
 
@@ -316,7 +319,7 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
         # Prepare inputs.
         txt_in = "Import `numpy.array` for matrix operations."
         # Prepare outputs.
-        expected = "Import `#text(fill: blue)[numpy.array]`{=typst} for matrix operations."
+        expected = 'Import `#text(fill: blue)[#raw("numpy.array")]`{=typst} for matrix operations.'
         # Run test.
         self.helper(txt_in, expected)
 
@@ -338,7 +341,7 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
         # Prepare inputs.
         txt_in = "The `simple` var and `styled`{.highlight} are different."
         # Prepare outputs.
-        expected = "The `#text(fill: blue)[simple]`{=typst} var and `styled`{.highlight} are different."
+        expected = 'The `#text(fill: blue)[#raw("simple")]`{=typst} var and `styled`{.highlight} are different.'
         # Run test.
         self.helper(txt_in, expected)
 
@@ -366,18 +369,46 @@ class Test_colorize_backticks_typst(hunitest.TestCase):
 
     def test10(self) -> None:
         r"""
-        Test backticks containing angle brackets in Typst are escaped.
+        Test backticks containing angle brackets in Typst are kept literal.
 
-        Typst parses unescaped `<name>` as a label reference, which
-        silently drops the text instead of rendering it, so `<` must be
-        escaped to `\<`.
+        The content is passed as a Typst string to `raw()`, so `<name>` is
+        not parsed as a label reference and no escaping is needed.
         """
         # Prepare inputs.
         txt_in = "Training sequences become `<prompt><plan>` pairs."
         # Prepare outputs.
         expected = (
             r"Training sequences become "
-            r"`#text(fill: blue)[\<prompt>\<plan>]`{=typst} pairs."
+            r'`#text(fill: blue)[#raw("<prompt><plan>")]`{=typst} pairs.'
+        )
+        # Run test.
+        self.helper(txt_in, expected)
+
+    def test11(self) -> None:
+        """
+        Test backticks with Typst markup characters are kept literal.
+        """
+        # Prepare inputs.
+        txt_in = "Run `POST /links` then `//helpers` and `$FILE`."
+        # Prepare outputs.
+        expected = (
+            'Run `#text(fill: blue)[#raw("POST /links")]`{=typst} then '
+            '`#text(fill: blue)[#raw("//helpers")]`{=typst} and '
+            '`#text(fill: blue)[#raw("$FILE")]`{=typst}.'
+        )
+        # Run test.
+        self.helper(txt_in, expected)
+
+    def test12(self) -> None:
+        """
+        Test backslash and double quote are escaped inside the Typst string.
+        """
+        # Prepare inputs.
+        txt_in = r'Use `say "hi"` and `C:\dir`.'
+        # Prepare outputs.
+        expected = (
+            r'Use `#text(fill: blue)[#raw("say \"hi\"")]`{=typst} and '
+            r'`#text(fill: blue)[#raw("C:\\dir")]`{=typst}.'
         )
         # Run test.
         self.helper(txt_in, expected)
@@ -546,8 +577,8 @@ class Test_colorize_backticks_typst_integration(hunitest.TestCase):
         # Prepare outputs.
         expected = r"""
         # Chapter 1
-        The `#text(fill: blue)[variable]`{=typst} is used here.
-        And `#text(fill: blue)[function\_name]`{=typst} is called next.
+        The `#text(fill: blue)[#raw("variable")]`{=typst} is used here.
+        And `#text(fill: blue)[#raw("function_name")]`{=typst} is called next.
         """
         # Run test.
         self.helper(txt_in, type_, expected)
@@ -565,7 +596,7 @@ class Test_colorize_backticks_typst_integration(hunitest.TestCase):
         # Prepare outputs.
         expected = r"""
         # A/B Testing
-        Use `#text(fill: blue)[no\_email]`{=typst} as control and `#text(fill: blue)[long]`{=typst} as treatment.
+        Use `#text(fill: blue)[#raw("no_email")]`{=typst} as control and `#text(fill: blue)[#raw("long")]`{=typst} as treatment.
         """
         # Run test.
         self.helper(txt_in, type_, expected)

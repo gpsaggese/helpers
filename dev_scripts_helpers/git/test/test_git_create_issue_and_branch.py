@@ -12,10 +12,11 @@ from typing import Any, List, Optional
 # TODO(ai_gp): use import unittest
 from unittest import mock
 
-import dev_scripts_helpers.git.git_create_issue_and_branch as dshggciab
 import helpers.hunit_test as hunitest
 import helpers.hunit_test_utils as hunteuti
 from helpers import hprint
+
+import dev_scripts_helpers.git.git_create_issue_and_branch as dshggciab
 
 
 def _get_mock_repo_config(dir_suffix: str) -> mock.Mock:

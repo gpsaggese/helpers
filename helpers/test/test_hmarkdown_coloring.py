@@ -2,7 +2,6 @@ import helpers.hmarkdown as hmarkdo
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
 
-
 # #############################################################################
 # Test_process_color_commands1
 # #############################################################################
@@ -679,6 +678,36 @@ class Test_colorize_bullet_points_in_slide2(hunitest.TestCase):
         # Prepare outputs: unchanged, since the two `**` belong to different
         # bullets and must not be merged into a single bold span.
         expected = text
+        # Run test.
+        self.helper(text, expected)
+
+    def test11(self) -> None:
+        """
+        Test that `**` inside two inline code spans on the same line is not
+        paired into a semibold span.
+        """
+        # Prepare inputs.
+        text = """
+        - _Forwarded `**kwargs`_: the handler passes `**kwargs` through the service
+        """
+        text = hprint.dedent(text)
+        # Prepare outputs: unchanged, since both `**` are inside code spans.
+        expected = text
+        # Run test.
+        self.helper(text, expected)
+
+    def test12(self) -> None:
+        """
+        Test that plain `**text**` bold is still rendered as semibold when the
+        same line also has an inline code span containing `**`.
+        """
+        # Prepare inputs.
+        text = "Pass `**kwargs` to a **plain bold** call."
+        # Prepare outputs.
+        expected = """
+        Pass `**kwargs` to a `#text(fill: luma(30%), weight: "semibold")[plain bold]`{=typst} call.
+        """
+        expected = hprint.dedent(expected)
         # Run test.
         self.helper(text, expected)
 

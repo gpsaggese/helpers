@@ -286,9 +286,13 @@ model: opus
   ```
 
 ## Pitch Style
-- Start every top-level bullet with an `@Label@` lead-in of 1-5 words and a colon
-  - Put the number in the label when the bullet has one, e.g.,
-    `@TAM \$<TAM> a year@:`
+- Start every top-level bullet with an `@...@` lead-in of 1-5 words and a colon,
+  per `.claude/skills/slides.rules.md` `## Use Tags for Slide Sections`
+  - Do not use `**...**` for the lead-in
+  - Put the number in the lead-in when the bullet has one, e.g.,
+    `@TAM \$\<TAM\> a year@:`
+  - Write a pitch phrase, not a lecture tag (e.g., not `@Definition@`,
+    `@Fact@`, `@Naive Solution@`)
   - Separate top-level bullets with a blank line
 - Start a sub-bullet that carries a number or a named item with a bold lead-in
   and a colon, e.g., `**0.45% reply rate**:`
@@ -300,15 +304,23 @@ model: opus
   quoted meanings
   - Use `$\times$` for a product in a sizing or cost line
 - Write about customers in the third person, and name the company
-- **Bad** (lecture style: lecture tag and definition vocabulary)
+- **Bad** (lecture tag vocabulary)
   ```markdown
   - @Fact@: the hit rate of cold outreach is often below 1%
+  ```
+- **Bad** (bold lead-in instead of `@...@`)
+  ```markdown
+  - **Under 1% hit rate**: hundreds of cold emails yield a handful of replies
   ```
 - **Good** (pitch style: a label lead-in, then bold numbers in sub-bullets)
   ```markdown
   - Getting meetings is a @numbers game@ with a very @low success rate@
     - **Under 1% reply rate**: hundreds of cold emails yield a handful of
       replies
+  ```
+- **Good** (pitch style: `@...@` lead-in that carries the number)
+  ```markdown
+  - @Under 1% hit rate@: hundreds of cold emails yield a handful of replies
   ```
 - Use these lead-ins per slide
   - `* Elevator Pitch`: `@Problem@` with 2-3 example personas as sub-bullets,

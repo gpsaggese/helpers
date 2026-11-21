@@ -1469,3 +1469,37 @@ it with an underscore to mark it as private
   `cc_lint.README.md`'s argument table and examples unchanged
 - **Good**: Add a new `--dry_run` CLI option to `cc_lint.py`, add it to the README's
   argument table, and add a usage example demonstrating it
+
+# Verification
+
+## Run Commit Gates After Writing Code
+
+- After creating or editing code, run the commit gates before declaring the task
+  done:
+
+  ```bash
+  > pre-commit.py
+  > helpers_root/dev_scripts_helpers/git/git_hooks/pre-commit.py
+  ```
+
+- To iterate quickly on one gate, run only that phase:
+
+  ```bash
+  > pre-commit.py --check ruff_format
+  ```
+
+- The gates are the same checks that `git commit` runs:
+  - `master`, `merged_branch`, `merge_conflict_markers`, `author`
+  - `file_size`, `tmp_log_files`
+  - `ruff_format` (`ruff check --fix` and `ruff format`)
+  - `python_compile`, `gitleaks`
+- Fix every reported error at the root cause
+  - Do not silence a lint error with `# noqa` unless the user approves
+  - Do not use `git commit --no-verify`
+- Re-run the hook after each fix until it passes
+- The hook writes temporary files (e.g., `tmp.precommit_output.txt`, `*.py.log`)
+  - Do not add them to the repo
+- **Bad**: Write a new function and report the task as done without running the
+  hook, then hit `B023` or `SIM118` at commit time
+- **Good**: Write a new function, run `pre-commit.py`, fix the reported lint
+  errors, and report the task as done once the hook passes
