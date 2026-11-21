@@ -11,6 +11,7 @@ import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
 import dev_scripts_helpers.dockerize.dockerized_utils as dshddut
 import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
@@ -71,9 +72,7 @@ class Test_build_prettier_md_txt_tex_container1(hunitest.TestCase):
         file_type = "md"
         # Check outputs using platform-specific expected values.
         system = platform.system()
-        if system == "Darwin":
-            expected = "3.8.3\n"
-        elif system == "Linux":
+        if system == "Darwin" or system == "Linux":
             expected = "3.8.3\n"
         else:
             raise ValueError(f"Invalid system '{system}'")
@@ -101,9 +100,7 @@ class Test_build_prettier_md_txt_tex_container1(hunitest.TestCase):
         file_type = "txt"
         # Check outputs using platform-specific expected values.
         system = platform.system()
-        if system == "Darwin":
-            expected = "3.8.3\n"
-        elif system == "Linux":
+        if system == "Darwin" or system == "Linux":
             expected = "3.8.3\n"
         else:
             raise ValueError(f"Invalid system '{system}'")
@@ -131,9 +128,7 @@ class Test_build_prettier_md_txt_tex_container1(hunitest.TestCase):
         file_type = "tex"
         # Check outputs using platform-specific expected values.
         system = platform.system()
-        if system == "Darwin":
-            expected = "2.7.0\n"
-        elif system == "Linux":
+        if system == "Darwin" or system == "Linux":
             expected = "2.7.0\n"
         else:
             raise ValueError(f"Invalid system '{system}'")
@@ -416,6 +411,9 @@ class Test_prettier_on_str(hunitest.TestCase):
             "--tab-width",
             "2",
         ]
+        # Save the intermediate `prettier` files in the scratch space, instead of
+        # the current dir.
+        tmp_dir = self.get_scratch_space()
         # Prepare outputs.
         expected = """
         # Title
@@ -433,6 +431,7 @@ class Test_prettier_on_str(hunitest.TestCase):
             mode="system",
             force_rebuild=False,
             use_sudo=False,
+            tmp_dir=tmp_dir,
         )
         # Check outputs.
         self.assert_equal(actual, expected)

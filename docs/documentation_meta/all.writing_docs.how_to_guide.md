@@ -39,7 +39,7 @@
   - Tutorials
 
 - This document is geared towards humans, while the style guide 
-  [`//helpers/docs/code_guidelines/all.coding_style_guidelines.reference.md`]
+  [`//helpers/docs/coding/all.coding_style_guidelines.reference.md`]
   is for non-human users (e.g., `linter` and `ai_review.py`)
 
 ## Meta
@@ -241,6 +241,13 @@
 
 - Headings titles should be like `Data Schema` not `Data schema`
   - This is automatically enforced by the `linter`
+
+### Refer to sections with `Sec.`
+
+- Do not use the section sign (U+00A7) in docs, code comments, or commit messages
+  - It is cumbersome to type and some tools and encodings break it
+- Write `Sec.` followed by the number
+  - E.g., `see the PRD, Sec. 5.1`
 
 ### Update the `Last review` tag
 

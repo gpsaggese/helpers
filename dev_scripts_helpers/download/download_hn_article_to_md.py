@@ -51,6 +51,12 @@ submission URL.
     --skip_action summarize_hn_url \
     --skip_action summarize_article_url
 
+- Summarize with a specific LLM model (by default the OpenRouter model of
+  `llm_cli.py`, which needs the `OPENROUTER_KEY` env var):
+> download_hn_article_to_md.py \
+    --input "https://news.ycombinator.com/item?id=12345" \
+    --model openrouter/anthropic/claude-haiku-4.5
+
 - Use an explicit output base name instead of the derived title:
 > download_hn_article_to_md.py \
     --input "https://news.ycombinator.com/item?id=12345" \
@@ -87,14 +93,15 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
-import helpers.hcache_simple as hcacsimp
 import helpers.hselect_action as hselacti
-import dev_scripts_helpers.download.download_utils as dshddut
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 
@@ -322,9 +329,7 @@ def _fetch_submission(hn_url: str) -> Dict[str, Any]:
 # #############################################################################
 
 
-def _prepend_backlinks(
-    output_file: str, article_url: str, hn_url: str
-) -> None:
+def _prepend_backlinks(output_file: str, article_url: str, hn_url: str) -> None:
     """
     Prepend a plain-text backlink header to a freshly-written output file.
 
@@ -482,9 +487,7 @@ def _summarize_hn_url(
         already exists
     """
     _LOG.debug(
-        hprint.to_str(
-            "comments_file summary_file model dry_run no_incremental"
-        )
+        hprint.to_str("comments_file summary_file model dry_run no_incremental")
     )
     if not dry_run:
         hdbg.dassert_file_exists(comments_file)
@@ -527,9 +530,7 @@ def _summarize_article_url(
         already exists
     """
     _LOG.debug(
-        hprint.to_str(
-            "article_file summary_file model dry_run no_incremental"
-        )
+        hprint.to_str("article_file summary_file model dry_run no_incremental")
     )
     if not dry_run:
         hdbg.dassert_file_exists(article_file)
@@ -604,8 +605,12 @@ def _parse() -> argparse.ArgumentParser:
         "--model",
         type=str,
         default=dshddut.SUMMARY_MODEL,
-        help="LLM model to use for both summarization phases (article + "
-        f"HN comments) (default: {dshddut.SUMMARY_MODEL})",
+        help=(
+            "LLM model to use for both summarization phases (article + "
+            "HN comments), e.g., `openrouter/anthropic/claude-haiku-4.5`. "
+            "The default is an OpenRouter model, which needs the "
+            "`OPENROUTER_KEY` env var"
+        ),
     )
     # Add action selection arguments (download_hn_url, download_article_url, etc).
     hselacti.add_action_arg(parser, VALID_ACTIONS, DEFAULT_ACTIONS)
@@ -663,7 +668,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
     # specified, otherwise the sanitized submission title.
     if time_:
         date_str = datetime.datetime.fromtimestamp(
-            time_, tz=datetime.timezone.utc
+            time_, tz=datetime.UTC
         ).strftime("%Y-%m-%d")
     else:
         date_str = "unknown_date"

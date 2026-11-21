@@ -1,0 +1,657 @@
+# AI Workflows: Topics, Skills, and Rules
+- This document explains the conventions and tools used to organize AI-assisted
+  work via Claude Code in this repo (e.g., **topics**, **skills**, **rules**,
+  **templates**) and the command-line tools that operate on them (`mdm`,
+  `cc_lint.py`, `rig`, `cc`)
+
+- See `.claude/skills/skill.rules.md` for the full authoring conventions
+- See `docs/documentation_meta/all.where_to_add_material.explanation.md` for
+  where a new fact goes: a skill, a rule file, a how-to guide, or a blog
+  - This guide owns the order of steps and the choice of skill
+  - It links to skills and rule files for the details and does not copy them
+
+## Definitions
+
+### Topics
+- A **topic** is a category that groups related skills and conventions (e.g.,
+  `coding`, `testing`, `markdown`, `notebook`)
+- Topics organize skills semantically; each topic may have a corresponding
+  `.claude/skills/<TOPIC>.rules.md` file documenting its conventions
+- List all topics with:
+  ```bash
+  > find .claude/skills -name "*.md" | sed 's|.claude/skills/||; s|\..*||' | sort | uniq
+  ```
+
+### Current Topics
+- Current topics include:
+  - `architecture`: Architecture and design documentation, including project design
+    docs
+  - `auto_task`: Automated task definitions and workflows
+  - `bash`: Bash scripting and shell commands
+  - `blog`: Blog post creation and formatting
+  - `book`: Book table of contents review
+  - `book_chapter`: Typst book chapter headings, text tags, updates from source
+  - `book_file`: Standard naming of book and paper files
+  - `book_list`: Information gathering about books
+  - `book_map`: Book map with roadmap and chapter-to-lecture mapping
+  - `bookmark`: Links mapped to research ideas and blog files
+  - `C4`: C4 diagrams (Context, Container, Component, Code) in PlantUML
+  - `cfile`: vim cfile conventions
+  - `coding`: Python code style and conventions
+  - `coding_qa`: Python code review for bugs, with fixes and test cases
+  - `demo`: Storyboard scripts and images for narrated explainer videos
+  - `docker`: Docker container shrinking and standard style
+  - `docs`: Adding content to docs without redundancy
+  - `figure`: Figure creation and polish (descriptions, SVG, TikZ)
+  - `git`: Git operations (move, delete, merge conflicts, update references)
+  - `github`: Pull requests (naming, description, child PRs) and CI checks
+  - `graphviz`: Graphviz diagrams (flat, architecture, and causal graph styles)
+  - `gws`: Google Workspace CLI (`gws`) usage
+  - `latex`: LaTeX document processing
+  - `markdown`: Markdown formatting and structure
+  - `notebook`: Jupyter notebook conventions
+  - `paper`: Academic paper writing, rating, and improvement
+  - `paper_list`: Reading lists of papers, books, and resources
+  - `project`: Docs that plan and track a project (PRD, design, plan, progress log)
+  - `pytest`: Diagnosis and fixing of failing tests, locally and in CI
+  - `readme_dir`: README file for a directory
+  - `readme_file`: README file for a single executable
+  - `references`: Format of references to books and papers
+  - `related_python_packages`: List of the Python packages related to the content of
+    a directory
+  - `research_idea`: Research idea docs and their tracking table
+  - `role`: Role descriptions for AI agents (coding, notebook, AI researcher,
+    skill designer)
+  - `rules`: Addition of rules to rule files
+  - `script`: Conventions for CLI scripts
+  - `skill`: Authoring, checking, and maintaining skills and rules
+  - `slides`: Presentation slide creation
+  - `svg`: SVG graphics handling
+  - `system`: System analysis (e.g., disk usage)
+  - `testing`: Unit test writing and conventions
+  - `text`: General text and writing conventions
+  - `tikz`: TikZ diagram creation
+  - `todo`: TODO and task queue files organized by execution stage
+  - `tool_guide_in_30_mins`: Single-file quick-reference guides for a tool
+  - `tutorial_in_60_mins`: Hands-on "Learn X in 60 Minutes" tutorials
+  - `tutorial_specs`: Proposals for tutorials and the class projects using them
+  - `typst`: Typst chapter and slide conventions
+
+### Skills
+- A **skill** is a specific, actionable task organized under a topic (e.g.,
+  `coding.fix_comments`, `testing.write_unit_tests`)
+- Each skill lives in `.claude/skills/<TOPIC>.<ACTION>/SKILL.md` and contains
+  step-by-step instructions, examples, and verification steps
+- Skills are invoked directly (e.g., `/coding.fix_comments`) or executed on
+  files via `cc_lint.py --skill <TOPIC>.<ACTION>`
+- See `.claude/skills/skill.rules.md` for the required frontmatter, naming
+  convention, and content structure (`Goal`, `Workflow`, `Conventions`,
+  `Constraints`, `Examples`, `Verification`)
+- A **slash command** is a flat prompt file `.claude/commands/<name>.md`
+  - This repo has `instr`, `instr2`, `instr3`, and `lint`, and its Claude Code
+    setup also surfaces them as skills
+  - `/instr`, `/instr2`, and `/instr3` run the task in `./instr.md`,
+    `./instr2.md`, and `./instr3.md` following `.claude/task_instructions.md`
+    - Create the instruction files with `create_instr [<N>]`, see
+      [`dev_scripts_helpers/ai/README.md`](/dev_scripts_helpers/ai/README.md)
+  - `/lint <file>` applies the rules in `.claude/rules.md` that match the file type
+  - Prefer a skill over a slash command for new work, see "Skills vs Slash
+    Commands" in `.claude/skills/skill.rules.md`
+- A **subagent** is defined in `.claude/agents/<name>.md`, e.g.,
+  `.claude/agents/code.reviewer.md` reviews the recent `git diff`
+
+### Rules
+- A **rule file** (`.claude/skills/<TOPIC>.rules.md`) documents the conventions
+  and standards for a topic:
+  - Naming conventions and patterns
+  - Code/content style guidelines
+  - Decision criteria for consistency
+  - Examples of good and bad practices
+- Skills reference their topic's rule file to avoid duplicating conventions
+  across related tasks
+- `.claude/rules.md` is the top-level map from file type (e.g., `.py`, `.ipynb`,
+  `.md`) to the rule file and template that apply to it; when operating on a
+  file, read `.claude/rules.md` first to find which rules and templates to
+  follow
+- The hook `.claude/hooks/check_file_rules.sh`, registered in
+  `.claude/settings.json`, reminds Claude of the matching rules before each
+  `Write` or `Edit`
+  - It covers only the types a file path identifies: `.py`, test files, `.sh`,
+    `.ipynb`, and `.typ`
+  - It never blocks the edit
+  - Rules that depend on the purpose of a file (e.g., blog, README, slides) are
+    not covered: look them up in `.claude/rules.md`
+
+### Templates
+- A **template** (`.claude/templates/*.template.<ext>`) is a starting-point
+  file to copy from when creating a new file of a given kind: it fixes the
+  boilerplate (headers, imports, section markers, placeholders) so new content
+  follows the same shape as existing content
+- Unlike rules (conventions to check against) and skills (steps to execute),
+  templates are files to instantiate directly
+- `.claude/rules.md` pairs each file type with its template, e.g.:
+  - `.claude/templates/coding.template.py` for `.py` files
+  - `.claude/templates/testing.template.py` for `test_*.py` files
+  - `.claude/templates/notebook.template.ipynb` for `.ipynb` files
+  - `.claude/templates/readme_dir.template.md` for the `README.md` of a directory
+    with executables
+  - `.claude/templates/readme_file.template.md` for the `<FILE>.README.md` of a
+    single executable
+- Other templates cover specific artifacts referenced by individual skills
+  rather than a whole file type, e.g. `architecture_doc.template.md`,
+  `slides.template.md`, `github_PR_plan.template.md`,
+  `github_PR_description.template.md`, `book_map.template.md`,
+  `graphviz.template.md`, `tikz.template.md`, `typst.template.typ`,
+  `auto_task.template.md`, `specs.template.md`, `research_idea.template.md`,
+  `related_python_packages.template.md`, `tutorial_specs.template.md`, and the
+  `project_*.template.md` family for the
+  docs of a project
+- List all templates with `ls .claude/templates`
+- Placeholders inside a template use the `<VAR>` notation (e.g., `<Directory
+  Name>`) per `.claude/skills/skill.rules.md`; fill them in and remove any
+  optional sections that don't apply
+
+## Run a Skill
+
+- There are three ways to run a skill `<topic>.<action>`, depending on how much
+  control you need
+  - See the "Related Docs" section for the docs of each tool
+
+### Slash Command in a Claude Code Session
+
+- Type the skill name with a leading `/` in a Claude Code session, followed by the
+  file to operate on
+  ```text
+  claude> /<topic>.<action> <file>
+  ```
+  - E.g., `/coding.fix_comments helpers/hio.py`
+- Use this to run one skill interactively and review the result before moving on
+
+### `cc_lint.py` From the Shell
+
+- Run the skill on one or more files outside a session:
+  ```bash
+  > cc_lint.py --files "<file>" --skill <topic>.<action> --mode one_shot_with_cc
+  ```
+- Select files by git state instead of by name with `--modified`, `--branch`,
+  `--last_commit`, or `--all_files`
+- Use this to run the same skill over many files, or from a script
+- Use `--dry_run` to print the command without executing it
+
+### `cc` Wrapper for Interactive Sessions
+
+- `cc` starts an interactive Claude Code session with the repo defaults
+  - Passes extra arguments to `claude`
+  - Selects the model with flags (e.g., `--anth`, `--ds`, `--model MODEL_STR`)
+  - Renames the tmux pane while the session runs
+- Start a session, then run a skill with a slash command:
+  ```bash
+  > cc
+  ```
+  ```text
+  claude> /<topic>.<action> <file>
+  ```
+- Use `cc -p "<prompt>"` to run a single prompt non-interactively
+- Use `cc --test` to run the diagnostics of the Claude Code installation
+- See [`dev_scripts_helpers/ai/README.md`](/dev_scripts_helpers/ai/README.md) for
+  all the options
+
+### Pick the Right Way
+
+- Slash command: one skill, one file, you review as it runs
+- `cc_lint.py --skill`: many files, scripted runs, or a fixed model per run
+- `cc`: open-ended sessions that mix several skills and manual edits
+
+## Tools
+
+### `mdm`: Unified Markdown Content Manager
+- `mdm` manages skills, blog posts, research ideas, and short stories across
+  repositories with one consistent interface:
+  `mdm <type> <action> [name_filter]`
+- Full reference:
+  [`dev_scripts_helpers/system_tools/mdm.README.md`](/dev_scripts_helpers/system_tools/mdm.README.md)
+- Common commands:
+  ```bash
+  > mdm skill list                     # List all skill names
+  > mdm skill full_list                # List all skills with full paths
+  > mdm skill describe blog.add_figures # Show a skill's frontmatter description
+  > mdm skill edit coding.new_action   # Open (or scaffold) a skill in vim
+  > mdm skill directory                # Print the path to .claude/skills
+  > mdm skill types                    # List unique topic prefixes
+  ```
+- Type (`skill`, `blog`, `research`, `story`) and action (`list`, `full_list`,
+  `describe`, `edit`, `directory`, `types`) both support prefix matching, so
+  `mdm sk l` is equivalent to `mdm skill list`
+
+### `cc_lint.py`: Apply Rules/skills to Files Via Claude Code
+- Detects file types, builds a prompt from the matching rules or skill, and
+  invokes Claude Code on the selected files
+- Select files with `--files`, `--from_file`, `--modified`, `--branch`,
+  `--last_commit`, or `--all_files`
+- Select what to apply with `--topic`, `--skill`, or `--rule`
+- `--mode` defaults to `session`: pick `one_shot_with_cc`, `one_shot`,
+  `session`, or `stateless`
+  - The examples below pass `--mode one_shot_with_cc` to apply all the selected
+    rules in a single Claude Code call
+  ```bash
+  # Apply the default rules for the file's topic (e.g., coding.rules.md)
+  > cc_lint.py --files "file.py" --topic coding --mode one_shot_with_cc
+
+  # Execute a specific skill on a file
+  > cc_lint.py --files "file.py" --skill coding.fix_inline --mode one_shot_with_cc
+
+  # Apply one specific rule section, identified three ways:
+  # - Full path with header (validated against the file)
+  > cc_lint.py --rule ".claude/skills/coding.rules.md:58:## Mark Private Functions" --files "file.py" --mode one_shot_with_cc
+  # - Line number only (extracts the section starting there)
+  > cc_lint.py --rule ".claude/skills/coding.rules.md:58" --files "file.py" --mode one_shot_with_cc
+  # - Keyword search (resolved to a unique rule via `rig --rule`)
+  > cc_lint.py --rule "dassert" --files "file.py" --mode one_shot_with_cc
+  ```
+- Use `--dry_run` to print the command without executing it
+- Use `--resume` to continue an interrupted `session` or `stateless` run, and
+  `--rule_level` to control how the rules are split into chunks
+- Use `--add_todos` to add `TODO(ai_gp)` comments instead of changing the code,
+  see "Let the Rules Write the TODOs, Then Implement Them" below
+- Full reference: [`linters2/cc_lint.README.md`](/linters2/cc_lint.README.md)
+
+### `rig`: Ripgrep Wrapper for Finding Rules, TODOs, and Definitions
+- `rig <pattern> [<dir>] [<ext>] [--options]`, with mode flags that change the
+  search target instead of the pattern:
+  - `--rule`: search Markdown headers in `.claude/skills` (used by
+    `cc_lint.py --rule` to resolve a keyword to a specific rule section)
+  - `--todo`: search for `TODO(ai_gp)`-style patterns
+  - `--def`: search for Python `class`/`def` definitions
+- `rigrule` is a shortcut for `rig --rule "$@"`
+- `rigrulec` is the same, plus `--cfile` to capture results to a `cfile` and
+  open them in vim with `:cfile cfile`
+
+## Workflows
+
+### Find and Apply a Specific Rule to a File
+- Locate the rule with `rigrule "<keyword>"` or by browsing
+  `.claude/skills/<TOPIC>.rules.md`
+- Apply it with
+  ```bash
+  > cc_lint.py --rule "<keyword or path:line>" --files "<file>" --mode one_shot_with_cc`
+  ```
+
+### Lint Files by Topic Instead of a Single Rule
+- Use `cc_lint.py --files "<files>" --topic <topic> --mode one_shot_with_cc`
+  to apply the topic's full rules file, or `--modified` / `--branch` /
+  `--last_commit` / `--all_files` instead of `--files` to select files by git
+  state rather than by name
+
+### Run a Skill on a File
+- Execute one skill (as opposed to a whole rules file) on a file
+  - See the "Run a Skill" section above for the three ways to do it
+
+### Create or Browse a Skill
+- `mdm skill list` (or `mdm skill list <pattern>`) to see what already exists
+- `mdm skill edit <topic>.<action>` to open the skill, or scaffold a new one if
+  it doesn't exist yet
+- Follow `.claude/skills/skill.rules.md` for frontmatter, structure, and naming; add
+  or update the topic's `.claude/skills/<topic>.rules.md` if the skill introduces a
+  new convention
+
+### Add or Update a Rule
+- Decide rule vs. skill per `.claude/skills/skill.rules.md` ("Rules vs Skills"):
+  rules capture conventions and decision criteria that apply across tasks; skills
+  capture a single step-by-step task
+- Edit `.claude/skills/<TOPIC>.rules.md`, keeping related rules grouped under `#`
+  sections with `##` sub-rules
+- Verify the rule is discoverable: `rigrule "<keyword>"` should resolve to it
+  uniquely
+
+### Start a New File From a Template
+- Look up the file type in `.claude/rules.md` to find its template (e.g., `.py` ->
+  `.claude/templates/coding.template.py`)
+- Copy the template to the new file's path and fill in the `<VAR>` placeholders
+- Apply the corresponding rules with
+  ```
+  > cc_lint.py --files "<file>" --topic <topic> --mode one_shot_with_cc
+  ```
+  to check the new file follows conventions the template doesn't already encode
+  (e.g., naming, docstring content)
+
+## Coding Workflows
+
+- These workflows use the `coding.*` skills on Python files
+- Commit before running a skill, so that each skill produces a separate, easy to
+  review diff
+  - See
+    [`docs/tools/ai/all.ai_review.how_to_guide.md`](/docs/tools/ai/all.ai_review.how_to_guide.md)
+
+### Coding Skills at a Glance
+
+| Skill                            | Use when                                        |
+| :------------------------------- | :---------------------------------------------- |
+| `coding.todoai_gp`               | Implement the `TODO(ai_gp)` items in a file     |
+| `coding.annotate_with_todoai`    | Add a `TODO(ai_gp)` for each rule violation     |
+| `coding.reorg_functions`         | Reorder the functions in a file                 |
+| `coding.make_function_private`   | Prefix private functions with an underscore     |
+| `coding.factor_common_code`      | Remove duplicated code, mostly in test files    |
+| `coding.fix_inline`              | Remove the functions that are too thin          |
+| `coding.fix_constants`           | Move constants to the scope where they are used |
+| `coding.fix_param_use`           | Fix how call sites pass arguments and constants |
+| `coding.use_single_return`       | Give each function a single `return`            |
+| `coding.fix_from_imports`        | Replace `from X import Y` with `import X`       |
+| `coding.fix_use_helpers`         | Replace ad-hoc code with `helpers` functions    |
+| `coding.fix_bloated_imports`     | Import big packages only where they are needed  |
+| `coding.fix_type_hints`          | Fix type hints                                  |
+| `coding.fix_dasserts`            | Fix `dassert` calls                             |
+| `coding.fix_pyright`             | Run `pyright` and fix the reported lints        |
+| `coding.fix_docstring`           | Fix the docstrings                              |
+| `coding.fix_comments`            | Fix docstrings and comments, no logic change    |
+| `coding.fix_empty_lines`         | Remove empty lines inside functions             |
+| `coding.improve_code_for_humans` | Add comments and `_LOG.debug` statements        |
+| `coding.rename`                  | Rename a file, function, or variable everywhere |
+| `coding.find_doc`                | Find and summarize the docs of code             |
+
+- The table lists every `coding.*` skill
+  - Check for new ones with `mdm skill list coding`
+- `coding_qa.review` is a separate topic: it reviews Python files for bugs and
+  proposes fixes and test cases
+
+### Implement TODOs in a File
+
+- This is the most common coding workflow
+- Write the instruction in the code as a `TODO(ai_gp)` comment
+  ```python
+  # TODO(ai_gp): Factor out this block into a helper function
+  # TODO(ai_gp): Add a test for the empty input case
+  # TODO(ai_gp): foo_bar -> compute_foo_bar
+  ```
+  - `-> XYZ` means "rename to `XYZ`" and updates all the references
+- List the pending TODOs with `rig --todo`
+- Run the skill on the file
+  ```text
+  claude> /coding.todoai_gp <file>
+  ```
+  - It fixes also the other instances of the same TODO in the file
+  - It removes a TODO only if it was implemented
+  - If it cannot do it, it leaves the TODO and adds a comment with the reason
+- Review the diff and run the unit tests of the file
+- To fix a single TODO, pass the `rig --todo` output line instead of the file
+  ```text
+  claude> /coding.todoai_gp <file>:<line>:# TODO(ai_gp): ...
+  ```
+
+### Let the Rules Write the TODOs, Then Implement Them
+
+- Use this to review a file against `.claude/skills/coding.rules.md` before
+  changing any code
+- Add the TODOs without modifying the code
+  ```bash
+  > cc_lint.py --files "<file>" --add_todos --mode one_shot_with_cc
+  ```
+  - Alternatively, run `/coding.annotate_with_todoai <file>`
+    - It annotates the file, asks you to commit, and then runs
+      `/coding.todoai_gp` after you confirm
+    - Test files also get the `testing.rules.md` rules
+- Read the TODOs and delete the ones you disagree with
+- Commit, then implement the remaining ones with `/coding.todoai_gp <file>`
+
+### Clean Up a Python File With a Sequence of Skills
+
+- Use this on a new or messy file, e.g., a script or a `*_utils.py`
+- Run the skills in this order, committing between steps
+  1. Structure: `/coding.reorg_functions <file>`
+  2. Duplication: `/coding.factor_common_code <file>`
+  3. Imports: `/coding.fix_from_imports`, `/coding.fix_use_helpers`,
+     `/coding.fix_bloated_imports`
+  4. Types and lints: `/coding.fix_type_hints`, `/coding.fix_dasserts`,
+     `/coding.fix_pyright`
+  5. Text last: `/coding.fix_empty_lines`, `/coding.fix_comments`,
+     `/coding.improve_code_for_humans`
+  6. Run the unit tests of the file
+- Comments go last since the earlier steps change the code they describe
+- Run the same sequence from the shell, one skill per call
+  ```bash
+  > for skill in coding.fix_from_imports coding.fix_type_hints coding.fix_comments; do
+      cc_lint.py --files "<file>" --skill $skill --mode one_shot_with_cc
+    done
+  ```
+- To apply all the coding rules in a single call, use the topic instead of skills
+  ```bash
+  > cc_lint.py --files "<file>" --topic coding --mode session
+  ```
+  - `session` applies one rules section per turn in the same session
+  - Skills give more control since you review the diff after each one
+
+### Check the Effect of Each Skill on an Existing Project
+
+- Use this when the skills of
+  [Clean Up a Python File With a Sequence of Skills](#clean-up-a-python-file-with-a-sequence-of-skills)
+  are applied to code that notebooks and tests already depend on
+  - The goal is a PR where each commit shows the effect of one skill, and the
+    results are the same at the end
+- Before the first skill
+  - Make the unit tests run, so that every later step can be checked
+  - Run the notebooks and save their output, to compare against later
+  - Implement the `TODO(ai_gp)` items first with `/coding.todoai_gp`
+- After each skill
+  - Run the unit tests and the notebooks, and check that the output is the same
+    as before
+  - Commit, with a message about the change and not the file, e.g., "Use
+    specialized dasserts in the causal success utils"
+- When a rule does not fit the code, do not force it
+  - Leave the `TODO(ai_gp)` in place with a comment on why, as
+    `/coding.todoai_gp` says
+  - List these exceptions in the doc of the project, so that reviewers see them
+    in one place
+- Check the tests themselves before and after rewriting them
+  - Plant a few bugs in the code, e.g., remove a check or change a constant, and
+    check that the tests fail
+- Check the text against the output
+  - Compare every number in the markdown cells with what the notebook prints
+- Example: `research/Causal_Analysis_of_Agent_Skill_And_Luck/skills_usage.md` in
+  `gpsaggese/gpsaggese.github.io` records this workflow for one project, with
+  one commit per skill
+
+### Remove Duplication in Test Files
+
+- Preview first with `--dry_run`
+  ```text
+  claude> /coding.factor_common_code <test_file> --dry_run
+  ```
+  - It reports the proposed helper functions and the duplicated locations
+  - It writes a vim quickfix `cfile` to jump to the duplicated blocks
+    (`:cfile cfile`)
+- Run it again without `--dry_run` to apply the refactoring
+- Then run `/coding.fix_type_hints <test_file>` and the unit tests
+
+### Fix `pyright` Lints
+
+- Run the skill on one file at a time for large sets of files
+  ```text
+  claude> /coding.fix_pyright helpers/hpandas_*.py one file at the time
+  ```
+- It saves `tmp.pyright_before.txt` and `tmp.pyright_after.txt`: check that the
+  second has fewer issues
+- It runs the matching `test/test_<file>.py`
+
+## Notebook Workflows
+
+- These workflows use the `notebook.*` skills
+- A notebook is a triplet of files, kept in sync with `jupytext`
+  - `<name>.ipynb`: The notebook
+  - `<name>.py`: The paired Python file
+  - `<name>_utils.py`: The code behind the cells
+- The notebook skills sync the pair at the end
+  - Pair a new notebook with
+    `jupytext.py --action pair --files <name>.ipynb`
+- Follow `.claude/skills/notebook.rules.md` for the conventions
+
+### Notebook Skills at a Glance
+
+| Skill                               | Use when                                         |
+| :---------------------------------- | :----------------------------------------------- |
+| `notebook.brainstorm_outline`       | Get 5 notebook ideas from some material          |
+| `notebook.create_outline`           | Write the cell-by-cell plan of a notebook        |
+| `notebook.implement_outline`        | Build the notebook from an outline               |
+| `notebook.create_api_intro`         | Build a notebook that teaches a package API      |
+| `notebook.lint_numbered_cells`      | Renumber cells and sync function names           |
+| `notebook.split_header_cells`       | One header per markdown cell                     |
+| `notebook.split_cells`              | One logical task per code cell                   |
+| `notebook.format_md_cells`          | Format markdown cells as nested bullets          |
+| `notebook.format_interactive_cells` | Fix the markdown around interactive cells        |
+| `notebook.fix_logging`              | Use the standard logging init                    |
+| `notebook.refactor_to_utils`        | Move notebook code into `*_utils.py`             |
+| `notebook.delete_dead_code`         | Remove unused functions                          |
+| `notebook.fix_packages`             | Align Docker files and install packages in cells |
+| `notebook.create_animation`         | Make an animation from an `interact` function    |
+
+### Notebook From Lecture Material
+
+- Use this to turn a lecture or a doc into an interactive notebook
+- Brainstorm (optional)
+  ```text
+  claude> /notebook.brainstorm_outline <lecture file>
+  ```
+  - It writes `notebook_ideas.<TAG>.md` with 5 ideas
+- Create the outline from a lecture, a URL, or the ideas file
+  ```text
+  claude> /notebook.create_outline <lecture file, URL, or notebook_ideas.<TAG>.md>
+  ```
+  - It writes `notebook_outline.<TAG>.md` with no code
+  - Review and edit the outline: this is the cheap place to fix the design
+- Implement it
+  ```text
+  claude> /notebook.implement_outline <dir>/notebook_outline.<TAG>.md
+  ```
+  - It creates the `.ipynb`, the paired `.py`, and the `*_utils.py`
+- Polish with the skills below, then run the notebook (see "Check That a Notebook
+  Runs")
+
+### Polish a Generated Notebook
+
+- Run these skills on the notebook, committing between steps
+  1. `/notebook.split_header_cells <notebook>`
+  2. `/notebook.format_interactive_cells <notebook>` for widget notebooks
+  3. `/notebook.format_md_cells <notebook>`
+  4. `/notebook.lint_numbered_cells <notebook>`
+  5. `/notebook.fix_logging <notebook>` if the init cell is not the standard one
+- Then clean the paired `*_utils.py` with the coding skills
+  - `/coding.fix_from_imports`, `/coding.fix_empty_lines`, `/coding.fix_comments`,
+    `/coding.fix_type_hints`
+- Run `lint_numbered_cells` last: it renames the `cellN_*()` functions in the
+  notebook and in `*_utils.py` to match the headers
+
+### Notebook for a Package API
+
+- Use this to teach the API of a package, one concept per cell
+- Prerequisite: a project dir with the Docker files, e.g., cloned from
+  `class_project/project_template`
+- Create the notebook
+  ```text
+  claude> /notebook.create_api_intro <package> <doc URL> and save it in tutorials/<package>/<package>.01.API.<topic>.ipynb
+  ```
+  - Use the next `<ID>` for each new topic, e.g., `02.API.datasets`
+- Polish it
+  1. `/notebook.split_header_cells <notebook>`
+  2. `/notebook.format_md_cells <notebook>`
+  3. `/notebook.lint_numbered_cells <notebook>`
+  4. `/coding.fix_from_imports <utils file>`
+- Check that the notebook runs
+
+### Refactor an Existing Notebook
+
+- Use this when cells hold too much code or the notebook grew organically
+- Run the skills in this order, committing between steps
+  1. `/notebook.refactor_to_utils <notebook>`: move code to `*_utils.py`
+  2. `/notebook.delete_dead_code <notebook>`: remove unused functions
+  3. `/notebook.split_cells <notebook>`: one task per code cell
+  4. `/coding.fix_empty_lines`, `/coding.fix_comments`, `/coding.fix_type_hints`
+     on `*_utils.py`
+  5. `/notebook.lint_numbered_cells <notebook>`
+- Run `refactor_to_utils` again after the other steps if new inline code appears
+
+### Align Packages and Docker Files
+
+- Use this when a notebook needs a package that is not in the shared image
+  ```text
+  claude> /notebook.fix_packages <lesson dir> [<notebook> ...]
+  ```
+  - It aligns `Dockerfile` and `requirements.txt` with the project template
+  - It adds a pinned `!pip install` cell to the notebook that needs the package
+  - It also scans `*_utils.py`, since the imports of a notebook are not the full
+    list
+
+### Check That a Notebook Runs
+
+- Run the paired Python file in Docker
+  ```bash
+  > docker_cmd.sh "python /git_root/<dir>/<name>.py"
+  ```
+  - A `# !pip install` cell is a comment in the `.py` file
+  - Chain `pip install -q <package>==<version> &&` before `python` for those
+    packages
+  - See `## Testing Notebook` in `.claude/skills/notebook.rules.md`
+- Edit interactively with `docker_jupyter.sh`, then sync the pair with
+  `jupytext.py --action sync --files <name>.ipynb`
+
+### Apply All Notebook Rules in One Call
+
+- Use the topic instead of skills for a quick pass
+  ```bash
+  > cc_lint.py --files "<notebook>" --topic notebook --mode session
+  ```
+- Use skills when you need to review each transformation
+
+## Workflows in Other Guides
+
+- These workflows use skills of other topics and have their own guide
+  - The guide owns the order of steps: this section only points to it
+- Plan a project and take a task from idea to merged PR
+  (`architecture.write_design`, `project.write_prd`, `project.create_plan`,
+  `project.update_progress`, `research_idea.format`)
+  - [`docs/planning/all.plan_work.how_to_guide.md`](/docs/planning/all.plan_work.how_to_guide.md)
+- Do a task with Claude Code and open the PR (`github.find_name_for_pr`,
+  `github.get_pr_to_pass_local_tests`, `github.get_pr_to_pass_ci_tests`,
+  `github.get_pr_ready_to_merge`, `testing.write_unit_tests`)
+  - [`docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md`](/docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md)
+  - Without Claude Code, or to split a PR into child PRs
+    (`github.create_child_pr`):
+    [`docs/tools/git/all.manual_flow.how_to_guide.md`](/docs/tools/git/all.manual_flow.how_to_guide.md)
+- Delegate a task list to agents (`auto_task.*`)
+  - [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md)
+- Review code with LLMs (`llm_transform.py`, `ai_review.py`, `inject_todos.py`)
+  - [`docs/tools/ai/all.ai_review.how_to_guide.md`](/docs/tools/ai/all.ai_review.how_to_guide.md)
+- Decide where a new fact goes and add it (`docs.add_content`, `rules.add`,
+  `text.merge_files`, `text.merge_content_into`, `skill.check_refs`)
+  - [`docs/documentation_meta/all.where_to_add_material.explanation.md`](/docs/documentation_meta/all.where_to_add_material.explanation.md)
+- For any other topic (e.g., `slides`, `blog`, `paper`, `figure`), find the skills
+  with `mdm skill list <topic>` and read one with `mdm skill describe <skill>`
+
+## Related Docs
+
+- Use these docs for details on the tools and conventions mentioned above
+  - [`docs/planning/all.plan_work.how_to_guide.md`](/docs/planning/all.plan_work.how_to_guide.md):
+    The sequence of skills from an idea to a merged PR, and how to plan and log a
+    project
+  - [`docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md`](/docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md):
+    Do a task with Claude Code, from picking the task to a PR
+  - [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md):
+    Delegate a task list to agents, from GitHub issue to merged PR
+  - [`docs/tools/ai/all.ai_review.how_to_guide.md`](/docs/tools/ai/all.ai_review.how_to_guide.md):
+    Review flows with LLMs (`llm_transform.py`, `ai_review.py`, `inject_todos.py`)
+  - [`docs/tools/ai/all.code_review_tools.reference.md`](/docs/tools/ai/all.code_review_tools.reference.md):
+    Comparison of external code review tools (e.g., GitHub Copilot, CodeRabbit)
+  - [`docs/tools/git/all.manual_flow.how_to_guide.md`](/docs/tools/git/all.manual_flow.how_to_guide.md):
+    The PR flow with small PRs and the `github.*` skills
+  - [`docs/documentation_meta/all.where_to_add_material.explanation.md`](/docs/documentation_meta/all.where_to_add_material.explanation.md):
+    Where a fact goes: skill, rule file, how-to guide, or blog
+  - [`linters2/cc_lint.README.md`](/linters2/cc_lint.README.md): Full reference for
+    `cc_lint.py`
+  - [`dev_scripts_helpers/system_tools/mdm.README.md`](/dev_scripts_helpers/system_tools/mdm.README.md):
+    Full reference for `mdm`
+  - [`dev_scripts_helpers/ai/README.md`](/dev_scripts_helpers/ai/README.md):
+    Options of the `cc` wrapper and `create_instr`
+  - `.claude/skills/skill.rules.md`: How to write a skill
+  - `.claude/rules.md`: Map from file type to rules and templates
+  - `.claude/hooks/check_file_rules.sh`: Hook that reminds Claude of the rules
+    before an edit
+- `ai_review.py` is the older prompt-based flow
+  - It does not use skills
+  - Prefer skills run via `cc_lint.py --skill` for new workflows

@@ -3,12 +3,11 @@ description: Fix Python imports of large packages needed only for few functions 
 model: haiku
 ---
 
-- I will pass you one or more files `<FILES>` and one or more packages `<PACKAGES>` that
-  are usually large to import (e.g., `ipython`, `pandas`) and are needed only in
-  few functions in the files
+- I pass you one or more files `<FILES>` and one or more packages `<PACKAGES>` that
+  are large to import (e.g., `ipython`, `pandas`) and needed in only a few functions
 
-- In the files `<FILES>` you will use a conditional import for type checking and lazy imports
-  for `<PACKAGES>`
+- In `<FILES>`, use a conditional import for type checking and lazy imports for
+  `<PACKAGES>`
   - E.g., transform
     ```python
     def make_slider() -> "ipywidgets.IntSlider":
@@ -27,8 +26,7 @@ model: haiku
         ...
     ```
 
-- Use forward references only for the types in the package to remove and
-  not for the including
+- Use forward references only for the package types, not for the whole expression
   - **Bad** (quotes the whole expression as one string)
     ```python
     "Tuple[Union[ipywidgets.FloatSlider, ipywidgets.IntSlider], ipywidgets.HBox]"
@@ -38,8 +36,7 @@ model: haiku
     Tuple[Union["ipywidgets.FloatSlider", "ipywidgets.IntSlider"], "ipywidgets.HBox"]
     ```
 
-- If you see that most of the functions in `<FILES>` require the passed package
-  `<PACKAGES>`, you might suggest to not do this transform
+- If most functions in `<FILES>` need `<PACKAGES>`, suggest not doing this transform
 
 # Verification
 - [ ] Confirm `<PACKAGES>` is imported only under `TYPE_CHECKING` or inside the

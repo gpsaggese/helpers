@@ -17,6 +17,7 @@ _LOG = logging.getLogger(__name__)
 
 class Test_explore1(hunitest.TestCase):
     def test_ols_regress_series(self) -> None:
+        pytest.importorskip("statsmodels")
         x = 5 * np.random.randn(100)
         y = x + np.random.randn(*x.shape)
         df = pd.DataFrame()

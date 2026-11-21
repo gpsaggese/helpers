@@ -77,7 +77,8 @@ def get_prettier_container_image_name(file_type: str) -> str:
     """
     Get the name of the Prettier container image for a given file type.
 
-    E.g., `tmp.prettier.md.amd64.12345678` or `tmp.prettier.tex.arm64.12345678`
+    E.g., `tmp.prettier.md.amd64.12345678` or
+    `tmp.prettier.tex.arm64.12345678`
     """
     container_prefix = f"tmp.prettier.{file_type}"
     dockerfile = _get_prettier_dockerfile(file_type)
@@ -227,8 +228,8 @@ def prettier(
     *,
     width: Optional[int] = None,
     use_dockerized_prettier: bool = True,
-    tmp_dir: str = ".",
-    use_hash: bool = False,
+    tmp_dir: str = "",
+    use_hash: bool = True,
     # TODO(gp): Remove this.
     **kwargs: Any,
 ) -> None:
@@ -243,12 +244,16 @@ def prettier(
     :param use_dockerized_prettier: Whether to use a Dockerized version
         of Prettier.
     :param tmp_dir: directory (e.g., a test's scratch space) to save the
-        intermediate tmp file used to pre-process `md` / `txt` files. It
-        must be reachable from the Docker mount (e.g., a dir under the Git
-        root), since it is passed to the dockerized `prettier`
+        intermediate tmp file used to pre-process `md` / `txt` files
+        - If empty, the tmp file is saved in the current dir
+        - It must be reachable from the Docker mount (e.g., a dir under the
+          Git root), since it is passed to the dockerized `prettier`
     :param use_hash: whether to append a random hash to the intermediate
-        tmp file name to avoid collisions with concurrent / overlapping
-        calls. If False, a fixed name is reused (and overwritten) instead.
+        tmp file name
+        - If True, each call uses a new file. This avoids collisions with
+          concurrent / overlapping calls and, with Docker bind mounts, avoids
+          the container reading a stale (e.g., truncated) copy of a reused file
+        - If False, a fixed name is reused (and overwritten) instead
     :return: The formatted text.
     """
     _LOG.debug(hprint.func_signature_to_str())
@@ -258,9 +263,7 @@ def prettier(
         if file_type == "tex":
             # TODO(gp): Is this difference meaninful?
             width = 72
-        elif file_type == "md":
-            width = 80
-        elif file_type == "txt":
+        elif file_type == "md" or file_type == "txt":
             width = 80
         else:
             raise ValueError(f"Invalid file type: {file_type}")
@@ -298,9 +301,7 @@ def prettier(
                 tmp_dir, f"tmp.prettier.{uuid.uuid4().hex[:8]}.{file_type}"
             )
         else:
-            tmp_file_name = os.path.join(
-                tmp_dir, f"tmp.prettier.{file_type}"
-            )
+            tmp_file_name = os.path.join(tmp_dir, f"tmp.prettier.{file_type}")
         hio.to_file(tmp_file_name, txt)
         in_file_path = tmp_file_name
     # Run prettier.
@@ -326,7 +327,6 @@ def prettier(
         cmd.append(in_file_path)
         if in_file_path != out_file_path:
             cmd.append("> " + out_file_path)
-        #
         cmd_as_str = " ".join(cmd)
         _, output_tmp = hsystem.system_to_string(cmd_as_str, abort_on_error=True)
         _LOG.debug("output_tmp=%s", output_tmp)
@@ -336,7 +336,6 @@ def prettier(
         lines = txt.split("\n")
         lines = hmadiblo.remove_prettier_ignore_from_div_blocks(lines)
         txt = "\n".join(lines)
-        #
         txt = hio.to_file(out_file_path, txt)
     timer_.stop()
     _LOG.info("prettier time=%s", str(timer_))
@@ -346,8 +345,8 @@ def prettier_on_str(
     txt: str,
     file_type: str,
     *args: Any,
-    tmp_dir: str = ".",
-    use_hash: bool = False,
+    tmp_dir: str = "",
+    use_hash: bool = True,
     **kwargs: Any,
 ) -> str:
     """
@@ -355,9 +354,12 @@ def prettier_on_str(
 
     :param tmp_dir: directory (e.g., a test's scratch space) to save the
         tmp file used to pass `txt` in and out of `prettier()`
+        - If empty, the tmp file is saved in the current dir
     :param use_hash: whether to append a random hash to the tmp file name
-        to avoid collisions with concurrent / overlapping calls. If False,
-        a fixed name is reused (and overwritten) instead.
+        - If True, each call uses a new file. This avoids collisions with
+          concurrent / overlapping calls and, with Docker bind mounts, avoids
+          the container reading a stale (e.g., truncated) copy of a reused file
+        - If False, a fixed name is reused (and overwritten) instead
     """
     timer_ = htimer.Timer()
     _LOG.debug("txt=\n%s", txt)
@@ -372,9 +374,7 @@ def prettier_on_str(
             tmp_dir, f"tmp.prettier_on_str.{uuid.uuid4().hex[:8]}.{file_type}"
         )
     else:
-        tmp_file_name = os.path.join(
-            tmp_dir, f"tmp.prettier_on_str.{file_type}"
-        )
+        tmp_file_name = os.path.join(tmp_dir, f"tmp.prettier_on_str.{file_type}")
     hio.to_file(tmp_file_name, txt)
     # Call `prettier` in-place.
     prettier(

@@ -2,7 +2,7 @@ repo_info:
   # Name of the repo, like in `//helpers`, `//amp`.
   repo_name: helpers
   # Account name of the repo on GitHub, e.g., `causify-ai`, `gpsaggese`.
-  github_repo_account: causify-ai
+  github_repo_account: gpsaggese
   # Host name of the repo on GitHub, e.g., `github.com`.
   github_host_name: github.com
   # List of words that are not allowed in the repo for security reasons.

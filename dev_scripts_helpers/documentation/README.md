@@ -32,15 +32,16 @@ The toolchain supports multiple documentation workflows:
     - Standard Latex code to convert into PDF files
     - E.g., [`//cmamp/papers`]
     - E.g., [`//cmamp/papers/KaizenFlow`]
-    - Each project lives in its own directory (e.g., under `//papers`) with
-      dockerized scripts that assign project-specific variables and then call
-      the main scripts to do the actual work
-      - `run_latex.sh`: create the PDF from the Latex files
-      - `lint_latex.sh`: lint the Latex files
+    - Each project lives in its own directory (e.g., under `//papers`) and is
+      built and linted by calling the main scripts directly, without
+      per-project wrapper scripts
+      - `run_latex.py`: render the diagrams with `render_images.py` and create
+        the PDF from the Latex files
+      - `lint_text.py`: lint the Latex files
     - Run the scripts from the top of the repo tree, e.g.,
       ```bash
-      > papers/DataFlow_stream_computing_framework/run_latex.sh
-      > papers/DataFlow_stream_computing_framework/lint_latex.sh
+      > run_latex.py -i papers/DataFlow_stream_computing_framework/paper.tex
+      > lint_text.py -i papers/DataFlow_stream_computing_framework/paper.tex --use_dockerized_prettier
       ```
   - **markdown**
     - Documentation using Causify markdown extensions
@@ -91,7 +92,7 @@ The toolchain supports multiple documentation workflows:
 
 - E.g.,
   - Cross-repo links
-    - E.g., [`//helpers/docs/code_guidelines/all.coding_style_guidelines.reference.md`]
+    - E.g., [`//helpers/docs/coding/all.coding_style_guidelines.reference.md`]
   - Color  
     - E.g., `\red{...}`
   - Primitives we use in the slides  
@@ -129,7 +130,8 @@ The toolchain supports multiple documentation workflows:
     - `preprocess_notes.py`: Converts Causify notes to Pandoc Markdown
     - `render_images.py`: Auto-renders diagrams (PlantUML, Mermaid, TikZ,
       Graphviz)
-    - `transform_notes.py`: Applies transformations (TOC, headers, lists)
+    - `run_latex.py`: Renders diagrams and compiles LaTeX files to PDF in Docker
+    - `transform_text.py`: Applies transformations (TOC, headers, lists)
     - `update_md.py`: Multi-action LLM tool for markdown files (summarize,
       update content, apply style)
   - Extraction and Conversion Tools
@@ -161,6 +163,8 @@ The toolchain supports multiple documentation workflows:
       sequences
     - `convert_table.py`: Converts between table formats (CSV, TSV, Markdown)
     - `count_words.py`: Counts words and estimates reading time
+    - `crop_pdf.py`: Crops PDF pages to their content or by fixed margins with
+      `pdfCropMargins` (runs with `uv`)
     - `replace_latex.py`: Batch LaTeX transformations
     - `run_pandoc.py`: Runs Pandoc conversions
   - Generation and Publishing Tools
@@ -173,12 +177,12 @@ The toolchain supports multiple documentation workflows:
   - Shell Script Utilities
     - `epub_to_md.sh`: Converts EPUB to Markdown (shell wrapper)
     - `latexdockercmd.sh`: LaTeX Docker command utility
-    - `lint_latex.sh`: Dockerized linter for LaTeX files using Prettier
+    - `lint_latex.sh`: Obsolete, use `lint_text.py` on the `.tex` files
     - `open_md_in_browser.sh`: Renders Markdown to HTML and opens in browser
     - `open_md_on_github.sh`: Opens a file in GitHub web interface
     - `open_md.sh`: Opens Markdown files (general utility)
     - `replace_latex.sh`: Shell wrapper for LaTeX batch transformations
-    - `run_latex.sh`: Dockerized LaTeX compilation with PDF viewer
+    - `run_latex.sh`: Obsolete, use `run_latex.py`
 
 # Description of Executables
 
@@ -670,6 +674,59 @@ The `--md_end "END"` special value is useful for reading from a starting section
   > concatenate_pdfs.py --input_files "chapter*.pdf" --output_file book.pdf -v DEBUG
   ```
 
+## `crop_pdf.py`
+
+### What It Does
+- Crops the pages of a PDF, removing white margins (auto mode) or fixed-size
+  borders (`--margins`)
+- Delegates the cropping to `pdfCropMargins`, as
+  `download_academic_paper_to_md.py` does
+- Uses the `helpers` library (arguments, logging, assertions, and command
+  execution), and `uv` installs its dependency (`pdfCropMargins`) in an isolated
+  environment on the first run
+- Takes a single PDF with `--input` and writes `--output`, which defaults to
+  `<input>.cropped.pdf`
+- Rewrites the page boxes, so viewers and LaTeX show the cropped page, and
+  leaves the page content untouched
+- Leaves pages outside `--pages` unchanged
+- Supports dry-run mode to print the `pdfCropMargins` command without running it
+- Known limitations of `pdfCropMargins` 2.2.1:
+  - A blank page is left unchanged, except with `--padding`, which shrinks it to
+    an empty square
+  - With `--margins`, left/right and top/bottom are swapped on pages rotated by
+    90 or 270 degrees
+
+### Examples
+- Crop the white margins of all the pages into `figure.cropped.pdf`
+  ```bash
+  > crop_pdf.py --input figure.pdf
+  ```
+
+- Keep 5 points of padding around the content
+  ```bash
+  > crop_pdf.py --input figure.pdf --output figure_tight.pdf --padding 5
+  ```
+
+- Crop all the pages by the same amount to keep slides aligned
+  ```bash
+  > crop_pdf.py --input slides.pdf --output slides_tight.pdf --uniform
+  ```
+
+- Crop only pages 1-3 and 7-9
+  ```bash
+  > crop_pdf.py --input paper.pdf --output paper_tight.pdf --pages "1-3,7-9"
+  ```
+
+- Remove 20 points from the left and 36 points from the top of every page
+  ```bash
+  > crop_pdf.py --input paper.pdf --output paper_trimmed.pdf --margins 20 36 0 0
+  ```
+
+- Show the `pdfCropMargins` command without running it
+  ```bash
+  > crop_pdf.py --input figure.pdf --dry_run
+  ```
+
 ## `run_pandoc.py`
 
 ### What It Does
@@ -694,7 +751,7 @@ The `--md_end "END"` special value is useful for reading from a starting section
 - **Tip:** pass `-v CRITICAL` to silence helper logging when piping into
   editors
 
-## `transform_notes.py`
+## `transform_text.py`
 
 ### What It Does
 - Accepts a **text/Markdown** stream (file or `-`)
@@ -705,33 +762,33 @@ The `--md_end "END"` special value is useful for reading from a starting section
 - Run `-a list` to print a list of the valid
   - `toc`
     - Generate a bullet TOC (top-level by default)
-    - Typical Vim one-liner: `:!transform_notes.py -a toc -i % -l 1`
+    - Typical Vim one-liner: `:!transform_text.py -a toc -i % -l 1`
   - `format_headers`
     - Re-flow / indent headers (up to `--max_lev`)
-    - Typical Vim one-liner: `:%!transform_notes.py -a format -i - --max_lev 3`
+    - Typical Vim one-liner: `:%!transform_text.py -a format -i - --max_lev 3`
   - `increase_headers_level`
     - Bump all headers down one level
-    - Typical Vim one-liner: `:%!transform_notes.py -a increase -i -`
+    - Typical Vim one-liner: `:%!transform_text.py -a increase -i -`
   - `md_list_to_latex`
     - Convert a Markdown list to LaTeX `\begin{itemize}`
-    - Typical Vim one-liner: `:%!transform_notes.py -a md_list_to_latex -i -`
+    - Typical Vim one-liner: `:%!transform_text.py -a md_list_to_latex -i -`
   - `md_*` family
     - Formatting clean-ups (bold bullets, colorize bold text, etc.)
     - Additional Information: See `-a list` for more details
 
 - Re‑flow & clean a file in place
   ```bash
-  > transform_notes.py -a md_format -i notes/lecture.txt
+  > transform_text.py -a md_format -i notes/lecture.txt
   ```
 
 - Generate a 2‑level TOC to STDOUT
   ```bash
-  > transform_notes.py -a toc -i notes/lecture.md -o - -l 2
+  > transform_text.py -a toc -i notes/lecture.md -o - -l 2
   ```
 
 - Tidy ChatGPT‑generated Markdown (visual mode in Vim)
   ```vim
-  :'<,'>!transform_notes.py -i - -o - -a md_fix_chatgpt_output
+  :'<,'>!transform_text.py -i - -o - -a md_fix_chatgpt_output
   ```
 
 ## `update_md.py`
@@ -1320,6 +1377,12 @@ The `--md_end "END"` special value is useful for reading from a starting section
   > uv run convert_pdf_to_md.py --input document.pdf --output output_dir
   ```
 
+- Convert PDF to Markdown without extracting images (figures are extracted by
+  default; image references are kept as HTML comments)
+  ```bash
+  > uv run convert_pdf_to_md.py --input document.pdf --output output_dir --no_extract_figures
+  ```
+
 - With verbose logging
   ```bash
   > uv run convert_pdf_to_md.py --input paper.pdf --output paper_md -v DEBUG
@@ -1476,31 +1539,51 @@ The `--md_end "END"` special value is useful for reading from a starting section
   > open_md_on_github.sh docs/README.md
   ```
 
-## `run_latex.sh`
+## `run_latex.py`
 
 ### What It Does
-- Dockerized LaTeX compilation script
-- Compiles a LaTeX `.tex` file to PDF using Docker
-- Runs `pdflatex` twice to resolve references
-- Opens the resulting PDF in Skim.app (macOS)
-- Uses `blang/latex:ubuntu` Docker image
+- Compiles a LaTeX `.tex` file to PDF with `pdflatex` (and `bibtex`) in Docker,
+  so no local LaTeX installation is needed
+- Replaces the obsolete `run_latex.sh`
+- Runs by default these actions, in order:
+  - `render_images`: renders the diagrams (e.g., Graphviz, Mermaid) in every
+    `.tex` file in the directory of the input via `render_images.py`, in place,
+    since a paper can be split into several `.tex` files
+  - `compile`: runs `pdflatex`, `bibtex` and the extra `pdflatex` passes,
+    depending on `--num_passes`, and reports the LaTeX warnings
+  - `open_pdf`: opens the PDF
+- Runs on demand the actions `compress_pdf` and `copy_to_gdrive`
+- Writes `<input>.pdf` unless `--output` is specified
 
 ### Examples
 - Compile a LaTeX file to PDF
   ```bash
-  > run_latex.sh paper.tex
+  > run_latex.py -i paper.tex
+  ```
+- Full build with bibliography
+  ```bash
+  > run_latex.py -i paper.tex --num_passes 3
+  ```
+- Build without rendering the diagrams
+  ```bash
+  > run_latex.py -i paper.tex --skip_action render_images
+  ```
+- Rebuild on file changes
+  ```bash
+  > run_latex.py -i paper.tex --daemon
   ```
 
 ## `lint_latex.sh`
 
 ### What It Does
-- Dockerized linter for LaTeX files using Prettier
-- Runs `lint_text.py` on every `.tex` file in the same directory as the script
+- Obsolete: run `lint_text.py` directly, since it supports `.tex` files
+- Used to run `lint_text.py` on every `.tex` file in the same directory as the
+  script
 
 ### Examples
 - Lint the LaTeX files in a project directory
   ```bash
-  > papers/DataFlow_stream_computing_framework/lint_latex.sh
+  > lint_text.py -i papers/DataFlow_stream_computing_framework/paper.tex --use_dockerized_prettier
   ```
 
 ## `replace_latex.sh`

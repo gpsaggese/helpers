@@ -25,6 +25,7 @@
   * [Configure Regressions Via Github Actions](#configure-regressions-via-github-actions)
     + [Set Repository Secrets/Variables](#set-repository-secretsvariables)
     + [Create Github Actions Workflow Files](#create-github-actions-workflow-files)
+    + [Configure the Update of the `Helpers` Pointer](#configure-the-update-of-the-helpers-pointer)
     + [Configure Gitleaks Scan](#configure-gitleaks-scan)
   * [Configure Github Repo](#configure-github-repo)
 
@@ -35,13 +36,13 @@
 ## Create a New (Super) Repo in the Desired Organization
 
 - Create a repo within the
-  [`causify-ai` organization](https://github.com/causify-ai)
+  `<org>` organization
 - Follow the
   [official guide](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository#creating-a-new-repository-from-the-web-ui)
   - TODO(Grisha): consider using repository
     [templates](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)
 - Recommended options:
-  - Owner: `causify-ai`
+  - Owner: `<org>`
   - Repository-name: provide a valid short name, e.g., `algo_trading`
   - Visibility: by default choose `Private`
   - Add a README file
@@ -56,7 +57,7 @@
 - Clone the super-repo locally
 
   ```bash
-  > git clone --recursive git@github.com:causify-ai/{repo_name}.git ~/src/{repo_name}{index}
+  > git clone --recursive git@github.com:<org>/{repo_name}.git ~/src/{repo_name}{index}
   ```
 
 - Checkout to a new branch
@@ -72,7 +73,7 @@
   # In general form.
   # > git submodule add {submodule_url} {submodule_path}
   # Example for `cmamp`.
-  > git submodule add git@github.com:causify-ai/helpers.git helpers_root
+  > git submodule add git@github.com:<org>/helpers.git helpers_root
   ```
 
 - The command will create a `.gitmodules` file that we need to check-in:
@@ -80,7 +81,7 @@
   ```text
   [submodule "helpers_root"]
   path = helpers_root
-  url = git@github.com:causify-ai/helpers.git
+  url = git@github.com:<org>/helpers.git
   ```
 
 - Init the submodule and commit the `.gitmodules` file
@@ -322,7 +323,7 @@
   [Managing common files](/docs/tools/dev_system/all.runnable_repo.reference.md#managing-common-files)
   for explanation
 - Refer to
-  [Managing symbolic links between directories](/docs/tools/dev_system/all.replace_common_files_with_script_links.md)
+  [Managing symbolic links between directories](/docs/tools/dev_system/all.replace_common_files_with_script_links.how_to_guide.md)
   for how to use the commands
 
 ## 5) Build Container and Running Tests
@@ -362,15 +363,16 @@
 ### Set Repository Secrets/Variables
 
 - Some secrets/variables are shared in an organization wide storage
-  - E.g. for [Causify](https://github.com/organizations/causify-ai) at
-    [https://github.com/organizations/causify-ai/settings/secrets/actions](https://github.com/organizations/causify-ai/settings/secrets/actions)
+  - E.g., at
+    `https://github.com/organizations/<org>/settings/secrets/actions`
   - These values are shared across all repos in the organization so we don't
     need to create them on a per-repo basis
     - The access method is the same as for per-repo variables - via actions
       context `${{ secrets.MY_TOKEN }}` or ``${{ vars.MY_TOKEN }}`
   - Once a `secret` is set it's read-only for everybody. To preview all of the
     raw values that are currently used, visit
-    [1password > Shared vault > Causify org GH actions secrets](https://causify.1password.com/app#/everything/AllItems/ofre2i2yhv2lyf7ggvv2a4uouaaxvzjzaomv3hol24txn2an5imq)
+    the organization's password manager (e.g., `1Password > Shared vault > Org
+    GH actions secrets`)
 
 - Before adding a new secret/variables for a repo, consider the following:
   - If it's already present in the global storage for an organization, no action
@@ -382,8 +384,7 @@
 - Should a repo need some additional secret values/variables, follow the
   procedure below
 
-1. Login to 1password
-   [https://causify.1password.com/home](https://causify.1password.com/home)
+1. Login to the organization's password manager (e.g., 1Password)
    - Ask your TL if you don't have access to 1password
 2. Navigate to the `Shared Vault`
 3. Search for `Github actions secrets JSON` secret
@@ -410,6 +411,19 @@
      - Find and replace mentions of `helpers` with the name of super repo for
        consistency
      - Replace `invoke run_fast_tests` with your desired action
+
+### Configure the Update of the `Helpers` Pointer
+
+- A super-repo stores only a pointer to a commit of `helpers_root`
+- Set up the workflow that moves the pointer forward every day, after running the
+  regressions
+  - Copy `.github/workflows/update_helpers_submodule.yml` from an existing
+    super-repo (e.g., `//csfy`, `//umd_classes`)
+  - Copy it as is, since GitHub Actions does not resolve symbolic links in
+    `.github/workflows`
+  - Replace the regressions step with the ones of your repo
+- See `docs/tools/dev_system/all.update_helpers_submodule.how_to_guide.md` for the
+  details
 
 ### Configure Gitleaks Scan
 

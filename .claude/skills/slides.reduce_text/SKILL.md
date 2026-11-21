@@ -4,26 +4,25 @@ model: haiku
 ---
 
 # Goal
-- Your goal is to reduce the text in the slide text without changing content or
-  structure
+- Reduce the text in the slides without changing their content or structure
 
 # Workflow
 
 ## Role
-- Your role is specified in `.claude/skills/role.ai_researcher.md`
+- Your role is in `.claude/skills/role.ai_researcher.md`
 
 ## Follow Conventions
-- Follow the conventions in `.claude/skills/slides.rules.md`
-  - E.g., if a line starts with an asterisk `*`, it's the slide title and leave
-    it unchanged
+- Follow `.claude/skills/slides.rules.md`
+  - E.g., a line starting with an asterisk `*` is the slide title. Leave it
+    unchanged
 
 ## Keep the Structure
-- Maintain the sequence of slides, the comments, and the headers
-- Maintain the structure of the text in terms of bullet and sub-bullet points
-- Keep all the figures
+- Keep the slide sequence, the comments, and the headers
+- Keep the bullet and sub-bullet structure
+- Keep all figures
 - Leave bold lines untouched
-- Never collapse a sub-point into a colon-joined clause on the parent bullet:
-  shorten the words in each bullet, don't merge bullets together
+- Never collapse a sub-point into a colon-joined clause on the parent bullet.
+  Shorten the words in each bullet. Do not merge bullets
   - **Bad**
     ```markdown
     - **Collections of data**: organized datasets for analysis
@@ -37,13 +36,13 @@ model: haiku
     ```
 
 ## Reduce Text
-- Reduce text keeping the structure of the bullets untouched
-  - Write directly to the audience using "you"
-  - Be concise: remove filler words (e.g., "the", "that", "very")
+- Reduce the text and keep the bullet structure untouched
+  - Write directly to the audience, using "you"
+  - Be concise. Remove filler words (e.g., "the", "that", "very")
   - Use active voice (e.g., "Improve accuracy," not "Accuracy can be improved")
   - Prefer short phrases over full sentences
-- Delete a whole bullet point outright when it is unclear or adds no
-  information beyond a nearby bullet, rather than trying to trim it
+- Delete a whole bullet when it is unclear or adds no information beyond a nearby
+  bullet. Do not try to trim it
   - E.g., for a slide in input like:
     ```markdown
     * Slide title

@@ -94,6 +94,7 @@ import helpers.hllm_cli as hllmcli
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
 
 _LOG = logging.getLogger(__name__)
@@ -108,8 +109,7 @@ _DEFAULT_GDRIVE_DIR = (
     "My Drive/HN"
 )
 _DEFAULT_OBSIDIAN_DIR = (
-    "/Users/saggese/Library/Mobile Documents/iCloud~md~obsidian/"
-    "Documents/GP/"
+    "/Users/saggese/Library/Mobile Documents/iCloud~md~obsidian/Documents/GP/"
 )
 # Git-tracked dir every processed row's merged summary is also backed up into,
 # in addition to whatever `--dest_type` is selected. Always-on and independent
@@ -484,9 +484,7 @@ def _process_row(
         - the full contents of the saved `*.stats.json` file (read back from
           disk), or None unless status is `"processed"`
     """
-    _LOG.debug(
-        hprint.to_str("output_dir model no_incremental dry_run")
-    )
+    _LOG.debug(hprint.to_str("output_dir model no_incremental dry_run"))
     hn_url = (row.get("Hn_url") or "").strip()
     if not hn_url or not dshdbout.is_hackernews_url(hn_url):
         _LOG.warning(
@@ -512,8 +510,7 @@ def _process_row(
             title,
         )
         _LOG.debug(
-            "[DRY RUN] Would download+summarize '%s' into '%s' and set "
-            "Done=yes",
+            "[DRY RUN] Would download+summarize '%s' into '%s' and set Done=yes",
             hn_url,
             output_dir,
         )
@@ -598,9 +595,7 @@ def _process_row(
 # #############################################################################
 
 
-def _find_cached_merged_summary(
-    output_dir: str, item_id: str
-) -> Optional[str]:
+def _find_cached_merged_summary(output_dir: str, item_id: str) -> Optional[str]:
     """
     Find the cached `<base>.summary.md` merged-summary file for `item_id`
     under `output_dir`, if `_process_row()` already produced it.
@@ -788,7 +783,9 @@ def _main(parser: argparse.ArgumentParser) -> None:
         rows, no_incremental=args.no_incremental, limit=args.limit
     )
     if args.dry_run:
-        _LOG.warning("DRY RUN MODE: showing what would be done without executing")
+        _LOG.warning(
+            "DRY RUN MODE: showing what would be done without executing"
+        )
     script = hgit.find_file_in_git_tree("download_hn_article_to_md.py")
     if not args.dry_run:
         hio.create_dir(args.output_dir, incremental=True)

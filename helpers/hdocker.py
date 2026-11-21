@@ -220,7 +220,6 @@ def container_exists(container_name: str, use_sudo: bool) -> Tuple[bool, str]:
     ```
     """
     _LOG.debug(hprint.func_signature_to_str())
-    #
     executable = get_docker_executable(use_sudo)
     cmd = f"{executable} container ls --filter name=/{container_name} -aq"
     _, container_id = hsystem.system_to_one_line(cmd)
@@ -239,7 +238,6 @@ def image_exists(image_name: str, use_sudo: bool) -> Tuple[bool, str]:
     ``` > docker image inspect tmp.prettier ```
     """
     _LOG.debug(hprint.func_signature_to_str())
-    #
     executable = get_docker_executable(use_sudo)
     # `image inspect` returns 0 if the image exists, 1 otherwise.
     cmd = f"{executable} image inspect {image_name}"
@@ -262,7 +260,6 @@ def pull_image(image_name: str, use_sudo: bool) -> None:
     ```
     """
     _LOG.debug(hprint.func_signature_to_str())
-    #
     executable = get_docker_executable(use_sudo)
     engine = get_docker_engine()
     if engine == "docker":
@@ -284,7 +281,6 @@ def container_rm(container_name: str, use_sudo: bool) -> None:
     :raises AssertionError: If the container ID is not found.
     """
     _LOG.debug(hprint.func_signature_to_str())
-    #
     executable = get_docker_executable(use_sudo)
     # Find the container ID from the name.
     # Docker filter refers to container names using a leading `/`.
@@ -307,7 +303,6 @@ def volume_rm(volume_name: str, use_sudo: bool) -> None:
     :param use_sudo: Whether to use sudo for Docker commands.
     """
     _LOG.debug(hprint.func_signature_to_str())
-    #
     executable = get_docker_executable(use_sudo)
     cmd = f"{executable} volume rm {volume_name}"
     hsystem.system(cmd)
@@ -559,6 +554,12 @@ def get_container_image_name(
     """
     Get the name of the container image.
 
+    The tag encodes the CPU architecture and a hash of the Dockerfile
+    content, e.g. `tmp.pandoc_texlive.arm64.4867bd42`, so that the tag is
+    fully deterministic: the same Dockerfile content on the same
+    architecture always yields the same tag, and `docker build` reuses the
+    existing image instead of rebuilding it.
+
     :param image_name: Name of the Docker container to build.
     :param dockerfile: Content of the Dockerfile for building the container.
     :return: Name of the container image.
@@ -587,7 +588,6 @@ def get_container_image_name(
     current_arch = get_current_arch()
     sha256_hash = hashlib.sha256(dockerfile.encode()).hexdigest()
     short_hash = sha256_hash[:8]
-    # Build the name of the container image.
     image_name_out = f"{image_name}.{current_arch}.{short_hash}"
     return image_name_out, dockerfile
 
@@ -618,7 +618,6 @@ def build_container_image(
     _LOG.debug(hprint.func_signature_to_str("dockerfile"))
     # Verify that the Docker system is running before attempting to build.
     hdbg.dassert(is_docker_running(), "Docker engine is not running")
-    #
     image_name_out, dockerfile = get_container_image_name(image_name, dockerfile)
     # Check if the container already exists. If not, build it.
     has_container, _ = image_exists(image_name_out, use_sudo)
@@ -874,7 +873,6 @@ def convert_caller_to_callee_docker_path(
     rel_path = os.path.relpath(caller_file_path, caller_mount_point)
     docker_path = os.path.join(callee_mount_path, rel_path)
     docker_path = os.path.normpath(docker_path)
-    #
     _LOG.debug(
         "  Converted %s -> %s -> %s", caller_file_path, rel_path, docker_path
     )

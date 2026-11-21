@@ -119,6 +119,85 @@ class Test_remove_bullets(hunitest.TestCase):
 
 
 # #############################################################################
+# Test_add_checkbox1
+# #############################################################################
+
+
+class Test_add_checkbox1(hunitest.TestCase):
+    """
+    Test the add_checkbox function.
+    """
+
+    def helper(self, text: str, expected: str) -> None:
+        """
+        Helper to test add_checkbox function.
+
+        :param text: input text
+        :param expected: expected output with checkbox prefixes added
+        """
+        # Run test.
+        text = hprint.dedent(text)
+        actual = hmarkdo.add_checkbox(text)
+        # Check outputs.
+        self.assert_equal(actual, expected, dedent=True)
+
+    def test1(self) -> None:
+        """
+        Test basic checkbox addition.
+        """
+        # Prepare inputs.
+        text = """
+        First item
+        Second item
+        Third item
+        """
+        # Prepare outputs.
+        expected = """
+        - [ ] First item
+        - [ ] Second item
+        - [ ] Third item
+        """
+        # Run test.
+        self.helper(text, expected)
+
+    def test2(self) -> None:
+        """
+        Test empty lines are preserved without a checkbox.
+        """
+        # Prepare inputs.
+        text = """
+        First item
+
+        Second item
+        """
+        # Prepare outputs.
+        expected = """
+        - [ ] First item
+
+        - [ ] Second item
+        """
+        # Run test.
+        self.helper(text, expected)
+
+    def test3(self) -> None:
+        """
+        Test lines that already have a bullet get a checkbox prefixed too.
+        """
+        # Prepare inputs.
+        text = """
+        - First item
+        - Second item
+        """
+        # Prepare outputs.
+        expected = """
+        - [ ] - First item
+        - [ ] - Second item
+        """
+        # Run test.
+        self.helper(text, expected)
+
+
+# #############################################################################
 # Test_bold_first_level_bullets1
 # #############################################################################
 
@@ -430,7 +509,6 @@ class Test_format_first_level_bullets1(hunitest.TestCase):
     def format_and_compare_markdown(self, text: str, expected: str) -> None:
         text = hprint.dedent(text)
         expected = hprint.dedent(expected)
-        #
         lines = text.split("\n")
         actual_lines = hmarkdo.format_first_level_bullets(lines)
         actual = "\n".join(actual_lines)
@@ -698,7 +776,6 @@ class Test_process_code_block1(hunitest.TestCase):
             out.extend(out_tmp)
             if do_continue:
                 continue
-            #
             out.append(line)
         return "\n".join(out)
 

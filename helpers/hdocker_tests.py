@@ -57,7 +57,6 @@ def _run_docker_pytest_cmd(
     """
     hdbg.dassert_file_exists(test_file)
     hdbg.dassert_file_exists(docker_cmd_script)
-    #
     cmd = f'{docker_cmd_script} "pytest {test_file}"'
     # TODO(gp): Why abort_on_error?
     rc = hsystem.system(cmd, abort_on_error=False)
@@ -78,9 +77,47 @@ def run_docker_cmd(
     # Look for `docker_cmd.sh`
     docker_cmd_script = os.path.join(docker_script_dir, "docker_cmd.sh")
     hdbg.dassert_file_exists(docker_cmd_script)
-    #
     cmd = f"cd {docker_script_dir} && bash {docker_cmd_script} '{shell_cmd}'"
     hsystem.system(cmd)
+
+
+def get_unit_tests_cmd(
+    docker_script_dir: str, test_file_names: List[str]
+) -> str:
+    """
+    Build the command that runs unit tests of a project inside its container.
+
+    The repo is mounted at `/git_root` inside the container, so the paths of the
+    test files are computed relative to the root of the repo.
+
+    :param docker_script_dir: project directory containing `docker_cmd.sh`
+    :param test_file_names: names of the test files in the `test/` dir of the
+        project
+        - E.g., `["test_utils.py"]`
+    :return: shell command to pass to `docker_cmd.sh`
+        - E.g., `cd /git_root && python -m pytest my_project/test/test_utils.py`
+    """
+    _LOG.debug(hprint.to_str("docker_script_dir test_file_names"))
+    hdbg.dassert_lt(0, len(test_file_names), "No test files to run")
+    # Compute the project dir relative to the repo root, which is `/git_root`
+    # inside the container.
+    git_root = hgit.find_git_root(docker_script_dir)
+    rel_dir = os.path.relpath(docker_script_dir, git_root)
+    # Check that each test file exists and compute its path in the container.
+    test_paths = []
+    for test_file_name in test_file_names:
+        test_path = os.path.join(docker_script_dir, "test", test_file_name)
+        hdbg.dassert_file_exists(test_path)
+        test_paths.append(os.path.join(rel_dir, "test", test_file_name))
+    # Build the command.
+    cmd_parts = [
+        "cd /git_root &&",
+        "python -m pytest",
+        *test_paths,
+    ]
+    cmd = " ".join(cmd_parts)
+    _LOG.debug("return=%s", cmd)
+    return cmd
 
 
 # TODO(gp): Consider making docker_cmd_script mandatory.
@@ -125,8 +162,10 @@ class DockerTestCase(hunitest.TestCase):
     """
     Base test class for Docker tests.
 
-    Subclasses must set `_test_file = __file__` and may add notebook test
-    methods that call `self.helper(notebook_name)`.
+    Subclasses must set `_test_file = __file__` and may add notebook test methods
+    that call `self.run_notebook()`, passing `use_docker_cmd` and `generate_html`
+    explicitly, and a test method that calls `self.run_unit_tests()` with the
+    test files of the project.
     """
 
     # Assigned by subclasses.
@@ -181,6 +220,7 @@ class DockerTestCase(hunitest.TestCase):
         hsystem.system(cmd)
 
     @pytest.mark.order(3)
+    @pytest.mark.slow
     def test_docker_bash(self) -> None:
         """
         Test that `docker_bash.sh` runs 'ls /git_root' without error.
@@ -195,30 +235,86 @@ class DockerTestCase(hunitest.TestCase):
         cmd = f"echo '{shell_cmd}' | bash {docker_bash_script}"
         hsystem.system(cmd)
 
-    def helper(self, notebook_name: str) -> None:
+    def run_notebook(
+        self,
+        notebook_name: str,
+        *,
+        use_docker_cmd: bool,
+        generate_html: bool,
+    ) -> None:
         """
         Run a single notebook inside Docker.
 
         :param notebook_name: notebook filename relative to the project dir
+        :param use_docker_cmd: select how to run the notebook
+            - If True, run `jupyter nbconvert` directly through the
+              `docker_cmd.sh` of the project
+            - If False, run `run_nbconvert.py`, which executes the notebook in
+              the container of the project and always generates the HTML
+        :param generate_html: if True, render with the `html_anchorfix`
+            template (same one `run_nbconvert.py` uses) so the exported HTML
+            has working per-cell anchors and any `ipywidgets` keep their last
+            rendered look; if False, just check that the notebook executes
+            without error
+            - Used only if `use_docker_cmd` is True
         """
+        _LOG.debug(hprint.to_str("notebook_name use_docker_cmd generate_html"))
         # Prepare inputs.
         docker_script_dir = self._get_docker_docker_script_dir()
-        docker_cmd_script = os.path.join(docker_script_dir, "docker_cmd.sh")
-        _LOG.debug(hprint.to_str("docker_cmd_script"))
         # Notebook path.
         notebook_path = os.path.join(docker_script_dir, notebook_name)
         hdbg.dassert_file_exists(notebook_path)
         _LOG.debug(hprint.to_str("notebook_path"))
-        # Compute the notebook path inside the container via /git_root.
-        git_root = hgit.find_git_root(docker_script_dir)
-        rel_path = os.path.relpath(docker_script_dir, git_root)
-        container_notebook_path = f"/git_root/{rel_path}/{notebook_name}"
-        _LOG.debug(hprint.to_str("container_notebook_path"))
+        if use_docker_cmd:
+            docker_cmd_script = os.path.join(docker_script_dir, "docker_cmd.sh")
+            _LOG.debug(hprint.to_str("docker_cmd_script"))
+            # Compute the notebook path inside the container via /git_root.
+            git_root = hgit.find_git_root(docker_script_dir)
+            rel_path = os.path.relpath(docker_script_dir, git_root)
+            container_notebook_path = f"/git_root/{rel_path}/{notebook_name}"
+            _LOG.debug(hprint.to_str("container_notebook_path"))
+            # Build the nbconvert command.
+            nbconvert_cmd = (
+                "jupyter nbconvert --execute --to html "
+                "--ExecutePreprocessor.timeout=-1"
+            )
+            if generate_html:
+                # Match `run_nbconvert.py`'s template so the HTML has working
+                # per-cell anchors.
+                nbconvert_cmd += (
+                    " --template html_anchorfix "
+                    "--TemplateExporter.extra_template_basedirs="
+                    "/git_root/helpers_root/dev_scripts_helpers/notebooks/"
+                    "nbconvert_templates"
+                )
+            nbconvert_cmd += f" {container_notebook_path}"
+            # Run command.
+            cmd = (
+                f"cd {docker_script_dir} && "
+                f"bash {docker_cmd_script} '{nbconvert_cmd}'"
+            )
+            hsystem.system(cmd)
+        else:
+            script_path = hgit.find_file_in_git_tree("run_nbconvert.py")
+            cmd_parts = [
+                script_path,
+                f"-i {notebook_path}",
+            ]
+            cmd = " ".join(cmd_parts)
+            # Show the output while the notebook runs since it can take minutes.
+            hsystem.system(cmd, suppress_output=False)
+
+    def run_unit_tests(self, test_file_names: List[str]) -> None:
+        """
+        Run unit tests of the project inside Docker through `docker_cmd.sh`.
+
+        :param test_file_names: names of the test files in the `test/` dir of
+            the project
+            - E.g., `["test_utils.py"]`
+        """
+        _LOG.debug(hprint.to_str("test_file_names"))
+        # Prepare inputs.
+        docker_script_dir = self._get_docker_docker_script_dir()
+        shell_cmd = get_unit_tests_cmd(docker_script_dir, test_file_names)
         # Run command.
-        cmd = (
-            f"cd {docker_script_dir} && "
-            f"bash {docker_cmd_script} "
-            f"'jupyter nbconvert --execute --to html "
-            f"--ExecutePreprocessor.timeout=-1 {container_notebook_path}'"
-        )
-        hsystem.system(cmd)
+        run_docker_cmd(docker_script_dir, shell_cmd=shell_cmd)

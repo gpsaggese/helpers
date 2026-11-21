@@ -4,6 +4,7 @@ Import as:
 import helpers.henv as henv
 """
 
+import importlib
 import logging
 import os
 from typing import Any, List, Tuple, Union
@@ -166,7 +167,7 @@ def get_secret_env_vars() -> List[str]:
     # TODO(gp): GFI. Use `hdbg.dassert_issubset()` instead.
     if not set(secret_env_var_names).issubset(set(env_vars)):
         diff = set(secret_env_var_names).difference(set(env_vars))
-        cmd = f"Secret vars in `{str(diff)} are not in '{str(env_vars)}'"
+        cmd = f"Secret vars in `{diff!s} are not in '{env_vars!s}'"
         assert 0, cmd
     # Sort.
     secret_env_var_names = sorted(secret_env_var_names)
@@ -291,7 +292,6 @@ def _get_git_signature(git_commit_type: str = "all") -> str:
         pass
     else:
         raise ValueError(f"Invalid value='{git_commit_type}'")
-    #
     result = "\n".join(txt) + "\n"
     hdbg.dassert(result.endswith("\n"), "result='%s'", result)
     return result
@@ -346,7 +346,6 @@ def _get_platform_info() -> str:
     txt_tmp.append(f"version={uname.version}")
     txt_tmp.append(f"machine={uname.machine}")
     txt_tmp.append(f"processor={uname.processor}")
-    #
     txt = hprint.to_info("Platform info", txt_tmp)
     return txt
 
@@ -366,15 +365,14 @@ def _get_psutil_info() -> str:
     if has_psutil:
         txt_tmp.append(f"cpu count={psutil.cpu_count()}")  # type: ignore[possibly-unbound]
         if hasattr(psutil, "cpu_freq") and psutil.cpu_freq is not None:  # type: ignore[possibly-unbound]
-            txt_tmp.append(f"cpu freq={str(psutil.cpu_freq())}")  # type: ignore[possibly-unbound]
+            txt_tmp.append(f"cpu freq={psutil.cpu_freq()!s}")  # type: ignore[possibly-unbound]
         else:
             txt_tmp.append("cpu freq=unavailable")
         # TODO(gp): Report in MB or GB.
-        txt_tmp.append(f"memory={str(psutil.virtual_memory())}")  # type: ignore[possibly-unbound]
-        txt_tmp.append(f"disk usage={str(psutil.disk_usage('/'))}")  # type: ignore[possibly-unbound]
+        txt_tmp.append(f"memory={psutil.virtual_memory()!s}")  # type: ignore[possibly-unbound]
+        txt_tmp.append(f"disk usage={psutil.disk_usage('/')!s}")  # type: ignore[possibly-unbound]
     else:
         txt_tmp.append("psutil is not installed")
-    #
     txt = hprint.to_info("psutils info", txt_tmp)
     return txt
 
@@ -385,15 +383,15 @@ def _get_psutil_info() -> str:
 
 
 def _get_library_version(lib_name: str) -> str:
+    # Use `importlib` instead of `exec("import ...")` since, starting from
+    # Python 3.13, `exec()` inside a function doesn't bind the imported name in
+    # the function locals (PEP 667), so a following `eval()` raises `NameError`.
     try:
-        cmd = f"import {lib_name}"
-        # pylint: disable=exec-used
-        exec(cmd)
+        lib = importlib.import_module(lib_name)
     except ImportError:
         version = "?"
     else:
-        cmd = f"{lib_name}.__version__"
-        version = eval(cmd)
+        version = lib.__version__
     return version
 
 
@@ -443,7 +441,6 @@ def _get_package_info() -> Tuple[str, int]:
             failed_imports += 1
         packages.append((lib, version))
     txt_tmp.extend([f"{lib}: {version}" for (lib, version) in packages])
-    #
     txt = hprint.to_info("Packages", txt_tmp)
     return txt, failed_imports
 
@@ -460,7 +457,6 @@ def _get_git_info(git_commit_type: str) -> str:
     except RuntimeError as e:
         _LOG.warning(str(e))
         txt_tmp.append("No git info")
-    #
     txt = hprint.to_info("Git info", txt_tmp)
     return txt
 
@@ -503,7 +499,6 @@ def get_system_signature(git_commit_type: str = "all") -> Tuple[str, int]:
     txt_tmp, failed_imports = _get_package_info()
     hprint.dassert_one_trailing_newline(txt_tmp)
     txt.append(txt_tmp)
-    #
     txt_str: str = hprint.to_info("System signature", txt)
     return txt_str, failed_imports
 
@@ -522,20 +517,15 @@ def env_to_str(
     """
     Package all the information into a string.
     """
-    #
     msg = ""
-    #
     if repo_config:
         repo_config_str = hrecouti.get_repo_config().config_func_to_str()
         msg += hprint.to_info("Repo config", repo_config_str) + "\n"
-    #
     if server_config:
         server_config_str = hserver.config_func_to_str()
         msg += hprint.to_info("Server config", server_config_str) + "\n"
-    #
     if system_signature:
         msg += get_system_signature()[0] + "\n"
-    #
     if env_vars:
         env_vars_str = env_vars_to_string()
         msg += hprint.to_info("Env vars", env_vars_str) + "\n"

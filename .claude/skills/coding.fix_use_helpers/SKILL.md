@@ -4,9 +4,7 @@ model: haiku
 ---
 
 # Goal
-I will provide references to one or more Python source files `<FILES>`. Read
-and analyze the code across these files and identify what functions can be
-replaced with functions from `helpers`.
+Given Python source files `<FILES>`, find functions that `helpers` can replace.
 
 # Workflow
 - The most important packages are:

@@ -4,7 +4,7 @@ model: haiku
 ---
 
 # Goal
-- Given one or more links `<LINKS>`, find which file(s) among the following are
+- Given one or more links `<LINKS>`, find the file(s) among the following that are
   related to each link, and add a TODO to the most related file:
   - `research/ideas/*.md`
   - `website/docs/blog/posts/*.md`
@@ -15,45 +15,39 @@ model: haiku
 # Workflow
 
 ## Collect Material
-- Read the title / content of each link in `<LINKS>` (use `WebFetch` if the
-  URL alone is not descriptive enough to judge topic)
-- List all candidate files:
-  - `research/ideas/*.md`
-  - `website/docs/blog/posts/*.md`
+- Read the title and content of each link in `<LINKS>` (use `WebFetch` if the URL
+  alone is not descriptive enough to judge the topic)
+- List all candidate files in the two dirs above
 
 ## Match Links to Files
-- For each link, compare its topic against the content of each candidate file
-  (title, headers, first paragraph) and rank candidates by relevance
-- Pick the single best-matching file for each link
-  - If several files are close in relevance, list them and ask the user
-    which one to use
-  - If no file is a plausible match (topic not covered anywhere), do not
-    force a match: report this to the user instead of guessing
+- For each link, compare its topic with each candidate's title, headers, and first
+  paragraph. Rank candidates by relevance
+- Pick the single best match for each link
+  - If several files are close, list them and ask the user which to use
+  - If no file plausibly matches, do not force a match. Report it instead
 
 ## Add the TODO
 - In the matched file, add one line:
   ```text
   // TODO(gp): incorporate the link <LINK> to <TOPIC>
   ```
-  where `<TOPIC>` is a short (< 15 words) description of what part of the
-  link is relevant (e.g., a technique, a result, a quote)
+  where `<TOPIC>` is a short description (under 15 words) of the relevant part of
+  the link, e.g., a technique, a result, or a quote
 - Placement:
-  - If the file already has a top-of-file `// TODO(gp): ...` block, add the
-    new TODO as an adjacent line in that block
-  - Otherwise, add it near the section of the file the link is most related
-    to (e.g., right above the relevant bullet point or paragraph)
-- Do not change any other content of the file
-- If multiple links map to the same file, add one TODO line per link
+  - If the file has a top-of-file `// TODO(gp): ...` block, add the new line as an
+    adjacent line in that block
+  - Otherwise, put it near the most related section, e.g., right above the relevant
+    bullet point or paragraph
+- Change no other content in the file
+- If several links map to one file, add one TODO line per link
 
 ## Report
-- Print, for each link, which file it was added to and the exact TODO line
-  that was inserted
-- For any link that could not be matched, report that explicitly instead of
-  silently skipping it
+- For each link, print the file it was added to and the exact TODO line inserted
+- Report any unmatched link explicitly. Do not skip it silently
 
 # Verification
-- [ ] Each link is matched to at most one file, with no forced or guessed match
+- [ ] Each link matches at most one file, with no forced or guessed match
 - [ ] Each inserted line follows the exact `// TODO(gp): incorporate the link <LINK>
   to <TOPIC>` format
-- [ ] No content other than the new TODO line(s) was changed in the matched file
-- [ ] The report lists every link with its target file or its "not matched" status
+- [ ] No content other than the new TODO line(s) changed in the matched file
+- [ ] The report lists every link with its target file or "not matched" status

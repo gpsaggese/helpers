@@ -62,6 +62,7 @@ import helpers.hselect_action as hselacti
 import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
 import helpers.hunit_test_purification as huntepur
+
 import dev_scripts_helpers.dockerize.lib_typst as dshdlity
 
 _LOG = logging.getLogger(__name__)
@@ -281,6 +282,11 @@ def _process_typst_file(
             watch_cmd_suffix=" --skip_action=open_pdf",
             debounce_sec=4,
             wait_in_sec=1,
+            # The `render_images` action can rewrite `in_file_path` itself;
+            # its own conflict-marker guard already protects against a
+            # concurrent edit, so trust that self-rewrite instead of treating
+            # it as a new edit.
+            rewrites_file_in_place=True,
         )
         return
     # Get actions.

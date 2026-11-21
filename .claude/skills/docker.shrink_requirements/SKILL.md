@@ -5,16 +5,16 @@ model: haiku
 
 # Goal
 - Act as an expert in Docker
-- Given a directory `<TARGET_DIR>` with a project, find which packages in
-  `requirements.txt` are not needed by the code in `<TARGET_DIR>`
+- Given a project dir `<TARGET_DIR>`, find the packages in `requirements.txt`
+  that its code does not need
 
 # Workflow
 
 ## Methodology
-- Use `grep -r "import <PKG>"` or AST-based analysis to find actual imports
-  across all `.py` files in `<TARGET_DIR>`
-- Map package names in `requirements.txt` to their import names (e.g., `Pillow`
-  -> `PIL`, `scikit-learn` -> `sklearn`, `PyYAML` -> `yaml`)
+- Find actual imports in all `.py` files in `<TARGET_DIR>` with
+  `grep -r "import <PKG>"` or AST-based analysis
+- Map each package in `requirements.txt` to its import name (e.g., `Pillow` ->
+  `PIL`, `scikit-learn` -> `sklearn`, `PyYAML` -> `yaml`)
 - Also check `setup.py`, `pyproject.toml`, `tasks.py`, and `Makefile` for
   indirect or tool-level usage
 - Flag but do NOT remove packages that are:

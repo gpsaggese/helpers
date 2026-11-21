@@ -4,8 +4,8 @@ model: haiku
 ---
 
 # Goal
-- Consolidate and rename skills by topic to make the skill set better
-  organized and less redundant
+- Consolidate and rename skills by topic, so the skill set is better organized
+  and less redundant
 
 # Workflow
 
@@ -13,14 +13,14 @@ model: haiku
 - Read `.claude/skills/skill.rules.md`
 
 ## Find All the Topics
-- Find the topics by running
+- Find the topics by running:
   ```bash
   > find .claude/skills -type d | sort | tail -n +2 | sed 's|^\.claude/skills/||' | awk -F'.' '{print $1}' | sort -u
   ```
 
 ## Process Skills for Each Topic
-- For each `<TOPIC>`, find all the associated skills in the format
-  `.claude/skills/<TOPIC>.<ACTION>/SKILL.md`
+- For each `<TOPIC>`, find its skills in the format
+  `.claude/skills/<TOPIC>.<ACTION>/SKILL.md`:
   ```bash
   > mdm skill f <TOPIC>
   ```
@@ -34,9 +34,7 @@ model: haiku
   ```
 
 ## Propose the Plan
-- For each topic `<TOPIC>`:
-  - Check for redundant actions
-  - Suggest clearer names for the skills
+- For each `<TOPIC>`, check for redundant actions and suggest clearer skill names
 
 ## Execute the Plan
 - Ask the user to approve the plan
@@ -47,7 +45,7 @@ model: haiku
 
 # Verification
 - [ ] The user approved the plan before any file was changed
-- [ ] Every renamed or removed skill directory still has a valid `SKILL.md`,
-      or was intentionally removed
-- [ ] No reference elsewhere in `.claude/skills` points to a renamed or
-      removed skill's old path
+- [ ] Every renamed or removed skill directory still has a valid `SKILL.md`, or
+      was intentionally removed
+- [ ] No reference elsewhere in `.claude/skills` points to a renamed or removed
+      skill's old path

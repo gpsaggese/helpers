@@ -5,7 +5,7 @@
 # ///
 
 r"""
-Convert a PDF to Markdown using PyMuPDF (fitz).
+Convert a PDF to Markdown using PyMuPDF.
 
 The script extracts text and images from a PDF file and converts them to
 Markdown format with embedded image references.
@@ -17,12 +17,12 @@ Automatically installs dependencies via `uv` if missing.
 - Convert PDF to markdown with images:
 > convert_pdf_to_md.py --input document.pdf --clear_actions --action convert --output output_dir
 
-- Convert PDF to markdown without images:
+- Convert PDF to markdown without images (by default figures are extracted):
 > convert_pdf_to_md.py \
     --input document.pdf \
     --clear_actions --action convert \
     --output output_dir \
-    --skip_figures
+    --no_extract_figures
 
 - Clean an existing markdown file (remove PDF conversion artifacts):
 > convert_pdf_to_md.py --input document.pdf --clear_actions --action remove_junk
@@ -51,15 +51,17 @@ import logging
 import os
 import re
 import shutil
-from typing import cast, Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
-import fitz
+import pymupdf
 from tqdm import tqdm
 
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
+import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
+
 import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
@@ -70,7 +72,7 @@ _LOG = logging.getLogger(__name__)
 
 
 def _extract_images_from_page(
-    page: fitz.Page,
+    page: pymupdf.Page,
     *,
     page_num: int,
     images_dir: str,
@@ -160,7 +162,7 @@ def _extract_images_from_page(
                     page_num,
                 )
                 rect = page.rect
-                mat = fitz.Matrix(2, 2)
+                mat = pymupdf.Matrix(2, 2)
                 pix = page.get_pixmap(matrix=mat)  # type: ignore
                 pix.save(image_path)
                 _LOG.debug(
@@ -179,7 +181,7 @@ def _extract_images_from_page(
     return image_items
 
 
-def _analyze_font_sizes(page: fitz.Page) -> Dict[str, float]:  # type: ignore
+def _analyze_font_sizes(page: pymupdf.Page) -> Dict[str, float]:  # type: ignore
     """
     Analyze font sizes in a page to determine heading thresholds.
 
@@ -227,7 +229,7 @@ def _analyze_font_sizes(page: fitz.Page) -> Dict[str, float]:  # type: ignore
 
 
 def _extract_text_with_formatting(
-    page: fitz.Page,
+    page: pymupdf.Page,
     *,
     page_num: int,
     font_thresholds: Dict[str, float],  # type: ignore
@@ -262,8 +264,7 @@ def _extract_text_with_formatting(
                 size = span.get("size", 0)
                 font = span.get("font", "")
                 line_text.append(text)
-                if size > max_font_size:
-                    max_font_size = size
+                max_font_size = max(max_font_size, size)
                 if "Bold" in font or "bold" in font:
                     is_bold = True
             if line_text:
@@ -279,9 +280,11 @@ def _extract_text_with_formatting(
             md_type = "h1"
         elif max_font_size >= font_thresholds["h2_threshold"]:
             md_type = "h2"
-        elif max_font_size >= font_thresholds["h3_threshold"]:
-            md_type = "h3"
-        elif is_bold and len(content) < 100:
+        elif (
+            max_font_size >= font_thresholds["h3_threshold"]
+            or is_bold
+            and len(content) < 100
+        ):
             md_type = "h3"
         else:
             md_type = "text"
@@ -301,7 +304,7 @@ def _pdf_to_markdown(
     *,
     pdf_path: str,
     output_dir: str,
-    skip_figures: bool = False,
+    extract_figures: bool = True,
     overwrite: bool = False,
 ) -> None:
     """
@@ -309,9 +312,10 @@ def _pdf_to_markdown(
 
     :param pdf_path: Path to input PDF file
     :param output_dir: Directory to save markdown and images; defaults to input file's directory
-    :param skip_figures: If True, do not extract images; include references as HTML comments
+    :param extract_figures: If True, extract images; if False, include references as HTML comments
     :param overwrite: If True, delete existing output files before conversion
     """
+    _LOG.debug(hprint.to_str("pdf_path output_dir extract_figures overwrite"))
     hdbg.dassert_file_exists(pdf_path, "PDF file does not exist")
     # Derive output directory from input file location when not specified.
     if output_dir is None:
@@ -339,11 +343,11 @@ def _pdf_to_markdown(
                 f"Output file already exists: {md_path} (use --overwrite to replace)"
             )
     # Create images directory to store extracted figures.
-    if not skip_figures:
+    if extract_figures:
         hio.create_dir(images_dir, incremental=True)
     # Open PDF and prepare for extraction.
     _LOG.debug("Opening PDF: %s", pdf_path)
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     md_lines = []
     total_images = 0
     # Process each page of the PDF.
@@ -352,18 +356,18 @@ def _pdf_to_markdown(
         total=len(doc),
         desc="Extracting pages",
     ):
-        page = cast(fitz.Page, page)
+        page = cast(pymupdf.Page, page)
         _LOG.debug("=" * 60)
         _LOG.debug("Processing page %d of %d", page_num, len(doc))
         # Analyze font sizes to determine heading thresholds.
         font_thresholds = _analyze_font_sizes(page)
-        # Extract images with positions (save files only when not skipping figures).
+        # Extract images with positions (save files only when extracting figures).
         image_items = _extract_images_from_page(
             page,
             page_num=page_num,
             images_dir=images_dir,
             images_dir_name=images_dir_name,
-            save_images=not skip_figures,
+            save_images=extract_figures,
         )
         total_images += len(image_items)
         # Extract text with formatting information.
@@ -394,11 +398,11 @@ def _pdf_to_markdown(
             elif item_type == "text":
                 md_lines.append(content)
             elif item_type == "image":
-                # Comment out image references when figures are skipped.
-                if skip_figures:
-                    md_lines.append(f"<!-- {content} -->")
-                else:
+                # Comment out image references when figures are not extracted.
+                if extract_figures:
                     md_lines.append(content)
+                else:
+                    md_lines.append(f"<!-- {content} -->")
                 _LOG.debug("Inserted image at y=%.2f", y_pos)
     # Join markdown lines.
     markdown_content = "\n\n".join(md_lines)
@@ -406,13 +410,13 @@ def _pdf_to_markdown(
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
     _LOG.debug("=" * 60)
-    # Log extraction results based on figure skip setting.
-    if not skip_figures:
+    # Log extraction results based on figure extraction setting.
+    if extract_figures:
         _LOG.debug("Extracted %d total images", total_images)
         _LOG.debug("Images saved to: %s", os.path.abspath(images_dir))
     else:
         _LOG.debug(
-            "Image references included as HTML comments (figures skipped)"
+            "Image references included as HTML comments (figures not extracted)"
         )
     _LOG.info("Markdown saved to: %s", os.path.abspath(md_path))
 
@@ -538,10 +542,11 @@ def _parse() -> argparse.ArgumentParser:
         default="",
         help="Output directory for markdown and images (default: same directory as input)",
     )
-    parser.add_argument(
-        "--skip_figures",
-        action="store_true",
-        help="Skip processing figures and images from the PDF",
+    hparser.add_bool_arg(
+        parser,
+        "extract_figures",
+        default_value=True,
+        help_="Extract figures/images from the PDF",
     )
     parser.add_argument(
         "--overwrite",
@@ -577,7 +582,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
             _pdf_to_markdown(
                 pdf_path=args.input,
                 output_dir=args.output,
-                skip_figures=args.skip_figures,
+                extract_figures=args.extract_figures,
                 overwrite=args.overwrite,
             )
         elif action == "remove_junk":

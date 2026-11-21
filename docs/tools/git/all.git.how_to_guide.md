@@ -31,6 +31,7 @@
     + [Checking what work has been done in a branch](#checking-what-work-has-been-done-in-a-branch)
     + [Checking if you need to merge `master` into your feature branch](#checking-if-you-need-to-merge-master-into-your-feature-branch)
     + [Comparing the difference of a directory among branches](#comparing-the-difference-of-a-directory-among-branches)
+    + [Work in a Worktree](#work-in-a-worktree)
     + [Resources](#resources)
   * [Merging `master`](#merging-master)
   * [Rebasing](#rebasing)
@@ -56,7 +57,7 @@
   - You can add a new public key here
     [GH -> Personal settings -> SSH keys](https://github.com/settings/keys)
   - More details about what is public key you can find in
-    [all.ssh.how_to_guide.md](/docs/tools/all.ssh.how_to_guide.md)
+    [all.ssh.how_to_guide.md](/docs/tools/security/all.ssh.how_to_guide.md)
 
 ### Readings
 
@@ -536,6 +537,45 @@
   vendors/test/test_vendors.py
   ```
 
+#### Work in a Worktree
+
+- A worktree is a second dir of the same repo, checked out on its own branch
+  - Your main dir stays as it is, e.g., to keep a Jupyter session running
+- Create a worktree with a new branch from the latest `master`
+  ```bash
+  > git fetch origin master
+  > git worktree add -b <BRANCH> <DIR> origin/master
+  ```
+- A new worktree has empty submodule dirs: fill them
+  ```bash
+  > cd <DIR>
+  > git submodule update --init
+  ```
+  - If you have no SSH key for GitHub, fetch the submodules over HTTPS
+    ```bash
+    > git -c url."https://github.com/".insteadOf="git@github.com:" \
+        submodule update --init
+    ```
+- To open a worktree and a tmux session for an existing branch or PR in one step,
+  run `git_worktree_tmux.py` from the repo that owns the branch, or pass its short
+  name with `--repo_short_name`
+  ```bash
+  > git_worktree_tmux.py --pr_number <PR>
+  > git_worktree_tmux.py --branch_name <BRANCH>
+  > git_worktree_tmux.py --repo_short_name <REPO> --pr_number <PR>
+  ```
+  - It creates the worktree as `<dir_suffix>_worktree_<issue_id>` in `~/src`
+  - It then runs the `thin_client/tmux.py` of the repo on it
+  - Run it outside tmux
+- When the PR is merged, remove the worktree
+  - The branch is not deleted
+  ```bash
+  > git worktree remove <DIR>
+  ```
+- `git_create_issue_and_branch.py` creates the issue and the branch / worktree
+  in one step, see
+  [`all.manual_flow.how_to_guide.md`](/docs/tools/git/all.manual_flow.how_to_guide.md)
+
 #### Resources
 
 - Use [https://learngitbranching.js.org/](https://learngitbranching.js.org/) to
@@ -644,7 +684,13 @@
 
 ### Roll forward pointers to the `amp` submodule:
 
-- Run the script:
+- Run the `invoke` task, which works for any submodule (e.g., `helpers_root`):
+  ```bash
+  > invoke git_roll_submodule_forward --name amp
+  ```
+  - See `docs/tools/dev_system/all.update_helpers_submodule.how_to_guide.md` for
+    the options
+- Or run the script:
   ```
   > dev_scripts_helpers/git/git_submodules_roll_fwd.sh
   ```

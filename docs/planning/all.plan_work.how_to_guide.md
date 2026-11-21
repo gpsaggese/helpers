@@ -1,0 +1,693 @@
+# Plan Work
+
+## Summary
+
+- This document describes how we plan and track the work of a software project:
+  - Write one end-to-end plan that says what to build and in which order
+  - Execute the plan one small, reviewable PR at a time
+  - Keep a log of everything done, including decisions
+- This document gives the order of the steps and the points where a human decides
+  - The formats of the docs live in `.claude/skills/project.rules.md`
+  - The skeletons to copy live in `.claude/templates/project_*.template.md`
+- The process is the same for any project in any repo
+  - Rules specific to one repo (e.g., fork flow, naming) live in the docs of that
+    repo
+  - This is "how we do things": other projects follow the same process
+- This document points to the existing docs instead of repeating them
+  - See [Resources](#resources)
+
+## Planning Hierarchy
+
+- Work flows from abstract to concrete:
+  ```text
+  Idea -> Project -> Task (GitHub issue) -> PR -> Review -> Commit
+  ```
+- **Idea**: the abstract and unstructured starting point of a new initiative
+  - E.g., _"What if we expand our current trading universe?"_
+  - E.g., _"Implement getting and using historical bid/ask data"_
+- **Project**: an initiative with clear goals, defined scope, tangible outcomes,
+  and time constraints
+  - We track it as a GitHub Project, see
+    [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md#projects)
+- **Task**: a specific, actionable item that is part of a project
+  - We track it as a GitHub Issue, see
+    [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md#issue)
+
+- This document covers what is below the idea level:
+  - How to turn an idea into a plan
+  - How to cut the plan into PRs
+  - How to log the progress
+
+- One task maps to one or more PRs
+  - A PR is the unit of review
+
+## Capture an Idea
+
+- **Goal**: keep track of the work that could be done, with low friction
+- Flow:
+  1. You have an idea and no time to think it through or execute it now
+  2. Put a note in a Google Doc (Gdoc) for your future self
+     - Use suggestion mode, so that other people can track the change
+     - Once in a while, accept all the changes
+  3. When the idea is picked, turn it into a file `research/ideas/<name>.md`
+     - Run `/research_idea.format` to make the file follow the standard template
+- Why use a Gdoc:
+  - We keep track of work that could be done
+  - Planning is simpler: someone who is blocked can open the Gdoc and choose a
+    project
+  - People are notified of the change and see the text in suggestion mode
+  - A Gdoc is quick to edit and has low friction
+  - An idea is abstract and unstructured, so it is easier to edit in a Gdoc than
+    in a GitHub issue
+- Alternatives to a Gdoc:
+  - A shared planning note in the repo
+  - A clearly marked exploratory issue
+  - A link to the idea from the relevant work, so that the team can find it
+
+## From Idea to Merged PR
+
+- **Goal**: the sequence of skills that takes a complex software project from an idea to
+  merged code
+- The flow has four phases:
+  - **Define**: what to build and how
+  - **Plan**: in which order
+  - **Build**: one reviewed PR at a time
+  - **Close**: update the docs
+- Each phase ends with a human gate
+  - An agent never crosses a gate alone
+  - Run a skill, read its output, fix it, and only then move on
+
+- Diagram of the flow:
+  ```mermaid
+  graph LR
+    A["Idea"] --> B["PRD"]
+    B --> C["Design"]
+    C --> D["04-plan.md"]
+    D --> E["05-tasks.md and 06-spec"]
+    E --> F{"Execution mode"}
+    F -->|tight loop| G["Interactive"]
+    F -->|batch| H["Stacked PRs"]
+    F -->|remote| I["Single PR on GitHub"]
+    G --> J["Make the PR mergeable"]
+    H --> J
+    I --> J
+    J --> K["Human review and merge"]
+    K --> L["Update the docs"]
+    L -->|next version| E
+  ```
+
+## Plan Documents
+
+- The place of the docs, the doc set, what each doc answers, and its cluster are
+  defined in `.claude/skills/project.rules.md` sections "Keep All the Docs in One
+  Dir", "Use One Doc per Question", and "Name the Docs with a Slot Number"
+- The plan and the specs are defined in `.claude/skills/project.rules.md` sections
+  "Keep One Plan" and "Write a Spec for a Complex PR"
+
+## Organize the Docs of a Project
+
+- **Goal**: a newcomer finds the right doc without asking
+- Write `docs/README.md` as the index of the docs
+  - E.g., `research/Noesis/docs/README.md`
+  - Follow `.claude/skills/project.rules.md` section "Write an Index in
+    docs/README.md"
+- Write the onboarding doc, the glossary, and the design docs as described in
+  `.claude/skills/project.rules.md` section "Project Docs"
+- Write a README for each executable and for each dir, so that a newcomer knows how
+  to run the code
+  - See [Document the Executables](#document-the-executables)
+- Create a C4 diagram of the system following `.claude/skills/C4.rules.md`
+  - E.g., `research/Estimate_academic_paper_quality/docs/02-design.architecture.md`
+  - Put a short refresher of the C4 levels before the first diagram: Context,
+    Container, Component, and Code, each with a one-line definition
+  - Write it once, in `02-design.architecture.md`, and say which levels the doc
+    draws
+- Make every reference to a file in a doc clickable
+  - E.g., a path like `research/Estimate_academic_paper_quality/docs/01-prd.md`
+  - Follow `.claude/skills/project.rules.md` section "Make File References
+    Clickable"
+
+- Write every requirement and every decision as an H3, so that other docs link it
+  - Requirement in `01-prd.md`: `` ### `R3` (Bibliographic source) ``
+  - Decision in `03-decisions.md`:
+    `` ### `D7` (The pipeline computes the base name with a public helper) ``
+  - Use the same style for both: the id in code, then the title in parentheses
+  - Refer to it with a link to its header, never with a bare id
+    - E.g.,
+      ```text
+      [`R3`](/research/Estimate_academic_paper_quality/docs/01-prd.md#r3-bibliographic-source)
+      [`D7`](/research/Estimate_academic_paper_quality/docs/03-decisions.md#d7-the-pipeline-computes-the-base-name-with-a-public-helper)
+      ```
+  - The ids are stable: never reuse them and never renumber them
+  - Follow `.claude/skills/project.rules.md` section "Link Requirements and
+    Decisions"
+
+## The Loop
+
+- Every change follows the same loop:
+  1. Pick a task from the plan (or propose one for approval and inclusion in the
+     plan)
+  2. Plan before code: write a short design and get a teammate's OK
+     - What changes, which files, which interfaces, which tests, which choices are
+       still open
+     - Put a non-trivial design in the GitHub issue
+  3. Open a GitHub issue, see "Naming an Issue" in
+     [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md#naming-an-issue)
+     - Write the issue number down: it goes in the branch name, the commits, and the
+       PR
+     - Point to the section of the plan or of the spec in the issue, do not copy it
+       (DRY)
+  4. Branch, code, test, commit, open the PR, and address the review
+     - Follow the rest of the document and workflows
+  5. Merge, then update the plan and the log, see
+     [Keep Docs in Sync](#keep-docs-in-sync)
+- Keep PRs reviewable
+  - One component or one milestone task per PR
+  - Respect the size cap in
+    [`docs/coding/all.submit_code_for_review.how_to_guide.md`](/docs/coding/all.submit_code_for_review.how_to_guide.md#stick-to-smaller-prs)
+  - Use the template `.claude/templates/github_PR_plan.template.md` to split a big PR
+- Delegate a task list to an AI agent with the `auto_task` flow
+  - See
+    [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md)
+
+## Follow the Architecture Rules
+
+- **Goal**: every design, plan, and PR follows the same architectural decisions, so
+  that the code of different projects is organized in the same way
+- The rules live in `.claude/skills/architecture.rules.md`
+  - Each rule has a tag `ARCH<N>.<M>`, e.g., `ARCH2.5`
+  - Cite the tag in the design docs, the plan, the specs, and the PR description
+  - Do not copy the text of a rule into a doc (DRY)
+- Apply the rules at each phase of the flow:
+  - **Define**: `02-design.architecture.md` and `02.<N>-design.<component>.md`
+    - Organize the system in layers, with one responsibility per layer: `ARCH1.1`
+    - Keep I/O and external services apart from the business logic: `ARCH1.2`
+    - Keep the interfaces between layers small and one-directional: `ARCH1.3`
+    - Model the sequential processing as a pipeline of stages with explicit data
+      flow: `ARCH2.1`, `ARCH2.2`
+    - Choose how to run the pipeline:
+      - One script with `hselect_action` if the stages share dependencies, runtime,
+        and schedule: `ARCH2.3`, `ARCH2.4`
+      - One executable per stage, linked by files on disk, if they do not:
+        `ARCH2.5`
+    - Group the data that crosses a boundary in data classes: `ARCH4.3`
+    - Validate the input once, at the system boundary: `ARCH5.1`
+  - **Plan**: `04-plan.md` and `06-spec.<PR_ID>.md`
+    - Cut the PRs along the lines of the architecture, e.g., one PR per layer or
+      per pipeline stage: `ARCH1.1`, `ARCH2.2`
+    - Put the data classes in the first PR, before the stages that use them:
+      `ARCH4.3`
+    - Make each PR testable alone: `ARCH7.1`, `ARCH7.2`
+  - **Build**: the code of each PR
+    - Keep the signatures simple, with a config object for many options, a data
+      class for many return values, and no change to the inputs: `ARCH3.1`,
+      `ARCH3.2`, `ARCH3.3`, `ARCH3.4`
+    - Pass data through arguments and return values, never through globals:
+      `ARCH4.1`, `ARCH4.2`
+    - Fail fast on a bad configuration: `ARCH5.2`
+    - Name the stages `_<action_name>()` and keep each module focused:
+      `ARCH6.1`, `ARCH6.2`
+    - Declare the configuration and structure the script as in `ARCH8.1`, `ARCH8.2`
+  - **Test**: unit tests for the pure logic and integration tests for the
+    infrastructure layer: `ARCH7.1`, `ARCH7.2`
+- Record a departure from a rule as a decision in `03-decisions.md`
+  - Cite the tag that the decision departs from
+  - E.g., `` ### `D<N>` (Run all the stages in one script although their runtimes differ) ``
+    with the text "Departs from `ARCH2.5` because ..."
+- Check the rules in the review of the design and of each PR
+  - Quote the tag in the review comment, e.g., "Split this function: `ARCH1.2`"
+- E.g., `research/Estimate_academic_paper_quality` follows the rules:
+  - The stages are selected with `hselect_action`: `ARCH2.3`
+    - See `research/Estimate_academic_paper_quality/estimate_paper_quality.py`
+  - The dataclasses are in a module that imports nothing of the project: `ARCH4.3`
+    - See `research/Estimate_academic_paper_quality/epq_types.py`
+  - The rater is pure code and the LLM function is injected: `ARCH1.2`, `ARCH7.1`
+    - See `research/Estimate_academic_paper_quality/epq_rater.py` and
+      `research/Estimate_academic_paper_quality/epq_extractor.py`
+  - Each module imports only the modules of a lower layer: `ARCH1.1`
+    - See `research/Estimate_academic_paper_quality/test/test_epq_import_graph.py`
+
+## Create an End-to-End Plan
+
+- **Goal**: one canonical file that says what to build and in which order, so that
+  anyone (human or agent) can pick the next PR without asking
+- Create the file `04-plan.md` in the `docs/` dir of the project
+  - E.g., `research/Noesis/docs/04-plan.md`
+  - Draft it with `/project.create_plan`
+- Steps to create it:
+  1. Write the problem and the goal, and point to the background (paper, PRD,
+     architecture doc)
+  2. List the components, the candidate solutions, and their open questions
+  3. Split the work into versions, where each version can be run and demoed
+  4. Write the PR entries of the next version in detail, and file GitHub issues
+     only for them
+     - See "Structure the Plan File" in `.claude/skills/project.rules.md`
+  5. Review the plan before executing it
+     - See `/auto_task.criticize`
+- To break a complex feature into an ordered PR plan with a spec per complex PR, see
+  `/auto_task.create_plan_for_feature`
+
+### Rules for the Plan
+
+- The structure of the file, the format of a PR entry, the naming and checking of
+  PRs, and how to change the plan are in `.claude/skills/project.rules.md` section
+  "Plan File"
+- Copy the template `.claude/templates/project_plan.template.md`
+
+## Keep a Progress Log
+
+- **Goal**: one file that records everything done, including decisions
+  - A new person sees what happened and why without asking
+- Create the file `07-progress.md` next to the plan
+  - E.g., `research/Noesis/docs/07-progress.md`
+  - Copy the template `.claude/templates/project_progress.template.md`
+  - The structure and the rules of the log are in `.claude/skills/project.rules.md`
+    section "Progress Log"
+- Update the log in the PR that finishes the task
+  - Draft the update with `/project.update_progress`
+
+### Record Decisions
+
+- Record every non-obvious choice in `03-decisions.md`
+  - E.g., `research/Noesis/docs/03-decisions.md`
+  - The format is in `.claude/skills/project.rules.md` section "Decisions Log"
+  - Copy the template `.claude/templates/project_decisions.template.md`
+
+## How to Document Research
+
+- A research project keeps a Google Doc and a daily entry per day of work
+  - The Google Doc also holds the research questions, their discussion, and the
+    research decisions; GitHub is only for code, and links to them
+  - A PR that changes a result, a model, or an assumption fills the Paper and Gdoc
+    checklist in its description
+- See
+  [`docs/planning/all.document_research.how_to_guide.md`](/docs/planning/all.document_research.how_to_guide.md)
+
+## Keep Docs in Sync
+
+- Update the docs in the PR that finishes the task
+  - Run `/project.update_progress` to draft the updates
+- The map from an event (e.g., a decision, a finished task) to the doc to update is
+  in `.claude/skills/project.rules.md` section "Keep Docs in Sync"
+
+## Write a Project Meta-Doc
+
+- Create the file `08-how_we_work.md` in the `docs/` dir of the project
+  - E.g., `research/Noesis/docs/08-how_we_work.md`
+- Copy the template `.claude/templates/project_how_we_work.template.md`
+  - The goal, the content, and when to update it are in
+    `.claude/skills/project.rules.md` section "Write the Meta-Doc"
+
+// TODO(gp): Does it belong here?
+- Treat a bulleted task list in an issue or in a review comment as work to do
+  - Track each item in GitHub and mark it as done there
+  - Tick each box with a short link to the result, e.g.,
+    `- [x] Update the master plan: PR #123`
+  - Create a separate issue for each large item
+
+## PR Description Template
+
+- Write the description of every PR as described in
+  `.claude/skills/project.rules.md` section "PR Description"
+  - `/github.find_name_for_pr` writes a draft of it in `pr_description.md`
+- Link the PR to its issue as described in "Filing Process" in
+  [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md#filing-process)
+  or in the contribution guide of the repo
+
+# Examples
+- The `Noesis` project in the `umd_classes` repo follows this process
+  - `research/Noesis/docs/README.md`: index of all the docs of the project
+  - `research/Noesis/docs/04-plan.md`: end-to-end plan
+  - `research/Noesis/docs/07-progress.md`: log of what was done
+  - `research/Noesis/docs/03-decisions.md`: log of why it is built this way
+  - `research/Noesis/docs/08-how_we_work.md`: what `Noesis` adds to this process
+
+- The list of the projects following this approach is
+  `docs/planning/project_list.md`
+
+# Workflows
+
+## Define
+
+- **Goal**: decide what to build and how
+- **Commands**:
+  ```text
+  claude> /research_idea.format <project>/idea.md
+  claude> /project.write_prd <project>/idea.md
+  claude> /text.criticize <project>/docs/01-prd.md
+  claude> /architecture.write_design <project>/docs/01-prd.md
+  claude> /text.criticize <project>/docs/02-design.architecture.md
+  ```
+- **Gates**:
+  - Pick the idea
+  - Approve the scope
+  - Approve the design
+
+## Plan
+
+- **Goal**: decide in which order to build it
+- **Commands**:
+  ```text
+  claude> /project.create_plan <project>/docs/02-design.architecture.md
+  claude> /auto_task.criticize <project>/docs/04-plan.md
+  claude> /auto_task.create_plan_for_feature <project>/docs/04-plan.md PR_A1
+  claude> /auto_task.criticize <project>/docs/05-tasks.md
+  ```
+- **Gates**:
+  - Teammate OK on `04-plan.md`
+  - Confirm the plan in `05-tasks.md` and the specs
+
+## Build
+
+- **Goal**: build code using PRs so that they can be reviewed one at a time
+- **Commands**:
+  ```text
+  # Choose one execution mode.
+  claude> /auto_task.execute_interactively <project>/docs/05-tasks.md
+  claude> /auto_task.execute_with_stacked_prs <project>/docs/05-tasks.md
+  claude> /auto_task.execute_remotely_with_single_pr <project>/docs/05-tasks.md
+  ```
+- Rules for the flow:
+  - Commit between two skills, so that each skill gives a separate diff to review
+    - See
+      [`docs/tools/ai/all.ai_workflows.how_to_guide.md`](/docs/tools/ai/all.ai_workflows.how_to_guide.md#coding-workflows)
+  - Run `/auto_task.criticize` before any execution skill
+  - Choose the execution mode with
+    [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md#step-3-choose-an-execution-mode)
+  - Authorize the agent to commit and push only for the automated modes
+    - See
+      [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md#prerequisite-authorize-git-commits-and-pushes)
+  - Let a human merge: no skill or AI should merge a PR
+
+- **Gates**:
+  - The PR author should be able to explain every line of the code
+
+## Test 
+- **Goal**: make sure
+- **Commands**:
+  ```text
+  # Write code and tests, as needed.
+  claude> /testing.write_unit_tests <file>
+
+  # Make the PR green and describe it.
+  claude> /github.get_pr_to_pass_local_tests
+  claude> /github.get_pr_to_pass_ci_tests
+  claude> /github.get_pr_ready_to_merge
+  claude> /github.find_name_for_pr
+
+  # Only if the PR is too big.
+  claude> /github.split_branch_in_PRs
+
+  # After review comments.
+  claude> /auto_task.restack
+  ```
+- **Gates**:
+  - The new code is tested at least 80%
+  - The interaction of the new code are properly tested (e.g., integration tests,
+    end-to-end tests)
+  - All the specs are tested
+
+## Document the Executables
+
+- **Goal**: give a newcomer an entry point on how to run the code
+  - A README per executable says what it does and how to call it
+  - A README per dir says what is in the dir and points to the executables
+- **Commands**:
+  ```text
+  # Write or update the README of one executable.
+  claude> /readme_file.create <executable>
+  claude> /readme_file.create research/Estimate_academic_paper_quality/estimate_paper_quality.py
+
+  # Write or update the README of a dir.
+  claude> /readme_dir.create <dir>
+  claude> /readme_dir.create research/Estimate_academic_paper_quality
+  ```
+- What the skills write:
+  - `/readme_file.create` writes `<executable>.README.md` next to the executable
+    - E.g., `research/Estimate_academic_paper_quality/estimate_paper_quality.py.README.md`
+    - It has usage examples, a table of the arguments, the outputs, and the
+      software architecture
+    - It adds a pointer to the README in the docstring of the executable
+  - `/readme_dir.create` writes `README.md` in the dir
+    - E.g., `research/Estimate_academic_paper_quality/README.md`
+    - It has the structure of the dir and a short description of each file,
+      executable, and workflow
+- Rules for the flow:
+  - Run `/readme_file.create` for each executable first, then `/readme_dir.create`
+    for the dir
+  - Rerun the skills in the PR that changes the arguments of an executable or adds,
+    renames, or removes a file in the dir
+  - The conventions are in `.claude/skills/readme_file.rules.md` and
+    `.claude/skills/readme_dir.rules.md`
+
+- **Gates**:
+  - Every argument of the executable is in its README
+  - The examples in the README run as written
+
+## Update Docs and Close GH Issue
+
+- **Goal**:
+  - Keep the docs in sync with the code
+  - Make merging PRs automatically close related and connected to the GH Issue
+- **Commands**:
+  ```text
+  claude> /project.update_progress PR_A1
+  ```
+- **Gates**: check the log in `04-plan.md`, `07-progress.md`, and `03-decisions.md`
+
+## Review and Merge
+// TODO(ai_gp): We need a workflow to review the PR
+
+  ```text
+  claude> /code-review
+  ```
+
+- To check how a notebook looks in a PR, render it from the PR branch as HTML
+  without checking out the branch
+  ```bash
+  > git fetch origin <pr_branch>
+  > publish_notebook.py \
+      -i <path/to/notebook.ipynb> \
+      --branch origin/<pr_branch> \
+      --action convert
+  ```
+  - E.g.,
+    ```bash
+    > publish_notebook.py \
+        -i research/Optimal_strategy_for_racket_sports/notebooks/racket_shot_probability.ipynb \
+        --branch origin/UmdTask788_Racket_sports_Change_color_of_heatmaps \
+        --action convert
+    ```
+  - Run it from the repo root, since the notebook path is relative to the repo
+    root
+  - The script reads the file with `git show`, converts it to HTML in the current
+    dir, and opens it in the browser
+  - `uv` installs the dependencies (`nbconvert`, etc.) on the fly, so nothing
+    is needed in the host environment
+  - The HTML is a static view of the saved outputs and does not run the cells
+  - Delete the generated `*.html` file when done, since it is untracked
+
+- To run the cells of a notebook of a PR, open it in a live Jupyter Lab with
+  `open_notebook_from_branch.py`
+  ```bash
+  > open_notebook_from_branch.py \
+      -i <path/to/notebook.ipynb> \
+      --branch <pr_branch>
+  ```
+  - E.g.,
+    ```bash
+    > open_notebook_from_branch.py \
+        -i research/Optimal_strategy_for_racket_sports/notebooks/racket_shot_probability.ipynb \
+        --branch UmdTask788_Racket_sports_Change_color_of_heatmaps
+    ```
+  - The script creates (or reuses and fast-forwards) a git worktree of the
+    branch next to the repo, builds the project Docker image, starts Jupyter Lab
+    with `docker_jupyter.sh`, and opens the notebook in the browser
+  - Your current client is not touched
+  - Add `--dry_run` to see the commands first and `--no_build` to skip the
+    Docker build
+  - Stop Jupyter Lab with Ctrl+C and remove the worktree with
+    `git worktree remove <worktree_dir>`
+
+- To check how the docs of a PR look, open the Markdown files that need to be
+  visualized and whose links need to be clicked with `open_md.py`
+  ```bash
+  > open_md.py --branch
+  ```
+  - E.g., open one file
+    ```bash
+    > open_md.py \
+        --input research/Noesis/docs/04-plan.md
+    ```
+  - It renders each file to HTML with the diagrams drawn, and opens it in the
+    browser
+  - `--branch` selects the `.md` files modified with respect to the branch point
+    - Check out the PR branch first
+    - Use `--input <file>` or `--files "<file1> <file2>"` to choose the files
+  - Click the links to check that they reach the right file and section
+    - By default, a link with a repo-root path (e.g., `[prd](/docs/prd.md)`) opens
+      the local file
+    - Use `--link_type branch` to open the file on GitHub, on the current branch
+  - Use `--daemon` to re-render and reload the browser tabs on every save
+  - The script writes `tmp.*` files in the current dir
+    - Delete them when done, since they are untracked
+  - See `helpers_root/dev_scripts_helpers/documentation/open_md.README.md` for all
+    the options
+
+  // Built in
+  // - /code-review [low|medium|high|xhigh|max|ultra] [target] reviews the current diff, a PR number, a branch, or a path for correctness bugs. --comment posts inline PR comments. --fix applies the fixes. ultra runs a billed cloud multi-agent review.
+  // - /security-review reviews the pending branch changes for security issues.
+  // - /simplify reviews changed code for reuse, simplification, and efficiency, then applies fixes. It does not hunt for bugs.
+
+  // Repo skills
+  // - coding_qa.review reviews Python files for bugs, suggests fixes, and proposes test cases.
+  // - coding.improve_code_for_humans improves readability and debuggability.
+  // - github.describe_pr_for_review describes PRs in a fixed format, scores complexity and quality, and suggests a review order.
+
+- **Gates**:
+  - A human reviews each PR
+  - Review and merge: a human merges
+
+# Software Project Documents
+
+- **Goal**: map each generic document of a software project to the file that stores
+  it
+  - Paths are relative to the `docs/` dir of the project, unless stated otherwise
+  - Start with `04-plan.md`, `07-progress.md`, and `08-how_we_work.md`
+    - Add the other files only when needed
+  - Clusters and formats: `.claude/skills/project.rules.md`
+
+// TODO(ai_gp): Make a mermaid graph
+- Flow of the files:
+  ```text
+  idea.md -> 01-prd.md -> 02-design.architecture.md -> 02.<N>-design.<component>.md
+                                                                  |
+          06-spec.<PR_ID>.md <- 05-tasks.md <- 04-plan.md <-------+
+                  |
+                  +--> PR merged --> 07-progress.md, 03-decisions.md
+  ```
+
+## Name the Docs with a Slot Number
+
+- **Goal**: `ls docs/` lists the docs in the order a person reads them
+- Name a doc `<slot>-<role>.md`
+  - `-` splits the slot from the role
+  - `.` inside the role splits its parts, e.g., `design.architecture`
+  - `.` inside the slot marks a child of the slot doc, e.g., `02.1-design.gateway.md`
+- A kind of doc has the same slot in every project:
+
+  | Slot   | File                           |
+  | :----- | :----------------------------- |
+  | `01`   | `01-prd.md`                    |
+  | `02`   | `02-design.architecture.md`    |
+  | `02.N` | `02.<N>-design.<component>.md` |
+  | `03`   | `03-decisions.md`              |
+  | `04`   | `04-plan.md`                   |
+  | `05`   | `05-tasks.md`                  |
+  | `06`   | `06-spec.<PR_ID>.md`           |
+  | `07`   | `07-progress.md`               |
+  | `08`   | `08-how_we_work.md`            |
+  | `09`   | `09-onboarding.md`             |
+  | `10`   | `10-glossary.md`               |
+
+- Skip the slot of a missing doc: do not shift the other docs
+  - E.g., a project with no plan has `03-decisions.md` and `07-progress.md`
+- Number the component designs `02.1`, `02.2`, ... in pipeline order
+  - Pipeline order is the order in which the data flows through the system
+- Do not number `README.md`, `idea.md`, or a doc that is not in the table
+  - E.g., a marketing plan, a demo guide, or the files in `findings/`
+- The full rules are in `.claude/skills/project.rules.md` section "Name the Docs with
+  a Slot Number"
+
+## Product
+
+- **`idea.md`**: vision / one-pager
+  - Location: `<project>/idea.md`, not in `docs/`
+  - Content: problem, opportunity, why the project exists, findings from users
+- **`01-prd.md`**: PRD (Product Requirements Document)
+  - Content: users, goals, success metrics, scope, non-goals, user stories
+  - Format: one H3 per requirement, `` ### `R<N>` (<Title>) ``
+- **`04-plan.md`**: roadmap
+  - Content: versions and milestones over time
+
+## Design
+
+- **`02-design.architecture.md`**: technical spec / design doc (RFC) of the whole
+  system
+  - Content: architecture, components, data flow, alternatives, risks
+  - Add a C4 diagram, see `.claude/skills/C4.rules.md`
+  - Open the diagram section with a short refresher of the C4 levels (Context,
+    Container, Component, Code)
+- **`02.<N>-design.<component>.md`**: one doc per component
+  - E.g., API spec, data model / schema, UX/UI designs, security and privacy review
+  - Content depends on the component: endpoint contracts, entities and migrations,
+    wireframes, threat model
+- **`03-decisions.md`**: ADRs (Architecture Decision Records)
+  - Content: context, decision, consequences
+  - Format: one H3 per decision, `` ### `D<N>` (<Decision title>) ``
+
+## Execution
+
+- **`04-plan.md`**: implementation plan
+  - Content: ordered, testable PR entries with dependencies and complexity
+- **`05-tasks.md`**: queue of PRs for `auto_task`
+  - Written by `/auto_task.create_plan_for_feature` from `04-plan.md`
+- **`06-spec.<PR_ID>.md`**: spec of one complex PR
+  - Content: design, unit test plan, risks and limitations
+  - The test plan and the risks of a PR live here: no separate file
+- **`07-progress.md`**: progress log
+  - Content: dated record of what was done, decisions made, blockers, next steps
+- **GitHub issues**: owners, blockers, known issues
+  - See
+    [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md)
+
+## Onboarding and Index
+
+- **`README.md`** (project root): what the project is, how to install, run, and
+  contribute
+- **`docs/README.md`**: index of all the docs, one row per file
+- **`08-how_we_work.md`**: how the team works on the project
+- **`09-onboarding.md`**: setup, run the tests, run the code, first task
+- **`10-glossary.md`**: meaning of the terms used in the code and docs
+
+## Shipping and Operations
+
+- **No standard file yet**: add a doc when the project needs it
+  - Changelog / release notes: user-facing changes in each version
+  - Deployment guide: environments, configuration, CI/CD, secrets handling
+  - Runbook: how to operate, monitor, and fix common production problems
+  - Postmortem: incident summary, root cause, impact, follow-up actions
+
+# Resources
+
+- Projects, issues, PRs, labels, and review:
+  [`docs/work_organization/all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md)
+- Git branches and commit messages:
+  [`docs/tools/git/all.git.how_to_guide.md`](/docs/tools/git/all.git.how_to_guide.md)
+- Small PRs and first reviews:
+  [`docs/coding/all.submit_code_for_review.how_to_guide.md`](/docs/coding/all.submit_code_for_review.how_to_guide.md)
+- Code review:
+  [`docs/coding/all.code_review.how_to_guide.md`](/docs/coding/all.code_review.how_to_guide.md)
+- Doing a task with Claude Code, from task to PR:
+  [`docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md`](/docs/tools/ai/all.create_pr_with_claude_code.how_to_guide.md)
+- Delegating tasks to AI agents:
+  [`docs/tools/ai/all.auto_task.how_to_guide.md`](/docs/tools/ai/all.auto_task.how_to_guide.md)
+- Claude skills and rules:
+  [`docs/tools/ai/all.ai_workflows.how_to_guide.md`](/docs/tools/ai/all.ai_workflows.how_to_guide.md)
+- Organizing your work (roles, blockers, communication):
+  [`docs/work_organization/all.organize_your_work.how_to_guide.md`](/docs/work_organization/all.organize_your_work.how_to_guide.md)
+- Writing docs:
+  [`docs/documentation_meta/all.writing_docs.how_to_guide.md`](/docs/documentation_meta/all.writing_docs.how_to_guide.md)
+- Where to add new material:
+  [`docs/documentation_meta/all.where_to_add_material.explanation.md`](/docs/documentation_meta/all.where_to_add_material.explanation.md)
+- Documenting research:
+  [`docs/planning/all.document_research.how_to_guide.md`](/docs/planning/all.document_research.how_to_guide.md)
+- Rules and templates:
+  - `.claude/skills/project.rules.md`
+  - `.claude/skills/architecture.rules.md`, see
+    [Follow the Architecture Rules](#follow-the-architecture-rules)
+  - `.claude/templates/project_*.template.md`
+  - `.claude/templates/github_PR_description.template.md`
+  - `.claude/templates/auto_task.template.md`
+  - `.claude/templates/specs.template.md`
+  - `.claude/templates/github_PR_plan.template.md`

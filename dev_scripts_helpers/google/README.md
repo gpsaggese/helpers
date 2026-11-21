@@ -6,7 +6,9 @@ and Drive-URL-to-local-path conversion.
 
 ## Structure of the Dir
 
-This directory has no subdirectories.
+- `test/`
+  - Unit tests for the Google Sheets tools; the tests that use a Google account
+    run only with `RUN_GSHEET_TESTS=1`
 
 ## Description of Files
 
@@ -27,11 +29,32 @@ This directory has no subdirectories.
 ### What It Does
 
 - Uploads CSV file data to specified Google Sheets document tab
-- Freezes header row and formats row height for readability
+- Freezes and bolds the header row and formats row height for readability
+  - `--no_freeze_header` and `--no_bold_header` skip them; they do not remove a
+    freeze or a bold already in the tab
+- Uploads many CSV files with `--tabname _ALL_`, one tab per file, to do a
+  roundtrip of `from_gsheet.py --tabname _ALL_`
+  - Finds `<input_file without .csv>.<ID>.<tab_name>.csv`, sorted by `<ID>`, and
+    restores the exact tab names
+  - Without `--url`, the new temporary Google Sheet has the tabs of the files, in
+    order. With `--url`, tabs not in the files do not change and new tabs go at
+    the end
+  - Sends many requests: the Google Sheets API limits the read requests per
+    minute, so a Google Sheet with many tabs may fail with a `429` error. Run it
+    again with `--overwrite`
+- Sets the style of the cells with `--cell_style`: `clip` (default), `wrap`, or
+  `overflow`
+  - `wrap` also fits the row height to the text
 - Protects against accidental overwrites with `--overwrite` flag requirement
 - Reports target sheet metadata (name, tabs, folder path)
 
 ### Examples
+
+- Upload CSV to a new temporary Google Sheet (`tmp_file_<timestamp>`, no URL
+  needed) and open it in the browser:
+  ```bash
+  > to_gsheet.py --input_file data.csv --open
+  ```
 
 - Upload CSV to new tab:
   ```bash
@@ -50,6 +73,47 @@ This directory has no subdirectories.
       --overwrite
   ```
 
+- Upload and open the tab in the browser:
+  ```bash
+  > to_gsheet.py \
+      --input_file data.csv \
+      --url "https://docs.google.com/spreadsheets/d/..." \
+      --tabname "my_data" \
+      --open
+  ```
+
+- Roundtrip of all the tabs: download them, then upload them to a new temporary
+  Google Sheet and open it:
+  ```bash
+  > from_gsheet.py \
+      --url "https://docs.google.com/spreadsheets/d/..." \
+      --tabname _ALL_ \
+      --output_file data.csv
+  > to_gsheet.py \
+      --input_file data.csv \
+      --tabname _ALL_ \
+      --open
+  ```
+
+- Wrap the long text in the cells, instead of clipping it:
+  ```bash
+  > to_gsheet.py \
+      --input_file data.csv \
+      --url "https://docs.google.com/spreadsheets/d/..." \
+      --tabname "my_data" \
+      --cell_style wrap
+  ```
+
+- Do not freeze nor bold the header row:
+  ```bash
+  > to_gsheet.py \
+      --input_file data.csv \
+      --url "https://docs.google.com/spreadsheets/d/..." \
+      --tabname "my_data" \
+      --no_freeze_header \
+      --no_bold_header
+  ```
+
 - Run with verbose logging:
   ```bash
   > to_gsheet.py \
@@ -66,6 +130,12 @@ This directory has no subdirectories.
 - Protects against accidental overwrites with `--overwrite` flag requirement
 - Reports source sheet metadata (name, tabs, folder path)
 - Supports specific tab selection or default first sheet
+- Downloads all the tabs with `--tabname _ALL_`, one CSV file per tab
+  - The files are named `<output_file without .csv>.<ID>.<tab_name>.csv`, where
+    `<ID>` is the position of the tab, starting from 0
+  - The tab name is kept, e.g., `data.1.My Data.csv`; only the characters that
+    are not safe in a file name are encoded as `%XX`, e.g., `a/b` is `a%2Fb`
+  - Empty tabs give empty files, so files and tabs are in 1-1 relationship
 
 ### Examples
 
@@ -81,6 +151,15 @@ This directory has no subdirectories.
   > from_gsheet.py \
       --url "https://docs.google.com/spreadsheets/d/..." \
       --tabname "my_data" \
+      --output_file data.csv
+  ```
+
+- Download all the tabs, one CSV file per tab (e.g., `data.0.Sheet1.csv`,
+  `data.1.My Data.csv`):
+  ```bash
+  > from_gsheet.py \
+      --url "https://docs.google.com/spreadsheets/d/..." \
+      --tabname _ALL_ \
       --output_file data.csv
   ```
 

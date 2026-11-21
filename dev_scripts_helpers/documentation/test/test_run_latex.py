@@ -1,5 +1,6 @@
+import logging
 import os
-from typing import List
+from typing import Dict, List
 from unittest import mock
 
 import pytest
@@ -7,8 +8,8 @@ import pytest
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
-import dev_scripts_helpers.documentation.run_latex as dshdrula
 
+import dev_scripts_helpers.documentation.run_latex as dshdrula
 
 # #############################################################################
 # Test__report_log_warnings
@@ -139,6 +140,111 @@ class Test__copy_to_google_drive(hunitest.TestCase):
 
 
 # #############################################################################
+# Test__render_images
+# #############################################################################
+
+
+class Test__render_images(hunitest.TestCase):
+    """
+    Test the `_render_images()` function.
+
+    `hgit.find_file()` and `hsystem.system()` are mocked since they require a
+    real repo layout and Docker; this class only verifies which files are
+    passed to `render_images.py` and with which options.
+    """
+
+    def helper(
+        self,
+        files: Dict[str, str],
+        expected_cmds: List[str],
+        *,
+        force_rebuild: bool = False,
+        use_sudo: bool = False,
+    ) -> None:
+        """
+        Test helper for `_render_images()`.
+
+        :param files: map from the name of a file in the scratch dir to its
+            content
+        :param expected_cmds: commands expected to be run, using `{dir}` as
+            placeholder for the scratch dir
+        :param force_rebuild: whether to force rebuild the Docker container
+        :param use_sudo: whether to use sudo for Docker commands
+        """
+        # Prepare inputs.
+        scratch_dir = self.get_scratch_space()
+        for file_name, content in files.items():
+            hio.to_file(os.path.join(scratch_dir, file_name), content)
+        in_file_path = os.path.join(scratch_dir, "paper.tex")
+        # Prepare outputs.
+        expected = [
+            mock.call(
+                cmd.format(dir=scratch_dir),
+                suppress_output=False,
+                log_level=logging.DEBUG,
+            )
+            for cmd in expected_cmds
+        ]
+        # Run test.
+        with (
+            mock.patch.object(
+                dshdrula.hgit, "find_file", return_value="render_images.py"
+            ),
+            mock.patch.object(dshdrula.hsystem, "system") as mock_system,
+        ):
+            dshdrula._render_images(
+                in_file_path, force_rebuild=force_rebuild, use_sudo=use_sudo
+            )
+        # Check outputs.
+        self.assert_equal(str(list(mock_system.call_args_list)), str(expected))
+
+    def test1(self) -> None:
+        """
+        Test that only the `.tex` files with image code are rendered, sorted.
+        """
+        # Prepare inputs.
+        files = {
+            "paper.tex": "\\input{section}",
+            "section.tex": "% ```graphviz\n% digraph {}\n% ```",
+            "style.tex": "\\usepackage{graphicx}",
+            "appendix.tex": "% ```mermaid\n% graph TD\n% ```",
+            "notes.md": "```python\n```",
+        }
+        # Prepare outputs.
+        expected_cmds = [
+            "render_images.py --input {dir}/appendix.tex",
+            "render_images.py --input {dir}/section.tex",
+        ]
+        # Run test.
+        self.helper(files, expected_cmds)
+
+    def test2(self) -> None:
+        """
+        Test that nothing is run when no `.tex` file has image code.
+        """
+        # Prepare inputs.
+        files = {"paper.tex": "\\input{section}", "section.tex": "text"}
+        # Prepare outputs.
+        expected_cmds: List[str] = []
+        # Run test.
+        self.helper(files, expected_cmds)
+
+    def test3(self) -> None:
+        """
+        Test that the Docker options are passed to `render_images.py`.
+        """
+        # Prepare inputs.
+        files = {"paper.tex": "% ```graphviz\n% digraph {}\n% ```"}
+        # Prepare outputs.
+        expected_cmds = [
+            "render_images.py --input {dir}/paper.tex "
+            "--dockerized_force_rebuild --dockerized_use_sudo"
+        ]
+        # Run test.
+        self.helper(files, expected_cmds, force_rebuild=True, use_sudo=True)
+
+
+# #############################################################################
 # Test__compile_latex
 # #############################################################################
 
@@ -200,13 +306,15 @@ class Test__compile_latex(hunitest.TestCase):
             ]
         )
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, num_passes)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, num_passes)
         # Check outputs.
         self.assert_equal(
             str(list(mock_run_basic_latex.call_args_list)), expected_calls
@@ -270,13 +378,15 @@ class Test__compile_latex(hunitest.TestCase):
             [mock.call(aux_file_path, force_rebuild=False, use_sudo=False)]
         )
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, 3)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, 3)
         # Check outputs.
         self.assert_equal(
             str(list(mock_run_basic_latex.call_args_list)),
@@ -294,13 +404,15 @@ class Test__compile_latex(hunitest.TestCase):
         in_file_path = os.path.join(self.get_scratch_space(), "book.tex")
         out_file_path = os.path.join(self.get_scratch_space(), "book.pdf")
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, 3)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, 3)
         # Check outputs.
         self.assertEqual(mock_run_basic_latex.call_count, 1)
         self.assertEqual(mock_run_bibtex.call_count, 0)
@@ -311,6 +423,7 @@ class Test__compile_latex(hunitest.TestCase):
 # #############################################################################
 
 
+# TODO(ai_gp): Can some code factored out?
 class Test_run_latex_py(hunitest.TestCase):
     """
     End-to-end tests for the `run_latex.py` executable.
@@ -361,7 +474,6 @@ class Test_run_latex_py(hunitest.TestCase):
             "run_latex.py",
             "--input",
             in_file_path,
-            "--skip_action=copy_to_gdrive",
             "--skip_action=open_pdf",
         ]
         # Prepare outputs.
@@ -390,7 +502,6 @@ class Test_run_latex_py(hunitest.TestCase):
             in_file_path,
             "--output",
             out_file_path,
-            "--skip_action=copy_to_gdrive",
             "--skip_action=open_pdf",
         ]
         # Run test.
@@ -413,8 +524,6 @@ class Test_run_latex_py(hunitest.TestCase):
             "run_latex.py",
             "--input",
             in_file_path,
-            "--skip_action",
-            "copy_to_gdrive",
         ]
         # Run test.
         with (
@@ -447,3 +556,79 @@ class Test_run_latex_py(hunitest.TestCase):
             self._run_main(argv)
         # Check outputs.
         self.assertEqual(mock_copy.call_count, 1)
+
+    def test5(self) -> None:
+        """
+        Test that the Google Drive copy is not run by default.
+        """
+        # Prepare inputs.
+        in_file_path = os.path.join(self.get_scratch_space(), "book.tex")
+        argv = [
+            "run_latex.py",
+            "--input",
+            in_file_path,
+            "--skip_action=open_pdf",
+        ]
+        # Run test.
+        with (
+            mock.patch.object(dshdrula.dshdlila, "run_basic_latex"),
+            mock.patch.object(dshdrula, "_copy_to_google_drive") as mock_copy,
+        ):
+            self._run_main(argv)
+        # Check outputs.
+        self.assertEqual(mock_copy.call_count, 0)
+
+    def test6(self) -> None:
+        """
+        Test that the "render_images" action runs by default, before compiling.
+        """
+        # Prepare inputs.
+        in_file_path = os.path.join(self.get_scratch_space(), "book.tex")
+        argv = [
+            "run_latex.py",
+            "--input",
+            in_file_path,
+            "--skip_action=open_pdf",
+        ]
+        manager = mock.Mock()
+        # Run test.
+        with (
+            mock.patch.object(
+                dshdrula,
+                "_render_images",
+                side_effect=lambda *args, **kwargs: manager.render(),
+            ),
+            mock.patch.object(
+                dshdrula.dshdlila,
+                "run_basic_latex",
+                side_effect=lambda *args, **kwargs: manager.compile(),
+            ),
+        ):
+            self._run_main(argv)
+        # Check outputs.
+        self.assert_equal(
+            str(manager.mock_calls),
+            str([mock.call.render(), mock.call.compile()]),
+        )
+
+    def test7(self) -> None:
+        """
+        Test that `--skip_action render_images` skips the image rendering.
+        """
+        # Prepare inputs.
+        in_file_path = os.path.join(self.get_scratch_space(), "book.tex")
+        argv = [
+            "run_latex.py",
+            "--input",
+            in_file_path,
+            "--skip_action=open_pdf",
+            "--skip_action=render_images",
+        ]
+        # Run test.
+        with (
+            mock.patch.object(dshdrula.dshdlila, "run_basic_latex"),
+            mock.patch.object(dshdrula, "_render_images") as mock_render,
+        ):
+            self._run_main(argv)
+        # Check outputs.
+        self.assertEqual(mock_render.call_count, 0)

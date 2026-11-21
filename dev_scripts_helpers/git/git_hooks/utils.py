@@ -9,12 +9,14 @@ import inspect
 import logging
 import os
 import re
+import shutil
 import string
 import subprocess
 import sys
 from typing import Any, List, Optional, Tuple
 
 import helpers.hdocker as hdocker
+import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 
@@ -93,7 +95,7 @@ def get_function_name(count: int = 0) -> str:
 def _system_to_string(
     cmd: str, abort_on_error: bool = True, verbose: bool = False
 ) -> Tuple[int, str]:
-    assert isinstance(cmd, str), f"Type of '{str(cmd)}' is {type(cmd)}"
+    assert isinstance(cmd, str), f"Type of '{cmd!s}' is {type(cmd)}"
     if verbose:
         print(f"> {cmd}")
     stdout = subprocess.PIPE
@@ -131,7 +133,7 @@ def _system(cmd: str, abort_on_error: bool = True, verbose: bool = False) -> int
     :param verbose: if True, print the command before execution
     :return: return code of the command
     """
-    assert isinstance(cmd, str), f"Type of '{str(cmd)}' is {type(cmd)}"
+    assert isinstance(cmd, str), f"Type of '{cmd!s}' is {type(cmd)}"
     if verbose:
         print(f"> {cmd}")
     rc = subprocess.call(cmd, shell=True, executable="/bin/bash")
@@ -368,7 +370,9 @@ def _check_merge_conflict_markers_files(file_list: List[str]) -> bool:
     # Scan all the files.
     violations = []
     for file_name in file_list:
-        if any(file_name.endswith(ext) for ext in "jpg png zip pkl gz".split()):
+        if any(
+            file_name.endswith(ext) for ext in ["jpg", "png", "zip", "pkl", "gz"]
+        ):
             _LOG.warning("Skipping '%s'", file_name)
             continue
         if not os.path.exists(file_name):
@@ -388,7 +392,6 @@ def _check_merge_conflict_markers_files(file_list: List[str]) -> bool:
         violations.extend(
             _check_merge_conflict_markers_in_text(file_name, lines)
         )
-    #
     error = False
     if violations:
         file_content = "\n".join(map(str, violations))
@@ -422,7 +425,6 @@ def check_merge_conflict_markers(
     if file_list is None:
         file_list = _get_files()
     _LOG.info("Files:\n%s", "\n".join(file_list))
-    #
     error = _check_merge_conflict_markers_files(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -435,14 +437,12 @@ def check_merge_conflict_markers(
 
 def _is_tmp_log_file(file_name: str) -> bool:
     """
-    Return whether `file_name` is a `tmp.*.log` scratch file (e.g.,
-    `tmp.pytest.log`), which is meant to be a throwaway output file and
-    should never be checked into the repo.
+    Return whether `file_name` is a scratch file that should never be
+    checked into the repo, i.e., a `*.log` file (e.g., `debug.log`,
+    `tmp.pytest.log`) or a `tmp.*` file (e.g., `tmp.precommit_output.txt`).
     """
     base_name = os.path.basename(file_name)
-    is_tmp_log_file = base_name.startswith("tmp.") and base_name.endswith(
-        ".log"
-    )
+    is_tmp_log_file = base_name.endswith(".log") or base_name.startswith("tmp.")
     return is_tmp_log_file
 
 
@@ -475,33 +475,100 @@ def check_tmp_log_files(
     file_statuses: Optional[List[Tuple[str, str]]] = None,
 ) -> None:
     """
-    Ensure that `tmp.*.log` files are only deleted, never added or modified.
+    Ensure that `*.log` and `tmp.*` scratch files are only deleted, never
+    added or modified.
 
-    These files (e.g., `tmp.pytest.log`) are scratch output and should never
-    be checked into the repo.
+    These files (e.g., `debug.log`, `tmp.pytest.log`) are scratch output and
+    should never be checked into the repo.
     """
     func_name = _report()
     if file_statuses is None:
         file_statuses = _get_file_statuses()
     _LOG.info(
         "Files:\n%s",
-        "\n".join(f"{status} {file_name}" for status, file_name in file_statuses),
+        "\n".join(
+            f"{status} {file_name}" for status, file_name in file_statuses
+        ),
     )
     # Check all the files.
-    error = False
+    offending_files = []
     for status, file_name in file_statuses:
         if not _is_tmp_log_file(file_name):
             continue
         if status == "D":
-            # Deleting a `tmp.*.log` file is fine.
+            # Deleting a `*.log` / `tmp.*` file is fine.
             continue
+        offending_files.append(file_name)
+    error = bool(offending_files)
+    if error:
         msg = (
-            f"File '{file_name}' matches the `tmp.*.log` pattern and can't "
-            "be added or modified: these files are scratch output and "
-            "should only be deleted"
+            "The following files match the `*.log` / `tmp.*` pattern and "
+            "can't be added or modified: these files are scratch output "
+            "and should only be deleted\n"
+            + "\n".join(f"- {file_name}" for file_name in offending_files)
         )
         _LOG.error(msg)
+    # Handle error.
+    _handle_error(func_name, error, abort_on_error)
+
+
+# #############################################################################
+# check_ruff_format
+# #############################################################################
+
+
+def check_ruff_format(
+    abort_on_error: bool = True, file_list: Optional[List[str]] = None
+) -> None:
+    """
+    Run `ruff check --fix` and `ruff format` on the touched Python files.
+
+    Ruff can rewrite a file in place to fix lint issues or reformat it. When
+    that happens the commit is not aborted: the reformatted file is just
+    reported so the user can `git add` it later, and the commit proceeds.
+
+    :param file_list: files to process
+        - Default: the staged/modified files from `_get_files()`
+    """
+    func_name = _report()
+    if not hsystem.check_exec("ruff"):
+        _LOG.warning("'ruff' is not available: skipping check")
+        _handle_error(func_name, False, abort_on_error)
+        return
+    if file_list is None:
+        file_list = _get_files()
+    _LOG.info("Files:\n%s", "\n".join(file_list))
+    # Keep only the Python files that still exist (e.g., skip deleted files).
+    file_list = [f for f in file_list if f.endswith(".py") and os.path.exists(f)]
+    _LOG.info("Python files:\n%s", "\n".join(file_list))
+    if not file_list:
+        _handle_error(func_name, False, abort_on_error)
+        return
+    # Snapshot the file contents so we can detect the ones `ruff` rewrites,
+    # regardless of whether they are tracked/staged in Git yet.
+    original_contents = {f: hio.from_file(f) for f in file_list}
+    files_str = " ".join(file_list)
+    # Run `ruff`, which can rewrite the files in place.
+    error = False
+    cmd = f"ruff check --fix {files_str}"
+    rc = _system(cmd, abort_on_error=False, verbose=True)
+    if rc != 0:
         error = True
+    cmd = f"ruff format {files_str}"
+    rc = _system(cmd, abort_on_error=False, verbose=True)
+    if rc != 0:
+        error = True
+    # Detect files that `ruff` rewrote so the user can review and restage
+    # them later. This is informational only and does not abort the commit.
+    modified_files = [
+        f for f in file_list if hio.from_file(f) != original_contents[f]
+    ]
+    if modified_files:
+        _LOG.warning(
+            "'ruff' reformatted %d file(s):\n%s\n`git add` them when convenient",
+            len(modified_files),
+            "\n".join(modified_files),
+        )
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
 
@@ -536,7 +603,6 @@ def check_author(abort_on_error: bool = True) -> None:
     _system(cmd, verbose=verbose)
     cmd = f"{_GIT_BINARY_PATH} config --show-origin {var}"
     _system(cmd, verbose=verbose)
-    #
     var = "user.email"
     cmd = f"{_GIT_BINARY_PATH} config {var}"
     rc, user_email = _system_to_string(cmd, verbose=verbose)
@@ -603,15 +669,17 @@ def check_file_size(
         size = stat.st_size
         size_as_str = _sizeof_fmt(stat.st_size)
         _LOG.debug("%s: %s", file_name, size_as_str)
-        if not file_name.endswith(".ipynb"):
-            if size > _MAX_FILE_SIZE_IN_KB * 1024:
-                # File is to big, abort the commit.
-                msg = (
-                    f"Filename '{file_name}' is too big to be committed"
-                    + f": {size_as_str} > {_MAX_FILE_SIZE_IN_KB} KB"
-                )
-                _LOG.error(msg)
-                error = True
+        if (
+            not file_name.endswith(".ipynb")
+            and size > _MAX_FILE_SIZE_IN_KB * 1024
+        ):
+            # File is to big, abort the commit.
+            msg = (
+                f"Filename '{file_name}' is too big to be committed"
+                + f": {size_as_str} > {_MAX_FILE_SIZE_IN_KB} KB"
+            )
+            _LOG.error(msg)
+            error = True
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
 
@@ -700,7 +768,9 @@ def _check_words_files(file_list: List[str]) -> bool:
     # Scan all the files.
     violations = []
     for file_name in file_list:
-        if any(file_name.endswith(ext) for ext in "jpg png zip pkl gz".split()):
+        if any(
+            file_name.endswith(ext) for ext in ["jpg", "png", "zip", "pkl", "gz"]
+        ):
             _LOG.warning("Skipping '%s'", file_name)
             continue
         if not os.path.exists(file_name):
@@ -713,7 +783,6 @@ def _check_words_files(file_list: List[str]) -> bool:
         with open(file_name) as f:
             lines = f.readlines()
         violations.extend(_check_words_in_text(file_name, lines))
-    #
     error = False
     if violations:
         file_content = "\n".join(map(str, violations))
@@ -738,7 +807,6 @@ def check_words(
     if file_list is None:
         file_list = _get_files()
     _LOG.info("Files:\n%s", "\n".join(file_list))
-    #
     error = _check_words_files(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -785,7 +853,6 @@ def check_python_compile(
     # Keep only the python files.
     file_list = [f for f in file_list if f.endswith(".py")]
     _LOG.info("Python files:\n%s", "\n".join(file_list))
-    #
     error = _check_python_compile(file_list)
     # Handle error.
     _handle_error(func_name, error, abort_on_error)
@@ -799,6 +866,9 @@ def check_python_compile(
 def check_gitleaks(abort_on_error: bool = True) -> None:
     """
     Check that the code does not contain any leaked secrets.
+
+    Run the native `gitleaks` binary if it is in the PATH, otherwise run
+    `gitleaks` in a container.
     """
     func_name = _report()
     # Get absolute paths for worktree handling.
@@ -810,7 +880,6 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
     common_path = common_path.strip()
     # Check if we're in a worktree.
     in_worktree = repo_path != common_path
-    docker_cmd = hdocker.get_docker_command()
     # Find gitleaks config relative to dev_scripts_helpers (handles subrepo case).
     dev_scripts_helpers_dir = hsystem.find_file_in_repo(
         "dev_scripts_helpers", root_dir=None
@@ -818,7 +887,20 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
     config_path = os.path.join(
         dev_scripts_helpers_dir, "git", "gitleaks", "gitleaks-rules.toml"
     )
-    if in_worktree:
+    if shutil.which("gitleaks") is not None:
+        # Use the native binary since it is ~10x faster than starting a
+        # container. It works in worktrees without extra mounts.
+        cmd_parts = [
+            "gitleaks",
+            f"-c {config_path}",
+            f"git {repo_path}",
+            "--pre-commit",
+            "--staged",
+            "--verbose",
+        ]
+        cmd = " ".join(cmd_parts)
+    elif in_worktree:
+        docker_cmd = hdocker.get_docker_command()
         # Worktree-compatible command with common directory mounting.
         cmd = f"""
         {docker_cmd} run --rm \
@@ -834,6 +916,7 @@ def check_gitleaks(abort_on_error: bool = True) -> None:
         """
     else:
         # Standard (non-worktree) command.
+        docker_cmd = hdocker.get_docker_command()
         cmd = rf"""
         {docker_cmd} run --rm \
           -v {repo_path}:{repo_path} \

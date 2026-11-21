@@ -43,23 +43,24 @@ import json
 import logging
 import os
 import re
-from typing import Any, cast, Dict, List, Optional, Tuple
+import sys
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tqdm import tqdm
 
-import dev_scripts_helpers.ai.cc_lib as dshaccli
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
-import helpers.hllm_cli as hllmcli
 import helpers.hlint as hlint
+import helpers.hllm_cli as hllmcli
 import helpers.hmarkdown_headers as hmarhead
 import helpers.hmarkdown_select as hmarsele
-import helpers.hselect_input_output as hseinout
 import helpers.hparser as hparser
 import helpers.hprint as hprint
+import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
 
+import dev_scripts_helpers.ai.cc_lib as dshaccli
 
 _LOG = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ _DEFAULT_JOURNAL_FILE = "tmp.cc_lint_journal.json"
 # #############################################################################
 
 
-def _get_rules_for_topic(topic: str) -> Dict[str, Dict]:
+def _get_rules_for_topic(topic: str) -> Dict[str, Any]:
     """
     Get rules and templates for a given topic.
 
@@ -145,10 +146,15 @@ def _get_rules_for_topic(topic: str) -> Dict[str, Dict]:
                 "notebook_utils_template.py",
             ],
         },
-        "readme": {
+        "readme_dir": {
             "role": "role.ai_researcher.md",
-            "rules": ["readme.rules.md"],
-            "templates": [],
+            "rules": ["readme_dir.rules.md"],
+            "templates": ["readme_dir.template.md"],
+        },
+        "readme_file": {
+            "role": "role.ai_researcher.md",
+            "rules": ["readme_file.rules.md"],
+            "templates": ["readme_file.template.md"],
         },
         "skill": {
             "role": "role.skill.md",
@@ -165,14 +171,14 @@ def _get_rules_for_topic(topic: str) -> Dict[str, Dict]:
             "rules": ["testing.rules.md"],
             "templates": ["testing.template.py"],
         },
-        "tool_X_in_30_mins": {
+        "tool_guide_in_30_mins": {
             "role": "role.coding.md",
-            "rules": ["tool_X_in_30_mins.rules.md"],
+            "rules": ["tool_guide_in_30_mins.rules.md"],
             "templates": [],
         },
-        "tool_X_in_60_mins": {
+        "tutorial_in_60_mins": {
             "role": "role.coding.md",
-            "rules": ["tool_X_in_60_mins.rules.md"],
+            "rules": ["tutorial_in_60_mins.rules.md"],
             "templates": [],
         },
         "typst": {
@@ -200,7 +206,8 @@ def _get_rules_for_topic(topic: str) -> Dict[str, Dict]:
     ]
     topic_info["run_jupytext"] = topic in ("notebook",)
     topic_info["run_lint"] = topic in (
-        "readme",
+        "readme_dir",
+        "readme_file",
         "markdown",
     )
     _LOG.debug("topic_info=%s", topic_info)
@@ -223,12 +230,14 @@ def _infer_topic_from_filename(file_path: str) -> str:
     if basename.endswith(".ipynb"):
         topic = "notebook"
     elif basename.endswith(".md"):
-        if basename.startswith("README"):
-            topic = "readme"
+        if basename.endswith(".README.md"):
+            topic = "readme_file"
+        elif basename.startswith("README"):
+            topic = "readme_dir"
         elif "_in_30_mins.md" in basename:
-            topic = "tool_X_in_30_mins"
+            topic = "tool_guide_in_30_mins"
         elif "_in_60_mins.md" in basename:
-            topic = "tool_X_in_60_mins"
+            topic = "tutorial_in_60_mins"
         elif ".claude/skills/" in file_path:
             topic = "skill"
         else:
@@ -1458,7 +1467,8 @@ async def _process_file_incrementally(
             _LOG.debug("Rule %d/%d outcome: %s", idx, len(messages), outcome)
         _LOG.debug("return=0")
         return 0
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
+        # Catch-all at the CLI boundary: report any failure as return code 1.
         _LOG.error("Sequential execution failed: %s", str(e))
         _LOG.debug("return=1")
         return 1
@@ -1612,7 +1622,8 @@ async def _process_file_one_shot_via_sequencer(
         await sequencer.execute([prompt])
         _LOG.debug("return=0")
         return 0
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
+        # Catch-all at the CLI boundary: report any failure as return code 1.
         _LOG.error("One-shot execution failed: %s", str(e))
         _LOG.debug("return=1")
         return 1
@@ -1886,4 +1897,4 @@ def _main(parser: argparse.ArgumentParser) -> int:
 
 if __name__ == "__main__":
     ret = _main(_parse())
-    exit(ret)
+    sys.exit(ret)

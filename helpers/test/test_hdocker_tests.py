@@ -4,8 +4,10 @@ Unit tests for hdocker_tests.py
 
 import logging
 import os
+from typing import List
 
 import helpers.hdocker_tests as hdoctest
+import helpers.hgit as hgit
 import helpers.hio as hio
 import helpers.hunit_test as hunitest
 
@@ -116,6 +118,73 @@ class Test_run_docker_cmd(hunitest.TestCase):
         # Run test and check output.
         with self.assertRaises(AssertionError):
             hdoctest.run_docker_cmd(nonexistent_dir)
+
+
+# #############################################################################
+# Test_get_unit_tests_cmd
+# #############################################################################
+
+
+class Test_get_unit_tests_cmd(hunitest.TestCase):
+    """
+    Test the get_unit_tests_cmd function.
+    """
+
+    def helper(self, test_file_names: List[str]) -> str:
+        """
+        Create a project with the test files and build the command for it.
+
+        :param test_file_names: names of the test files to create and run
+        :return: the command, with the project path replaced by `$PROJECT`
+        """
+        project_dir = self.get_scratch_space()
+        for test_file_name in test_file_names:
+            hio.to_file(os.path.join(project_dir, "test", test_file_name), "")
+        cmd = hdoctest.get_unit_tests_cmd(project_dir, test_file_names)
+        # The scratch dir depends on where the repo is, so replace it.
+        rel_dir = os.path.relpath(project_dir, hgit.find_git_root(project_dir))
+        cmd = cmd.replace(rel_dir, "$PROJECT")
+        return cmd
+
+    def test1(self) -> None:
+        """
+        Test the command for one test file.
+        """
+        # Prepare inputs.
+        test_file_names = ["test_utils.py"]
+        # Prepare outputs.
+        expected = "cd /git_root && python -m pytest $PROJECT/test/test_utils.py"
+        # Run test.
+        actual = self.helper(test_file_names)
+        # Check outputs.
+        self.assert_equal(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test the command for two test files, kept in the order given.
+        """
+        # Prepare inputs.
+        test_file_names = ["test_b.py", "test_a.py"]
+        # Prepare outputs.
+        expected = (
+            "cd /git_root && python -m pytest "
+            "$PROJECT/test/test_b.py $PROJECT/test/test_a.py"
+        )
+        # Run test.
+        actual = self.helper(test_file_names)
+        # Check outputs.
+        self.assert_equal(actual, expected)
+
+    def test3(self) -> None:
+        """
+        Test that a test file that does not exist raises an error.
+        """
+        # Prepare inputs.
+        project_dir = self.get_scratch_space()
+        test_file_names = ["test_missing.py"]
+        # Run test and check output.
+        with self.assertRaises(AssertionError):
+            hdoctest.get_unit_tests_cmd(project_dir, test_file_names)
 
 
 # #############################################################################

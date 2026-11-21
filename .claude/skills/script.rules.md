@@ -26,23 +26,66 @@
   ```
 - Follow the template `dev_scripts_helpers/coding_tools/script_template.py`
 
+## Split a Script Into an Executable + `lib_<name>.py` (Only When Asked)
+
+- Some CLI tools use a two-file split instead of a single script: a thin executable
+  with no file extension (`<name>`) plus a companion `lib_<name>.py` module holding
+  the real implementation
+  - Examples: `rig` + `lib_rig.py`, `ffind` + `lib_ffind.py` (both in
+    `dev_scripts_helpers/system_tools/`)
+- Only use this split when the user explicitly asks for it (e.g., "separate code and
+  lib as done for other executables"); it is not the default structure for a new or
+  edited script, use the single-file `_parse()`/`_main(parser)` structure above
+  instead
+
+### The Executable (`<name>`)
+
+- Shebang `#!/usr/bin/env python`, no `.py` extension, `chmod +x`
+- Docstring: a `# Usage Example` section, plus an `Import as:` line naming the lib
+  module
+- Exactly one import, and one line at the bottom
+  ```python
+  import dev_scripts_helpers.system_tools.lib_<name> as lib_<name>
+
+  if __name__ == "__main__":
+      exit(lib_<name>.main(description=__doc__))
+  ```
+- No logic lives in this file
+
+### The Library (`lib_<name>.py`)
+
+- `parse(description: str = "") -> argparse.ArgumentParser` builds the parser,
+  falling back to the module's own docstring (`description = __doc__ or ""`) when the
+  caller doesn't pass one, so the executable's docstring becomes the `--help` text
+- `main(args: Optional[List[str]] = None, description: str = "") -> int` parses
+  `args` (so tests can call it directly instead of going through `sys.argv`), does
+  the work, and returns an exit code
+- `parse()` and `main()` stay public (no leading `_`) since the executable calls them
+  from outside the module, the one case where `## Mark Private Functions` in
+  `coding.rules.md` does not apply; everything else (command building, helpers) stays
+  private (`_`-prefixed)
+- This makes the logic an importable, unit-testable module: see
+  `test/test_lib_rig.py` / `test/test_lib_ffind.py`, which call
+  `lib_<name>.main(args)` directly and assert on the command it would run (via
+  `helpers.hunit_test_utils.capture_sys_calls()`) without spawning a subprocess
+
 ## Template Script for Processing Input/Output
+
 - A script that reads from stdin/file and writes to stdout/file follows
   `dev_scripts_helpers/coding_tools/transform_template.py`
 
 ## Template Script for Parallel Workload
+
 - A script that runs a workload in parallel follows
   `dev_scripts_helpers/coding_tools/parallel_script_template.py`
 
 ## `_parse()` Returns the Parser, Never a `Namespace`
 
-- `_parse()` builds and returns the `argparse.ArgumentParser`; it must never
-  call `.parse_args()` itself
-- `_main(parser)` is the only place that calls `parser.parse_args()`, exactly
-  once
-
-- **Bad**: `_parse()` parses args itself, so `_main()` gets a `Namespace` and
-  calling `.parse_args()` on it crashes
+- `_parse()` builds and returns the `argparse.ArgumentParser`; it must never call
+  `.parse_args()` itself
+- `_main(parser)` is the only place that calls `parser.parse_args()`, exactly once
+- **Bad**: `_parse()` parses args itself, so `_main()` gets a `Namespace` and calling
+  `.parse_args()` on it crashes
   ```python
   def _parse() -> argparse.Namespace:
       parser = argparse.ArgumentParser(...)
@@ -65,8 +108,8 @@
 
 ## Use the Module Docstring as the Parser Description
 
-- Pass `description=__doc__` instead of hardcoding a separate description
-  string, and set `formatter_class=hparser.CustomHelpFormatter`
+- Pass `description=__doc__` instead of hardcoding a separate description string, and
+  set `formatter_class=hparser.CustomHelpFormatter`
 - This keeps the `--help` output and the module docstring in sync
 - **Bad**
   ```python
@@ -99,12 +142,11 @@
 ## Document Usage Examples in the Docstring
 
 - Introduce usage examples with the markdown header `# Usage Example`
-- Format each example as a bullet point (short description ending in `:`)
-  followed on the next line by the command prefixed with `>`, separated from
-  the next example by a blank line
-- Refer to the script by its simple filename: no full path, no leading `./`,
-  no `python` prefix, since scripts are executable and `PATH`-resolved
-
+- Format each example as a bullet point (short description ending in `:`) followed on
+  the next line by the command prefixed with `>`, separated from the next example by
+  a blank line
+- Refer to the script by its simple filename: no full path, no leading `./`, no
+  `python` prefix, since scripts are executable and `PATH`-resolved
 - **Bad**
   ```python
   """
@@ -126,11 +168,10 @@
 
 ## Make Scripts Executable
 
-- Every script has a shebang (`#!/usr/bin/env python`) and is `chmod +x`'d so
-  it runs as `./script.py` without a `python` prefix
-
-- If the script needs external (non-stdlib, non-`helpers`) packages, use the
-  `uv run` shebang with inline dependencies instead:
+- Every script has a shebang (`#!/usr/bin/env python`) and is `chmod +x`'d so it runs
+  as `./script.py` without a `python` prefix
+- If the script needs external (non-stdlib, non-`helpers`) packages, use the `uv run`
+  shebang with inline dependencies instead:
   ```python
   #!/usr/bin/env -S uv run
 
@@ -143,8 +184,8 @@
 
 ## Prefer the Canonical Helper Over Hand-Rolled Flags
 
-- Before adding a new flag, check the catalog below for an equivalent option
-  group; if one exists, call that helper instead of hand-rolling the flags
+- Before adding a new flag, check the catalog below for an equivalent option group;
+  if one exists, call that helper instead of hand-rolling the flags
 - A hand-rolled equivalent is any of:
   - A differently-named flag for the same concept (`--out_dir` instead of
     `--dst_dir`, `--preview` instead of `--dry_run`)
@@ -171,12 +212,11 @@
   hseinout.add_input_output_args(parser, in_required=True, out_required=False)
   ```
 
-## Verbosity Arg Is Mandatory, Paired With `init_logger`
+## Verbosity Arg Is Mandatory, Paired with `init_logger`
 
 - Every script calls `hparser.add_verbosity_arg(parser)` in `_parse()` and
-  `hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)` as the
-  first line of `_main()`
-
+  `hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)` as the first line
+  of `_main()`
 - **Bad**: missing `use_exec_path`, or call is conditional
   ```python
   hdbg.init_logger(args.log_level)
@@ -221,16 +261,16 @@
   )
   hsystem.system(cmd)
   ```
-- Applies to any script-to-script call in the repo (e.g., `gen_slides.py`
-  -> `notes_to_pdf.py`, `render_book_chapter.py` -> `run_typst.py`,
-  `for_loop_lessons.py` -> `gen_slides.py`/`render_book_chapter.py`); it
-  does not apply to calls to non-repo executables with no such flag
-  (e.g. `pandoc`, `open`, `typstyle`, `perl`)
+- Applies to any script-to-script call in the repo (e.g., `gen_slides.py` ->
+  `notes_to_pdf.py`, `render_book_chapter.py` -> `run_typst.py`,
+  `for_loop_lessons.py` -> `gen_slides.py`/`render_book_chapter.py`); it does not
+  apply to calls to non-repo executables with no such flag (e.g. `pandoc`, `open`,
+  `typstyle`, `perl`)
 
 ## Do Not Use `action="store_true"` for a Path-Valued Flag
 
-- A flag that carries a path or string value must use `action="store"` (the
-  default), never `action="store_true"`, even if it also sets a default
+- A flag that carries a path or string value must use `action="store"` (the default),
+  never `action="store_true"`, even if it also sets a default
 - **Bad**: `--dst_dir` can never be set to a custom directory from the CLI
   ```python
   parser.add_argument("--dst_dir", action="store_true", default="./out")
@@ -242,13 +282,12 @@
 
 ## Catalog of Option Groups
 
-- Each entry gives the helper to call and the exact flags/help text it adds;
-  do not restate this help text by hand in a script's own `add_argument()`
-  calls
+- Each entry gives the helper to call and the exact flags/help text it adds; do not
+  restate this help text by hand in a script's own `add_argument()` calls
 
 ### File Selection
-- Use `helpers.hselect_input_output.add_file_selection_args()`
 
+- Use `helpers.hselect_input_output.add_file_selection_args()`
   ```verbatim
   -i, --input FILE      Select a single file
   -f, --files FILES     Select specific files (space-separated list in a single argument)
@@ -260,8 +299,8 @@
   ```
 
 ### Input/Output
-- Use `helpers.hselect_input_output.add_input_output_args()`
 
+- Use `helpers.hselect_input_output.add_input_output_args()`
   ```verbatim
   -i, --input INPUT     Input file or `-` for stdin
   -o, --output OUTPUT   Output file or `-` for stdout
@@ -277,23 +316,23 @@
 `add_multi_file_args()` below -->
 
 ### Destination Directory
-- Use `helpers.hselect_input_output.add_dst_dir_arg()`
 
+- Use `helpers.hselect_input_output.add_dst_dir_arg()`
   ```verbatim
   --dst_dir DST_DIR     Directory storing the results
   --overwrite           Delete existing destination directory if it already exists
   ```
 
 ### Limit Range
-- Use `helpers.hselect_input_output.add_limit_range_arg()`
 
+- Use `helpers.hselect_input_output.add_limit_range_arg()`
   ```verbatim
   --limit LIMIT         Limit processing to item range X:Y (integers >= 1, inclusive)
   ```
 
 ### Multi-file Selection
-- Use `helpers.hselect_input_output.add_multi_file_args()`
 
+- Use `helpers.hselect_input_output.add_multi_file_args()`
   ```verbatim
   --files FILES         Comma-separated list of files to process (e.g.,
                         'file1.txt,file2.txt,file3.txt')
@@ -303,6 +342,7 @@
   ```
 
 ### File Type Filtering
+
 - Use `helpers.hselect_input_output.add_file_type_filter_args()`
   ```verbatim
   --file_types FILE_TYPES
@@ -317,6 +357,7 @@
   ```
 
 ### Boolean On/off
+
 - Use `helpers.hparser.add_bool_arg()`
   ```verbatim
   --run_diff_script
@@ -324,6 +365,7 @@
   ```
 
 ### Verbosity
+
 - Use `helpers.hparser.add_verbosity_arg()`
   ```verbatim
   -v {TRACE,DEBUG,INFO,WARNING,ERROR,CRITICAL}
@@ -333,6 +375,7 @@
   ```
 
 ### JSON Output Metadata
+
 - Use `helpers.hparser.add_json_output_metadata_args()`
   ```verbatim
   --json_output_metadata JSON_OUTPUT_METADATA
@@ -341,6 +384,7 @@
   ```
 
 ### Action Selection
+
 - Use `helpers.hselect_action.add_action_arg()`
   ```verbatim
   --action ACTION       Add an action to the list of actions to execute
@@ -360,6 +404,7 @@
   ```
 
 ### Markdown Select
+
 - Use `helpers.hmarkdown_select.add_select_arg()`
   ```verbatim
   --select SELECT       Select text range as START:END
@@ -377,6 +422,7 @@
   ```
 
 ### Rule
+
 - Use `helpers.hmarkdown_select.add_rule_cli_arg()`
   ```verbatim
   --rule RULE           Rule specification used as system prompt. Formats:
@@ -387,6 +433,7 @@
   ```
 
 ### Cache Control
+
 - Use `helpers.hcache_simple.add_cache_control_arg()`
   ```verbatim
   --cache_mode {REFRESH_CACHE,DISABLE_CACHE,HIT_CACHE_OR_ABORT}
@@ -397,12 +444,14 @@
   ```
 
 ### Daemon
+
 - Use `helpers.hdaemon.add_daemon_arg()`
   ```verbatim
   --daemon              Watch input file for changes and regenerate on change
   ```
 
 ### Open
+
 - Use `helpers.hdocker.add_open_arg()`
   ```verbatim
   --open                Open the output file on macOS
@@ -411,6 +460,7 @@
   duplicate either function locally
 
 ### Dockerized Script
+
 - Use `helpers.hdocker.add_dockerized_script_arg()`
   ```verbatim
   --dockerized_force_rebuild
@@ -420,6 +470,7 @@
   ```
 
 ### Parallel Processing
+
 - Use `helpers.hjoblib.add_parallel_processing_arg()`
   ```verbatim
   --dry_run             Print the workload and exit without running it
@@ -442,6 +493,7 @@
   ```
 
 ### LLM Prompt
+
 - Use `helpers.hllm_cli.add_llm_prompt_arg()`
   ```verbatim
   --debug               Print before/after the transform
@@ -450,6 +502,7 @@
   ```
 
 ### LLM
+
 - Use `helpers.hllm_cli.add_llm_args()`
   ```verbatim
   -i, --input INPUT     Path to the input file containing text to process, or '-' for stdin
@@ -473,6 +526,7 @@
   ```
 
 ### S3
+
 - Use `helpers.hs3.add_s3_args()`
   ```verbatim
   --aws_profile AWS_PROFILE
@@ -482,6 +536,7 @@
   ```
 
 ### Config Override
+
 - Use `config_root.config.config_utils.add_config_override_args()`
   ```verbatim
   --set_config_value SET_CONFIG_VALUE
@@ -489,6 +544,7 @@
   ```
 
 ### Pandoc Backend
+
 - Use `dev_scripts_helpers.dockerize.lib_pandoc.add_pandoc_backend_arg()`
   ```verbatim
   --pandoc_backend {auto,dockerized,host}
@@ -499,11 +555,22 @@
 
 # Dry Run
 
+## Add `--dry_run` Whenever a Script Has Side Effects
+
+- Give every script a `--dry_run` option whenever possible, i.e., whenever it
+  performs a side effect: writes or deletes files, runs a subprocess, issues git/gh
+  commands, or calls a network API
+- Skip it only for a script that is purely read-only (e.g., prints a report, computes
+  and returns a value, queries state without mutating anything)
+- **Bad**: a script that runs `git push` with no way to preview the command first
+- **Good**: a script that runs `git push` gates it behind `--dry_run` (see the Guard
+  the Side Effect section below for how)
+
 ## Add `--dry_run` as a Standard Flag
 
-- If the script already calls `helpers.hjoblib.add_parallel_processing_arg()`
-  (see the Parallel Processing catalog entry above), `--dry_run` comes for
-  free; do not redeclare it
+- If the script already calls `helpers.hjoblib.add_parallel_processing_arg()` (see
+  the Parallel Processing catalog entry above), `--dry_run` comes for free; do not
+  redeclare it
 - Otherwise declare it by hand as a plain boolean flag
   ```python
   parser.add_argument(
@@ -512,18 +579,17 @@
       help="Show what would be done without actually doing it",
   )
   ```
-- Thread `dry_run` through function signatures as a keyword-only `bool`
-  parameter, not a global; the only place that reads `args.dry_run` is
-  `_main()`
+- Thread `dry_run` through function signatures as a keyword-only `bool` parameter,
+  not a global; the only place that reads `args.dry_run` is `_main()`
 
 ## Guard the Side Effect, Not the Whole Function
 
-- Wrap only the code that mutates state (file writes, network calls,
-  subprocess execution, git/gh commands) in `if dry_run: ... else: ...`; keep
-  computing and logging surrounding context (counts, paths, plans) outside
-  the guard so a dry run still produces useful output
-- Mirror the real branch's log message in the dry-run branch, just prefixed
-  with the `[DRY_RUN]` tag and phrased as "Would ..."
+- Wrap only the code that mutates state (file writes, network calls, subprocess
+  execution, git/gh commands) in `if dry_run: ... else: ...`; keep computing and
+  logging surrounding context (counts, paths, plans) outside the guard so a dry run
+  still produces useful output
+- Mirror the real branch's log message in the dry-run branch, just prefixed with the
+  `[DRY_RUN]` tag and phrased as "Would ..."
 - **Good** (`dev_scripts_helpers/thin_client/create_all_helpers_links.py`)
   ```python
   if dry_run:
@@ -533,20 +599,19 @@
       _create_link(...)
   ```
 - For a top-level command wrapper that runs a single blocking operation
-  (`helpers.hsystem.system()`, `helpers.hjoblib.parallel_execute()`), an
-  early return right after the log line is fine, since there's no separate
-  "real" branch left to fall through to
+  (`helpers.hsystem.system()`, `helpers.hjoblib.parallel_execute()`), an early return
+  right after the log line is fine, since there's no separate "real" branch left to
+  fall through to
   ```python
   if dry_run:
       _LOG.warning("As per user request, not executing command:\n%s", cmd)
       return 0, ""
   ```
 
-## Log With `_LOG.warning`, Never `_LOG.info` or `print`
+## Log with `_LOG.warning`, Never `_LOG.info` or `print`
 
 - Dry-run notices use `_LOG.warning` so they stand out from the surrounding
   INFO-level narration regardless of `-v`
-
 - **Bad**
   ```python
   _LOG.info("[DRY_RUN] Would remove '%s'", path)
@@ -556,7 +621,7 @@
   _LOG.warning("[DRY_RUN] Would remove '%s'", path)
   ```
 
-## Tag Every Message With the Literal `[DRY_RUN]` Prefix
+## Tag Every Message with the Literal `[DRY_RUN]` Prefix
 
 - Prefix with `[DRY_RUN]`: underscore, all caps, matching the flag's own name (see
   "Underscore Case, Not Hyphens" below), so the tag is greppable and consistent with
@@ -564,7 +629,6 @@
 - Follow the tag with "Would <verb>" describing the skipped action, then the same
   `%s`/`%d` lazy-formatting arguments the real branch's message would use (see the
   logging conventions in `coding.rules.md`)
-
 - **Bad**
   ```python
   _LOG.info("[DRY-RUN] Would create field: '%s'", name)
@@ -578,9 +642,8 @@
 
 ## Test That the Side Effect Did Not Happen
 
-- A unit test for `dry_run=True` asserts the absence of the side effect
-  (e.g., `hdbg.dassert_path_not_exists(...)`), not just that the call didn't
-  raise
+- A unit test for `dry_run=True` asserts the absence of the side effect (e.g.,
+  `hdbg.dassert_path_not_exists(...)`), not just that the call didn't raise
 - **Good** (`helpers/test/test_hsystem.py`)
   ```python
   def test_dry_run(self) -> None:
@@ -593,33 +656,33 @@
 
 ## Underscore Case, Not Hyphens
 
-- Use only underscores as separators in flag names, for both the long-form
-  name and the resulting `Namespace` attribute
+- Use only underscores as separators in flag names, for both the long-form name and
+  the resulting `Namespace` attribute
 - **Bad**: `--dry-run`, `--skip-post-transforms`, `--operation-ids`
 - **Good**: `--dry_run`, `--skip_post_transforms`, `--operation_ids`
 
 ## Match the Canonical Name, Even When a Helper Does Not Apply
 
 - When a concept has no dedicated helper but overlaps one that does (e.g., a
-  script-specific "skip processing without side effects" flag), name it after
-  the closest canonical flag (`--dry_run`, not `--preview`) so scripts stay
-  greppable and consistent
-- If a flag name would collide with a standard one but mean something
-  different (e.g., a script's own `--action` with fixed `choices=` instead of
-  the composable action registry), rename the script's flag instead of
-  reusing the standard name with different semantics
+  script-specific "skip processing without side effects" flag), name it after the
+  closest canonical flag (`--dry_run`, not `--preview`) so scripts stay greppable and
+  consistent
+- If a flag name would collide with a standard one but mean something different
+  (e.g., a script's own `--action` with fixed `choices=` instead of the composable
+  action registry), rename the script's flag instead of reusing the standard name
+  with different semantics
 
 ## Provide the Standard Short Alias
 
-- `-i`/`-o` are reserved for input/output; give them to any flag playing that
-  role, and do not repurpose them for something else
+- `-i`/`-o` are reserved for input/output; give them to any flag playing that role,
+  and do not repurpose them for something else
 - **Bad**: `--output` with no `-o`
 - **Good**: `-o, --output`
 
 ## Do Not Repeat Default Values in Help Text
 
-- The `default=` parameter already documents the default; do not restate it
-  in `help=`
+- The `default=` parameter already documents the default; do not restate it in
+  `help=`
 - **Bad**
   ```python
   parser.add_argument("--browser", default="safari", help="Browser to use (default: safari)")
@@ -632,8 +695,7 @@
 ## Use Mutually Exclusive Groups for Conflicting Options
 
 - When two options are mutually exclusive, enforce it with
-  `parser.add_mutually_exclusive_group()` instead of validating by hand in
-  `_main()`
+  `parser.add_mutually_exclusive_group()` instead of validating by hand in `_main()`
 - **Bad**
   ```python
   parser.add_argument("--input_file", default="")
@@ -654,12 +716,10 @@
 
 ## Update Every Caller, Not Just the Script
 
-- A flag rename or replacement is not done until every reference is updated:
-  other scripts that invoke this one, `invoke` tasks
-  (`helpers/lib_tasks/lib_tasks_*.py`), and markdown docs (READMEs, this file)
-  that mention the old flag name
-- Grep for the old flag name repo-wide before considering the change
-  complete
+- A flag rename or replacement is not done until every reference is updated: other
+  scripts that invoke this one, `invoke` tasks (`helpers/lib_tasks/lib_tasks_*.py`),
+  and markdown docs (READMEs, this file) that mention the old flag name
+- Grep for the old flag name repo-wide before considering the change complete
   ```bash
   > grep -rn -- "--old_flag_name" --include="*.py" --include="*.md"
   ```

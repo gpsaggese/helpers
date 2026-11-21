@@ -10,9 +10,7 @@ model: haiku
 # Workflow
 
 ## Generate Image Prompts
-- For each slide, generate an image prompt in the following format, adding a
-  description in `<DESCRIPTION>`
-- The prompt should be like:
+- For each slide, write a prompt in this format, with `<DESCRIPTION>` filled in:
   ```verbatim
   CHARACTERS
   <DESCRIPTION>
@@ -34,8 +32,7 @@ model: haiku
   ```
 
 ## Create the Output File
-- Write the generated prompts to `demo_images.md` so it can be used with the
-  command:
+- Write the prompts to `demo_images.md`, for use with this command:
   ```bash
   > ./helpers_root/dev_scripts_helpers/documentation/generate_images.py \
      -i demo_images.md \

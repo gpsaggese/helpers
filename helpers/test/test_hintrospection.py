@@ -3,10 +3,13 @@ import importlib.machinery
 import importlib.util
 import logging
 import os
+import pickle
 import sys
 import types
 import unittest.mock as umock
-from typing import Any, Callable, cast, Dict
+from typing import Any, Callable, Dict, cast
+
+import pytest
 
 import helpers.hdbg as hdbg
 import helpers.hintrospection as hintros
@@ -79,17 +82,14 @@ class Test_is_pickleable1(hunitest.TestCase):
         exp_pickled: bool,
     ) -> None:
         _LOG.debug("obj=%s", obj)
-        #
         act_str = str(obj)
         _LOG.debug("act_str=%s", act_str)
         _LOG.debug("exp_str=%s", exp_str)
         self.assert_equal(act_str, exp_str, purify_text=True)
-        #
         act_bound = hintros.is_bound_to_object(obj)
         _LOG.debug("act_bound=%s", act_bound)
         _LOG.debug("exp_bound=%s", exp_bound)
         self.assertEqual(act_bound, exp_bound)
-        #
         act_lambda = hintros.is_lambda_function(obj)
         _LOG.debug("act_lambda=%s", act_lambda)
         _LOG.debug("exp_lambda=%s", exp_lambda)
@@ -99,7 +99,9 @@ class Test_is_pickleable1(hunitest.TestCase):
             file_name = os.path.join(self.get_scratch_space(), "obj.pkl")
             hpickle.to_pickle(obj, file_name)
             act_pickled = True
-        except AttributeError as e:
+        # Python 3.14+ raises `pickle.PicklingError` instead of
+        # `AttributeError` for local objects.
+        except (AttributeError, pickle.PicklingError) as e:
             _LOG.error("e=%s", e)
             act_pickled = False
         _LOG.debug("act_pickled=%s", act_pickled)
@@ -133,7 +135,6 @@ class Test_is_pickleable1(hunitest.TestCase):
         def _hello() -> bool:
             return False
 
-        #
         func = _hello
         exp_str = (
             r"<function Test_is_pickleable1.test_func1.<locals>._hello at 0x>"
@@ -714,6 +715,7 @@ class Test_print_obj_info(hunitest.TestCase):
         :param expected: expected Markdown text
         :param kwargs: extra options passed through to `print_obj_info()`
         """
+        pytest.importorskip("IPython")
         # Run test: mock only the external `IPython.display.display()` call
         # so the Markdown text it receives can be inspected; everything
         # else (including the real `get_link_to_code()` call) executes

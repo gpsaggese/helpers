@@ -1,4 +1,7 @@
+import importlib.util
 import logging
+
+import pytest
 
 import helpers.hpandas as hpandas
 import helpers.hunit_test as hunitest
@@ -13,6 +16,10 @@ _AWS_PROFILE = "ck"
 # #############################################################################
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("IPython") is None,
+    reason="IPython is not installed",
+)
 class Test_CheckSummary(hunitest.TestCase):
     def test1(self) -> None:
         """
@@ -29,7 +36,6 @@ class Test_CheckSummary(hunitest.TestCase):
         # Check.
         is_ok = obj.is_ok()
         self.assertTrue(is_ok)
-        #
         actual = obj.report_outcome(notebook_output=False, assert_on_error=False)
         self.check_string(actual)
         # No assertion expected.
@@ -50,10 +56,8 @@ class Test_CheckSummary(hunitest.TestCase):
         # Check.
         is_ok = obj.is_ok()
         self.assertFalse(is_ok)
-        #
         actual = obj.report_outcome(notebook_output=False, assert_on_error=False)
         self.check_string(actual)
-        #
         with self.assertRaises(ValueError) as e:
             actual = obj.report_outcome()
         actual_exception = str(e.exception)

@@ -3,15 +3,12 @@ description: Move constants to their correct scope based on usage
 model: haiku
 ---
 
-Move constants to match their usage scope and visibility requirements. Constants
-should be placed where they are used and made private when not part of the
-module's public interface
+Move constants to the narrowest scope that uses them. Make a constant private
+when it is not part of the module's public interface.
 
 # Conventions
 - Follow the section `# Constants` from the file `.claude/skills/coding.rules.md`
-
-Apply the conventions in `.claude/skills/coding.rules.md` when writing constant
-definitions and names
+  for constant definitions and names
 
 # Verification
 - [ ] Confirm each constant sits in the smallest scope that uses it (local,

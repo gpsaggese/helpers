@@ -32,6 +32,7 @@ import helpers.hmarkdown as hmarkdo
 import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
 import helpers.hsystem as hsystem
+
 import dev_scripts_helpers.dockerize.lib_latex as dshdlila
 import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
 import dev_scripts_helpers.dockerize.lib_typst as dshdlity
@@ -134,7 +135,6 @@ def resolve_slides_engine(file_name: str, slides_engine: str) -> str:
     # Process file .
     metadata, _ = dshdprno.extract_slide_metadata(lines)
     resolved_engine = metadata.get("slides_engine", "beamer")
-    #
     hdbg.dassert_in(
         resolved_engine,
         ["beamer", "typst"],
@@ -204,7 +204,6 @@ def render_images(file_name: str, prefix: str) -> str:
     file3 = f"{prefix}.render_image2.txt"
     hio.to_file(file3, out)
     _LOG.info("Remove commented code and saved file='%s'", file3)
-    #
     file_out = file3
     return file_out
 
@@ -439,7 +438,6 @@ def run_pandoc_to_pdf(
     # cmd = f"cp -f {latex_file} ."
     cmd = f"cp -f {latex_file} {out_dir}"
     _ = _system(cmd)
-    #
     cmd = ""
     # There is a horrible bug in pdflatex that if the input file is not the last
     # one the output directory is not recognized.
@@ -572,7 +570,6 @@ def _build_pandoc_latex_cmd(
     """
     cmd = []
     cmd.append(f"pandoc {file_name}")
-    #
     cmd.append("-t beamer")
     cmd.append("--slide-level 4")
     cmd.append("-V theme:SimplePlus")
@@ -613,7 +610,6 @@ def _build_pandoc_latex_cmd(
         ext = ".pdf"
     file_out = file_name.replace(".txt", ext)
     cmd.append(f"-o {file_out}")
-    #
     cmd = " ".join(cmd)
     _LOG.debug("%s", "before: " + hprint.to_str("cmd"))
     if not use_host_tools:
@@ -751,7 +747,6 @@ def run_pandoc_to_latex_slides(
                     cmd = f"vim {file_out} +{line_num}"
                     print(hprint.frame(cmd))
         raise RuntimeError("Pandoc failed")
-    #
     _LOG.debug("file_out=%s", file_out)
     hdbg.dassert_path_exists(file_out)
     return file_out
@@ -950,6 +945,10 @@ def run_pandoc_to_typst_slides(
     # deprecation warnings.
     txt = re.sub(r"\bangle\.l\b", "chevron.l", txt)
     txt = re.sub(r"\bangle\.r\b", "chevron.r", txt)
+    # Pandoc's LaTeX->Typst math writer emits `sect` (e.g., for `\sqcap`),
+    # which recent Typst versions deprecate in favor of `inter`. Rewrite it
+    # to avoid `typst compile` deprecation warnings.
+    txt = re.sub(r"\bsect\b", "inter", txt)
     hio.to_file(typ_file, txt)
     # Return the `.typ` file if typst_only mode is requested.
     if typst_only:

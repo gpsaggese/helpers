@@ -5,39 +5,40 @@ model: haiku
 
 # Goal
 
-- The user will pass you a file `<FILE>` or a GitHub issue number
+- The user passes a file `<FILE>` (e.g., `tasks.md`) or a GitHub issue number
   `<GITHUB_ISSUE_NUM>`
-- You will read carefully the passed content and make sure both the problem and the
-  solution is clear and complete
+- Read the content carefully. Make sure the problem and the solution are clear
+  and complete
 
 # Workflow
 
 ## Read Context
 
-- Read the content (file or GitHub issue)
-- Analyze the problem and the solution, reviewing it carefully
+- Read the plan (file or GitHub issue)
+- Analyze the problem and the solution
 
 ## Create a Plan, If Needed
 
-- When analyzing the problem, make sure to understand which repos are affected by the
-  change, since this influences creating a PR for multiple repos
-  - Update the section in `.claude/templates/auto_task.template.md`
+- Identify the repos the change affects. This decides whether a PR spans
+  multiple repos
+  - Update the `* Repo:` checklist in `.claude/templates/auto_task.template.md`,
+    following `.claude/skills/auto_task.rules.md` section "Multi-Repo Issues,
+    Branches, and PRs"
+  - If more than one repo is checked, each `PR<NUM>` block in "Solution" must name
+    its target repo. An unlabeled `PR<NUM>` in a multi-repo task is an unclear
+    plan (see "Ask for Clarification Before Executing an Unclear Plan" in
+    `.claude/skills/auto_task.rules.md`)
+  - Do not add or edit a `## Companion PRs` section. Once PRs exist,
+    `git_create_issue_and_branch.py` generates it, per
+    `.claude/skills/auto_task.rules.md` "Multi-Repo Issues, Branches, and PRs"
 
-    ```
-    * Repo: <Which repos are affected>
-    - [ ] helpers (https://github.com/causify-ai/helpers)
-    - [ ] umd_classes (https://github.com/gpsaggese/gpsaggese.github.io)
-    - ...
-    ```
-
-- If the task is not perfectly clear:
-  - Ask for clarifications
-  - Propose changes to the file to clarify
+- If the task is not perfectly clear, follow `.claude/skills/auto_task.rules.md`
+  section "Ask for Clarification Before Executing an Unclear Plan"
 
 ## Output Results
 
-- Follow the rules in `.claude/skills/auto_task.rules.md`
-- The output is a file in the format `.claude/templates/auto_task.template.md`
+- Follow `.claude/skills/auto_task.rules.md`
+- Write the output as a file in the format `.claude/templates/auto_task.template.md`
 
 # Conventions
 

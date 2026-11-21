@@ -52,6 +52,13 @@ For detailed documentation on the link workflow, see:
     --target local_csv --local_csv bookmarks/combined_data.csv \
     --all_actions
 
+- Tag the articles with a specific LLM model (by default the OpenRouter model
+  of `hllm_cli`, which needs the `OPENROUTER_KEY` env var):
+> process_gsheet_links.py \
+    --url "https://docs.google.com/spreadsheets/d/1i6Z7v2..." \
+    --clear_actions --action update_article_tag \
+    --model openrouter/anthropic/claude-haiku-4.5
+
 Import as:
 
 import dev_scripts_helpers.download.pre_process_bookmarks as dspprbo
@@ -66,13 +73,14 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hllm_cli as hllmcli
 import helpers.hlogging as hloggin
 import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
-import helpers.hcache_simple as hcacsimp
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
 import dev_scripts_helpers.download.download_utils as dshddut
 
@@ -96,34 +104,27 @@ topic_to_cluster = {
     "Prompt Engineering": "AI",
     "Self-Supervised Learning": "AI",
     "Uncertainty Modeling": "AI",
-    #
     "AI Infrastructure": "Data/Infra",
     "Data Engineering": "Data/Infra",
     "High-Performance Computing": "Data/Infra",
-    #
     "Developer Tools": "Dev tools",
     "Git": "Dev tools",
     "Open Source": "Dev tools",
     "Python Ecosystem": "Dev tools",
     "Rust and C++": "Dev tools",
-    #
     "Quant Finance": "Finance",
     "Trading Strategies": "Finance",
-    #
     "Complex Systems": "Math",
     "Mathematical Concepts": "Math",
     "Simulation": "Math",
     "Time Series": "Math",
     "Unconventional Computing": "Math",
-    #
     "Careers": "Business",
     "Marketing and Sales": "Business",
     "Organizational Behavior": "Business",
     "Psychology": "Business",
-    #
     "Cybersecurity": "CyberSec",
     "Risk Management": "CyberSec",
-    #
     "Code Refactoring": "SwEng",
     "Dev Productivity": "SwEng",
     "Software Architecture": "SwEng",
@@ -321,7 +322,7 @@ def _update_article_tags(
     Only processes rows where Article_tag is empty; skips rows with existing values.
 
     :param batch_size: Number of articles to process in each batch
-    :param model: Optional LLM model name to use
+    :param model: LLM model name to use, e.g., `dshddut.SUMMARY_MODEL`
     :return: Path to the updated CSV file
     """
     _LOG.debug(hprint.to_str("model batch_size"))
@@ -564,7 +565,11 @@ def _parse() -> argparse.ArgumentParser:
         "--model",
         action="store",
         default=dshddut.SUMMARY_MODEL,
-        help=f"LLM model name to use for tagging (default: {dshddut.SUMMARY_MODEL})",
+        help=(
+            "LLM model name to use for tagging, e.g., "
+            "`openrouter/anthropic/claude-haiku-4.5`. The default is an "
+            "OpenRouter model, which needs the `OPENROUTER_KEY` env var"
+        ),
     )
     hselacti.add_action_arg(parser, _VALID_ACTIONS, _DEFAULT_ACTIONS)
     hcacsimp.add_cache_control_arg(parser)

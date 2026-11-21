@@ -17,6 +17,7 @@ import helpers.hdbg as hdbg
 import helpers.hdocker as hdocker
 import helpers.hio as hio
 import helpers.hprint as hprint
+
 import dev_scripts_helpers.dockerize.lib_latex as dshdlila
 
 _LOG = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ def get_imagemagick_container_image_name() -> str:
     """
     Get the name of the ImageMagick container image.
 
-    E.g., `tmp.imagemagick.amd64.12345678` or `tmp.imagemagick.arm64.12345678`
+    E.g., `tmp.imagemagick.amd64.12345678` or
+    `tmp.imagemagick.arm64.12345678`
     """
     container_image, _ = hdocker.get_container_image_name(
         _IMAGEMAGICK_CONTAINER_PREFIX, _DOCKERFILE
