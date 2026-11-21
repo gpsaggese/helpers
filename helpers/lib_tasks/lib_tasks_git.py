@@ -559,6 +559,8 @@ def git_branch_create(  # type: ignore
     suffix="",
     only_branch_from_master=True,
     check_branch_name=True,
+    skip_branch_exists_check=False,
+    no_fetch=False,
     create_pr=True,
     abort_if_not_clean=True,
     dry_run=False,
@@ -594,6 +596,11 @@ def git_branch_create(  # type: ignore
         instead of the current `HEAD`
     :param check_branch_name: make sure the name of the branch is valid like
         `{Amp,...}TaskXYZ_...`
+    :param skip_branch_exists_check: skip checking that the branch does not
+        already exist (a slow check that needs the network), e.g., when the
+        caller already checked it
+    :param no_fetch: do not fetch `origin/master` before branching from it,
+        e.g., when the caller already fetched it
     :param create_pr: create a draft PR for the new branch (default: True)
     :param abort_if_not_clean: abort if the client has uncommitted changes
         (default: True)
@@ -615,6 +622,10 @@ def git_branch_create(  # type: ignore
         cmd += " --no_only_branch_from_master"
     if not check_branch_name:
         cmd += " --no_check_branch_name"
+    if skip_branch_exists_check:
+        cmd += " --skip_branch_exists_check"
+    if no_fetch:
+        cmd += " --no_fetch"
     if not create_pr:
         cmd += " --no_create_pr"
     if not abort_if_not_clean:
@@ -892,7 +903,10 @@ def git_branch_copy(  # type: ignore
     # Determine and validate the target branch name before any destructive
     # step below (`git clean -fd`, merging master), so an invalid name fails
     # fast without mutating the working directory.
-    if new_branch_name is None or new_branch_name == "":
+    # An auto-generated name is guaranteed to be free by
+    # `get_branch_next_name()`, so only a name passed by the user can exist.
+    is_name_from_user = new_branch_name is not None and new_branch_name != ""
+    if not is_name_from_user:
         new_branch_name = hgit.get_branch_next_name(method=method)
     _LOG.info("new_branch_name='%s'", new_branch_name)
     hdbg.dassert_ne(
@@ -908,8 +922,9 @@ def git_branch_copy(  # type: ignore
     # Stage the untracked files (except `tmp.*` and `*.log` scratch files), so
     # that they are carried over to the new branch and not removed by the clean
     # below.
-    cmd = "invoke git_add_all_untracked"
-    hltltaut.run(ctx, cmd, dry_run=dry_run)
+    # Call the task as a function to avoid paying the startup cost of a new
+    # `invoke` process.
+    git_add_all_untracked(ctx, dry_run=dry_run)
     # Remove the remaining untracked files (i.e., the scratch files) to ensure
     # clean state when copying branch.
     cmd = "git clean -fd"
@@ -928,8 +943,11 @@ def git_branch_copy(  # type: ignore
         # TODO(gp): Create a patch or do a `git merge`.
         pass
     # Create or checkout the target branch.
-    mode = "all"
-    new_branch_exists = hgit.does_branch_exist(new_branch_name, mode)
+    new_branch_exists = False
+    if is_name_from_user:
+        # Looking up a name is slow, so do it only for a name that can exist.
+        mode = "all"
+        new_branch_exists = hgit.does_branch_exist(new_branch_name, mode)
     if new_branch_exists:
         # Switch to existing branch to copy changes into it.
         cmd = f"git checkout {new_branch_name}"
@@ -938,6 +956,12 @@ def git_branch_copy(  # type: ignore
         cmd = f"git checkout master && invoke git_branch_create --branch-name '{new_branch_name}'"
         if not check_branch_name:
             cmd += " --no-check-branch-name"
+        # The name is known to be free: it was either auto-generated or
+        # checked above.
+        cmd += " --skip-branch-exists-check"
+        # `git_merge_master` already fetched `origin/master`.
+        if not skip_git_merge_master:
+            cmd += " --no-fetch"
     hltltaut.run(ctx, cmd, dry_run=dry_run)
     if use_patch:
         # TODO(gp): Apply the patch.
