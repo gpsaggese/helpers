@@ -1,7 +1,8 @@
 import logging
 import os
 import tempfile
-from typing import Generator, List, Optional
+import unittest.mock as umock
+from typing import Generator, List, Optional, Tuple
 
 import pytest
 
@@ -560,6 +561,215 @@ class Test__get_max_branch_num(hunitest.TestCase):
         expected = 4
         # Run test.
         self.helper(branch_names, curr_branch_name, expected)
+
+
+# #############################################################################
+# Test_does_branch_exist
+# #############################################################################
+
+
+class Test_does_branch_exist(hunitest.TestCase):
+    """
+    Test `hgit.does_branch_exist()` by checking the commands run per mode.
+    """
+
+    def helper(
+        self,
+        mode: str,
+        rev_parse_rcs: List[int],
+        gh_output: str,
+        expected_exists: bool,
+        expected_cmds: str,
+    ) -> None:
+        """
+        Run `does_branch_exist()` with mocked commands and check the result.
+
+        :param mode: mode passed to `does_branch_exist()`
+        :param rev_parse_rcs: return codes of the successive `git rev-parse`
+            calls (0 means that the branch exists)
+        :param gh_output: output of the `gh pr list` command
+        :param expected_exists: expected return value
+        :param expected_cmds: expected commands, one per line, in order
+        """
+        branch_name = "HelpersTask1_Foo"
+        rev_parse_rcs = list(rev_parse_rcs)
+        cmds: List[str] = []
+
+        def _system(cmd: str, **kwargs: object) -> int:
+            cmds.append(cmd)
+            rc = 0
+            if "git rev-parse" in cmd:
+                rc = rev_parse_rcs.pop(0)
+            return rc
+
+        def _system_to_string(cmd: str, **kwargs: object) -> Tuple[int, str]:
+            cmds.append(cmd)
+            return 0, gh_output
+
+        # Run test.
+        with (
+            umock.patch.object(hsystem, "system", side_effect=_system),
+            umock.patch.object(
+                hsystem, "system_to_string", side_effect=_system_to_string
+            ),
+        ):
+            actual_exists = hgit.does_branch_exist(branch_name, mode)
+        # Check outputs.
+        self.assertEqual(actual_exists, expected_exists)
+        self.assert_equal("\n".join(cmds), expected_cmds, dedent=True)
+
+    def test1(self) -> None:
+        """
+        Test that `git_local` mode does not fetch.
+        """
+        # Prepare inputs.
+        mode = "git_local"
+        rev_parse_rcs = [0]
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = True
+        expected_cmds = """
+        cd . && git rev-parse --verify HelpersTask1_Foo
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test2(self) -> None:
+        """
+        Test that `git_remote` mode fetches once and checks `origin/`.
+        """
+        # Prepare inputs.
+        mode = "git_remote"
+        rev_parse_rcs = [1]
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = False
+        expected_cmds = """
+        cd . && git fetch --prune
+        cd . && git rev-parse --verify origin/HelpersTask1_Foo
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test3(self) -> None:
+        """
+        Test that `github` mode queries only the PRs of the head branch.
+        """
+        # Prepare inputs.
+        mode = "github"
+        rev_parse_rcs: List[int] = []
+        gh_output = "347\n"
+        # Prepare outputs.
+        expected_exists = True
+        expected_cmds = """
+        cd . && gh pr list --head HelpersTask1_Foo --state all --json number --limit 1 --jq '.[].number'
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test4(self) -> None:
+        """
+        Test that `github` mode returns False when no PR matches.
+        """
+        # Prepare inputs.
+        mode = "github"
+        rev_parse_rcs: List[int] = []
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = False
+        expected_cmds = """
+        cd . && gh pr list --head HelpersTask1_Foo --state all --json number --limit 1 --jq '.[].number'
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test5(self) -> None:
+        """
+        Test that `all` mode stops at a local hit, without any network call.
+        """
+        # Prepare inputs.
+        mode = "all"
+        rev_parse_rcs = [0]
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = True
+        expected_cmds = """
+        cd . && git rev-parse --verify HelpersTask1_Foo
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test6(self) -> None:
+        """
+        Test that `all` mode stops at a remote hit, without querying GitHub.
+        """
+        # Prepare inputs.
+        mode = "all"
+        rev_parse_rcs = [1, 0]
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = True
+        expected_cmds = """
+        cd . && git rev-parse --verify HelpersTask1_Foo
+        cd . && git fetch --prune
+        cd . && git rev-parse --verify origin/HelpersTask1_Foo
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test7(self) -> None:
+        """
+        Test that `all` mode runs each check once when the branch is missing.
+        """
+        # Prepare inputs.
+        mode = "all"
+        rev_parse_rcs = [1, 1]
+        gh_output = ""
+        # Prepare outputs.
+        expected_exists = False
+        expected_cmds = """
+        cd . && git rev-parse --verify HelpersTask1_Foo
+        cd . && git fetch --prune
+        cd . && git rev-parse --verify origin/HelpersTask1_Foo
+        cd . && gh pr list --head HelpersTask1_Foo --state all --json number --limit 1 --jq '.[].number'
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
+
+    def test8(self) -> None:
+        """
+        Test that `all` mode finds a branch that only has a PR.
+        """
+        # Prepare inputs.
+        mode = "all"
+        rev_parse_rcs = [1, 1]
+        gh_output = "12\n"
+        # Prepare outputs.
+        expected_exists = True
+        expected_cmds = """
+        cd . && git rev-parse --verify HelpersTask1_Foo
+        cd . && git fetch --prune
+        cd . && git rev-parse --verify origin/HelpersTask1_Foo
+        cd . && gh pr list --head HelpersTask1_Foo --state all --json number --limit 1 --jq '.[].number'
+        """
+        # Run test.
+        self.helper(
+            mode, rev_parse_rcs, gh_output, expected_exists, expected_cmds
+        )
 
 
 # #############################################################################

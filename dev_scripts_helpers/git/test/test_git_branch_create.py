@@ -7,7 +7,7 @@ import dev_scripts_helpers.git.test.test_git_branch_create as dsggtgibrc
 """
 
 import unittest.mock as umock
-from typing import Tuple
+from typing import List, Tuple
 
 import helpers.hgit as hgit
 import helpers.hsystem as hsystem
@@ -407,7 +407,7 @@ class Test__create_branch(hunitest.TestCase):
 
     def test5(self) -> None:
         """
-        Test that `create_pr=True` also commits, pushes, and opens a PR.
+        Test that `create_pr=True` commits, pushes once, and opens a PR.
         """
         # Prepare inputs.
         branch_name = "HelpersTask999_Foo"
@@ -415,9 +415,8 @@ class Test__create_branch(hunitest.TestCase):
         expected = f"""
         call('git fetch origin master', suppress_output=False)
         call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
-        call('git push --set-upstream origin {branch_name}', suppress_output=False)
         call('git commit --allow-empty -m "Draft PR"', suppress_output=False)
-        call('git push', suppress_output=False)
+        call('git push --set-upstream origin {branch_name}', suppress_output=False)
         call('invoke gh_create_pr --draft', abort_on_error=False)
         """
         # Run test.
@@ -456,6 +455,117 @@ class Test__create_branch(hunitest.TestCase):
             )
         # Check outputs.
         mock_system.assert_not_called()
+
+    def test7(self) -> None:
+        """
+        Test that `check_branch_exists=False` skips the branch lookup.
+        """
+        # Prepare inputs.
+        branch_name = "HelpersTask999_Foo"
+        # Prepare outputs.
+        expected = f"""
+        call('git fetch origin master', suppress_output=False)
+        call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
+        call('git push --set-upstream origin {branch_name}', suppress_output=False)
+        """
+        # Run test.
+        with (
+            umock.patch.object(hgit, "is_client_clean"),
+            umock.patch.object(
+                hgit, "does_branch_exist", return_value=False
+            ) as mock_does_branch_exist,
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
+        ):
+            dsggibrc._create_branch(
+                branch_name,
+                0,
+                "current",
+                "",
+                check_branch_exists=False,
+                create_pr=False,
+            )
+        # Check outputs.
+        mock_does_branch_exist.assert_not_called()
+        actual = _get_system_calls(mock_system)
+        self.assert_equal(actual, expected, fuzzy_match=True, dedent=True)
+
+    def test8(self) -> None:
+        """
+        Test that `fetch=False` skips fetching `origin/master`.
+        """
+        # Prepare inputs.
+        branch_name = "HelpersTask999_Foo"
+        # Prepare outputs.
+        expected = f"""
+        call('git checkout --no-track -b {branch_name} origin/master', suppress_output=False)
+        call('git commit --allow-empty -m "Draft PR"', suppress_output=False)
+        call('git push --set-upstream origin {branch_name}', suppress_output=False)
+        call('invoke gh_create_pr --draft', abort_on_error=False)
+        """
+        # Run test.
+        with (
+            umock.patch.object(hgit, "is_client_clean"),
+            umock.patch.object(hgit, "does_branch_exist", return_value=False),
+            umock.patch.object(hsystem, "system", return_value=0) as mock_system,
+        ):
+            dsggibrc._create_branch(
+                branch_name,
+                0,
+                "current",
+                "",
+                fetch=False,
+                create_pr=True,
+            )
+        # Check outputs.
+        actual = _get_system_calls(mock_system)
+        self.assert_equal(actual, expected, fuzzy_match=True, dedent=True)
+
+
+# #############################################################################
+# Test__parse
+# #############################################################################
+
+
+class Test__parse(hunitest.TestCase):
+    """
+    Test the parser built by `dsggibrc._parse()`.
+    """
+
+    def test1(self) -> None:
+        """
+        Test that the defaults keep the checks and the fetch enabled.
+        """
+        # Prepare inputs.
+        parser = dsggibrc._parse()
+        argv: List[str] = []
+        # Prepare outputs.
+        expected = "skip_branch_exists_check=False no_fetch=False"
+        # Run test.
+        args = parser.parse_args(argv)
+        # Check outputs.
+        actual = (
+            f"skip_branch_exists_check={args.skip_branch_exists_check} "
+            f"no_fetch={args.no_fetch}"
+        )
+        self.assert_equal(actual, expected)
+
+    def test2(self) -> None:
+        """
+        Test that `--skip_branch_exists_check` and `--no_fetch` are parsed.
+        """
+        # Prepare inputs.
+        parser = dsggibrc._parse()
+        argv = ["--skip_branch_exists_check", "--no_fetch"]
+        # Prepare outputs.
+        expected = "skip_branch_exists_check=True no_fetch=True"
+        # Run test.
+        args = parser.parse_args(argv)
+        # Check outputs.
+        actual = (
+            f"skip_branch_exists_check={args.skip_branch_exists_check} "
+            f"no_fetch={args.no_fetch}"
+        )
+        self.assert_equal(actual, expected)
 
 
 # #############################################################################
