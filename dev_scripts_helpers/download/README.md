@@ -1,7 +1,7 @@
 # Download Tools
 - Scripts to download, convert, and summarize content (web pages, academic papers,
-  Hacker News submissions, podcast transcripts) to Markdown, plus a pipeline for
-  managing a Google Sheets-based link database
+  Hacker News submissions, podcast transcripts) to Markdown
+- A pipeline for managing a CSV / Google Sheets-based link database
 
 ## Structure of the Dir
 - `test/`
@@ -23,6 +23,7 @@
 | `pre_process_bookmarks.py`             | Pipeline to extract HN article URLs and classify articles by topic/cluster, for a Gsheet or a local CSV | Gsheet Pipelines    |
 | `process_bookmarks.py`                 | Download, summarize, and archive HN bookmarks from a CSV to a destination    | Bookmark Pipeline   |
 | `process_one_off_gsheet_links.py`      | One-off pipeline to rename topic tags in the Gsheet (data migration)         | Gsheet Pipelines    |
+| `sync_bookmarks.py`                    | Run the whole CSV bookmark flow (Raindrop, tag, summarize, iCloud) in one command | Bookmark Pipeline   |
 | `update_bookmarks_from_raindrop.py`    | Sync new bookmarks from `Raindrop.io` into the Gsheet or a local CSV         | Gsheet Pipelines    |
 
 ## Link Gsheet Schema
@@ -729,6 +730,81 @@
   > process_bookmarks.py --input bookmarks.csv --dest_type obsidian --limit 0
   ```
 
+### `sync_bookmarks.py`
+
+#### What It Does
+- Runs the whole CSV-based bookmark flow with a single command, by chaining the
+  scripts above on a local bookmarks CSV (`--csv`, default
+  `/Users/saggese/src/notes1/bookmarks/update_gsheet_links_from_raindrop.combined_data.csv`)
+- It has one action per phase, always executed in this order:
+  - **update_raindrop**: adds the new `Raindrop.io` bookmarks to the CSV, with
+    `update_bookmarks_from_raindrop.py --target local_csv`
+    - Needs `RAINDROP_API_TOKEN`
+  - **tag**: fills `Article_url`, `Article_tag`, and `Article_cluster` where they are
+    empty, with `pre_process_bookmarks.py --target local_csv`
+    - Costs LLM money. Needs `OPENROUTER_KEY`
+  - **report**: shows the situation of the CSV vs the destination (rows to process,
+    to skip, to copy), with `process_bookmarks.py --dry_run`
+    - Changes nothing
+  - **process**: downloads and summarizes the next `--limit` unprocessed rows (article
+    and HN comments), marks them `Done`, and copies every merged summary missing
+    from the destination, with `process_bookmarks.py`
+    - Costs LLM money. Needs `OPENROUTER_KEY`
+- The default actions are `update_raindrop`, `tag`, and `process`. `report` is
+  opt-in
+- The destination is the iCloud vault of Obsidian (`--dest_type obsidian`)
+  - `process_bookmarks.py` always backs up the summaries to its git dir too
+  - Use `--dest_type gdrive` or `--dest_dir` for another destination
+- Checks the tokens before running any action, and stops at the first failing phase
+- At the end, logs how the CSV changed (rows, untagged, done, skipped, to do)
+- It can be re-run at any time, since every phase is incremental
+- With `--dry_run`, the commands of `update_raindrop` and `tag` are printed but not
+  run, since those scripts have no dry run. `process_bookmarks.py` runs with
+  `--dry_run`
+- The raw downloaded files are cached in `--output_dir`, by default the dir of
+  `process_bookmarks.py`, which is relative to the current dir
+  - Run from the same dir every time, or pass `--output_dir`
+- Rows without an HN URL are marked `Done=skipped` by `process_bookmarks.py`: bookmarks
+  of plain articles are not processed yet
+
+#### Examples
+- Run the whole flow, processing the next 10 rows:
+  ```bash
+  > sync_bookmarks.py
+  ```
+
+- Show the situation of the CSV vs iCloud, without changing anything:
+  ```bash
+  > sync_bookmarks.py --clear_actions --action report
+  ```
+
+- Show what the whole flow would do:
+  ```bash
+  > sync_bookmarks.py --dry_run
+  ```
+
+- Process the next 50 rows:
+  ```bash
+  > sync_bookmarks.py --limit 50
+  ```
+
+- Skip the update from Raindrop and the tagging, and only process the rows:
+  ```bash
+  > sync_bookmarks.py --clear_actions --action process
+  ```
+
+- Only copy the rows already processed to iCloud, without downloading anything:
+  ```bash
+  > sync_bookmarks.py --clear_actions --action process --limit 0
+  ```
+
+- Use another CSV and another LLM model:
+  ```bash
+  > sync_bookmarks.py \
+      --csv bookmarks.csv \
+      --model openrouter/anthropic/claude-haiku-4.5
+  ```
+
 ### `process_one_off_gsheet_links.py`
 
 #### What It Does
@@ -796,6 +872,28 @@
   5. Review the results in the new timestamped tabs in Google Sheets and the
      downloaded files (articles, comments, summaries) in the local directory
 
+### Single-Command CSV Bookmark Workflow
+
+- **Purpose**: pull the latest `Raindrop.io` links, update the CSV, download and
+  summarize the articles and the HN comments, and copy the summaries to iCloud so
+  that Obsidian can read them, with a single command
+- **Steps**:
+  1. Optionally, see the situation of the CSV vs iCloud:
+     ```bash
+     > sync_bookmarks.py --clear_actions --action report
+     ```
+  2. Run the flow. It processes the next 10 rows, and it costs LLM money:
+     ```bash
+     > sync_bookmarks.py
+     ```
+  3. Open Obsidian. iCloud syncs the new `<date>.hn_<id>.<title>.summary.md` files
+     by itself
+- **Notes**:
+  - It chains `update_bookmarks_from_raindrop.py`, `pre_process_bookmarks.py`, and
+    `process_bookmarks.py` (see `sync_bookmarks.py` above): the stages of the
+    CSV-Based Bookmark Processing Workflow below, preceded by the Raindrop update
+  - Rerun it any time. Raise `--limit` to work through the backlog faster
+
 ### CSV-Based Bookmark Processing Workflow
 
 - **Purpose**: run the same enrichment, download, and summarization stages as
@@ -810,15 +908,13 @@
          --target local_csv --local_csv bookmarks.csv \
          --all_actions
      ```
-  2. Download HN comments and article content, and summarize them using an
-     LLM:
-     ```bash
-     > download_link_articles.py --input bookmarks.csv --all_actions
-     ```
-  3. Merge the downloaded summaries into per-item files and mark rows `Done`:
+  2. Download HN comments and article content, summarize them using an LLM, merge
+     the summaries into per-item files, and mark rows `Done`:
      ```bash
      > process_bookmarks.py -i bookmarks.csv --limit 3
      ```
+- `download_link_articles.py` is not needed in this workflow: `process_bookmarks.py`
+  downloads and summarizes each row itself, through `download_hn_article_to_md.py`
 - See `process_bookmarks.py`'s own module docstring for the full row-processing,
   skip, and destination-reconciliation flow, and `download_hn_article_to_md.py`'s
   docstring for the per-item output filename convention (`<base>.1.article_url.md`,

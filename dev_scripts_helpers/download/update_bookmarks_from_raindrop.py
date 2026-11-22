@@ -51,6 +51,12 @@ file) is skipped automatically if its output file already exists. Pass
     --target local_csv --local_csv bookmarks/combined_data.csv \
     --action download_raindrop_data --action combine_data
 
+- Show what each selected action would do, without running anything (no
+  Raindrop.io call and no file or gsheet change):
+> update_bookmarks_from_raindrop.py \
+    --target local_csv --local_csv bookmarks/combined_data.csv \
+    --action download_raindrop_data --action combine_data --dry_run
+
 Import as:
 
 import dev_scripts_helpers.download.update_bookmarks_from_raindrop as dsbfr
@@ -446,6 +452,57 @@ def _get_action_output_file(action: str, target: str) -> Optional[str]:
     )
 
 
+def _describe_action(
+    action: str, *, target: str, base_csv: str, url: str
+) -> str:
+    """
+    Describe what an action does, for `--dry_run`.
+
+    :param action: name of the action
+    :param target: `--target` value (`gsheet` or `local_csv`)
+    :param base_csv: CSV with the latest `Timestamp` cutoff and the existing
+        rows
+    :param url: URL of the Google Sheets document, only used by the actions
+        that read or write it
+    :return: description, e.g., `fetch from Raindrop.io the bookmarks ...`
+    """
+    _LOG.debug(hprint.to_str("action target base_csv url"))
+    if action == "download_gsheet_links":
+        description = f"download the Google Sheet '{url}' to '{base_csv}'"
+    elif action == "download_raindrop_data":
+        raindrop_csv = dshdbout.get_tmp_file_path(
+            RAINDROP_CSV_FILE, "update_bookmarks_from_raindrop"
+        )
+        description = (
+            "fetch from Raindrop.io the bookmarks created after the latest "
+            f"`Timestamp` in '{base_csv}' and save them to '{raindrop_csv}'"
+        )
+    elif action == "combine_data":
+        if target == "local_csv":
+            description = (
+                "prepend the new Raindrop.io bookmarks to the rows of "
+                f"'{base_csv}', in place"
+            )
+        else:
+            combined_csv = dshdbout.get_tmp_file_path(
+                COMBINED_CSV_FILE, "update_bookmarks_from_raindrop"
+            )
+            description = (
+                "combine the new Raindrop.io bookmarks with the rows of "
+                f"'{base_csv}' into '{combined_csv}'"
+            )
+    elif action == "upload_gsheet_links":
+        combined_csv = dshdbout.get_tmp_file_path(
+            COMBINED_CSV_FILE, "update_bookmarks_from_raindrop"
+        )
+        description = (
+            f"upload '{combined_csv}' to a new tab of the Google Sheet '{url}'"
+        )
+    else:
+        raise ValueError(f"Invalid action='{action}'")
+    return description
+
+
 # #############################################################################
 # Argument parsing
 # #############################################################################
@@ -500,6 +557,11 @@ def _parse() -> argparse.ArgumentParser:
         help="Force re-execution of every selected action even if its "
         "output file already exists (by default, an action is skipped "
         "when its output file is already present)",
+    )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Show what each selected action would do, without running it",
     )
     hselacti.add_action_arg(parser, _VALID_ACTIONS, _DEFAULT_ACTIONS)
     hparser.add_verbosity_arg(parser)
@@ -560,6 +622,18 @@ def _main(parser: argparse.ArgumentParser) -> None:
                     output_file,
                 )
                 continue
+        # In a dry run, only say what the action would do.
+        if args.dry_run:
+            url = ""
+            if action in ("download_gsheet_links", "upload_gsheet_links"):
+                url = dshdbout.resolve_gsheet_url(args.url)
+            _LOG.warning(
+                "[DRY_RUN] Would %s",
+                _describe_action(
+                    action, target=args.target, base_csv=base_csv, url=url
+                ),
+            )
+            continue
         # Execute each action with required argument validation.
         if action == "download_gsheet_links":
             url = dshdbout.resolve_gsheet_url(args.url)
