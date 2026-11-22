@@ -21,8 +21,9 @@ import pygments
 import pygments.formatters
 import pygments.lexers
 
-import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
 from helpers import hdbg, hgit, hio, hprint
+
+import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
 
 _LOG = logging.getLogger(__name__)
 

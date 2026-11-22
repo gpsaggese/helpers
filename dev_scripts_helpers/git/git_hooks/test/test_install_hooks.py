@@ -3,12 +3,13 @@ import os
 
 import pytest
 
-import dev_scripts_helpers.git.git_hooks.utils as dsgghout  # pylint: disable=no-name-in-module
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.git.git_hooks.utils as dsgghout  # pylint: disable=no-name-in-module
 
 _LOG = logging.getLogger(__name__)
 
@@ -184,7 +185,6 @@ class Test_git_hooks_utils1(hunitest.TestCase):
         self._helper("Olssv_TLN", decaesarify, False)
         self._helper("Olssv_LN_Hello", decaesarify, True)
         self._helper("Olssv_LNHello", decaesarify, False)
-        #
         self._helper("LNPK", decaesarify, True)
         self._helper("This is LNPK or is not", decaesarify, True)
         self._helper("This is _LNPK or is not", decaesarify, True)

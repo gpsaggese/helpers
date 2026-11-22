@@ -8,8 +8,8 @@ import pytest
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
-import dev_scripts_helpers.documentation.run_latex as dshdrula
 
+import dev_scripts_helpers.documentation.run_latex as dshdrula
 
 # #############################################################################
 # Test__report_log_warnings
@@ -306,13 +306,15 @@ class Test__compile_latex(hunitest.TestCase):
             ]
         )
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, num_passes)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, num_passes)
         # Check outputs.
         self.assert_equal(
             str(list(mock_run_basic_latex.call_args_list)), expected_calls
@@ -376,13 +378,15 @@ class Test__compile_latex(hunitest.TestCase):
             [mock.call(aux_file_path, force_rebuild=False, use_sudo=False)]
         )
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, 3)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, 3)
         # Check outputs.
         self.assert_equal(
             str(list(mock_run_basic_latex.call_args_list)),
@@ -400,13 +404,15 @@ class Test__compile_latex(hunitest.TestCase):
         in_file_path = os.path.join(self.get_scratch_space(), "book.tex")
         out_file_path = os.path.join(self.get_scratch_space(), "book.pdf")
         # Run test.
-        with mock.patch.object(
-            dshdrula.dshdlila, "run_basic_latex"
-        ) as mock_run_basic_latex:
-            with mock.patch.object(
+        with (
+            mock.patch.object(
+                dshdrula.dshdlila, "run_basic_latex"
+            ) as mock_run_basic_latex,
+            mock.patch.object(
                 dshdrula.dshdlila, "run_dockerized_bibtex"
-            ) as mock_run_bibtex:
-                dshdrula._compile_latex(in_file_path, out_file_path, 3)
+            ) as mock_run_bibtex,
+        ):
+            dshdrula._compile_latex(in_file_path, out_file_path, 3)
         # Check outputs.
         self.assertEqual(mock_run_basic_latex.call_count, 1)
         self.assertEqual(mock_run_bibtex.call_count, 0)

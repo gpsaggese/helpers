@@ -47,9 +47,10 @@ import argparse
 import logging
 import os
 
+from helpers import hdbg, hio, hopen, hparser
+
 import dev_scripts_helpers.coding_tools.call_graph.extract as dsccgex
 import dev_scripts_helpers.coding_tools.call_graph.render as dsccgre
-from helpers import hdbg, hio, hopen, hparser
 
 _LOG = logging.getLogger(__name__)
 

@@ -63,8 +63,7 @@ def _write_output_to_file(lines: List[str]) -> None:
     """
     out_path = "tmp.precommit_output.txt"
     with open(out_path, "w") as f:
-        for line in lines:
-            f.write(line + "\n")
+        f.writelines(line + "\n" for line in lines)
 
 
 def _parse() -> argparse.ArgumentParser:

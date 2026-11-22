@@ -313,7 +313,8 @@ class Test__build_llm_cli_cmd(hunitest.TestCase):
         # Prepare outputs.
         expected = (
             "llm_cli.py --input=paper.md --output=paper.summary.md "
-            "--pf=prompt.txt --stat_file=paper.summary.stat.json --lint"
+            "--pf=prompt.txt --stat_file=paper.summary.stat.json --lint "
+            "--install_llm_plugins"
         )
         # Run test.
         self.helper(model, expected)
@@ -328,7 +329,7 @@ class Test__build_llm_cli_cmd(hunitest.TestCase):
         expected = (
             "llm_cli.py --input=paper.md --output=paper.summary.md "
             "--pf=prompt.txt --model=openrouter/anthropic/claude-haiku-4.5 "
-            "--stat_file=paper.summary.stat.json --lint"
+            "--stat_file=paper.summary.stat.json --lint --install_llm_plugins"
         )
         # Run test.
         self.helper(model, expected)

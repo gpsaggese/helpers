@@ -20,7 +20,6 @@ import sys
 import urllib.parse
 from typing import Dict, List, Optional, Tuple
 
-import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
 import helpers.hdaemon as hdaemon
 import helpers.hdbg as hdbg
 import helpers.hdocker as hdocker
@@ -30,6 +29,8 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
+
+import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
 
 _LOG = logging.getLogger(__name__)
 

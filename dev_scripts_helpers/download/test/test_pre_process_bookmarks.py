@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import logging
-from typing import Optional
 import unittest.mock as umock
 
 import pytest
@@ -9,60 +8,51 @@ import pytest
 pytest.importorskip("pandas")
 
 import helpers.hcache_simple as hcacsimp
-import helpers.hllm_cli as hllmcli
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
-import dev_scripts_helpers.download.bookmark_utils as dshdbout
-import dev_scripts_helpers.download.process_gsheet_links as dshdpgsli
+
+import dev_scripts_helpers.download.bookmark_utils as dshdbou
+import dev_scripts_helpers.download.download_utils as dshddut
+import dev_scripts_helpers.download.pre_process_bookmarks as dspprbo
 
 _LOG = logging.getLogger(__name__)
 
 
 # #############################################################################
-# Test_update_article_urls
+# Test__update_article_urls
 # #############################################################################
 
 
-class Test_update_article_urls(hunitest.TestCase):
+class Test__update_article_urls(hunitest.TestCase):
     """
-    Test `process_gsheet_links._update_article_urls()`.
+    Test `pre_process_bookmarks._update_article_urls()`.
     """
 
-    def helper(self, rows: list, expected: Optional[str] = None) -> list:
+    def helper(self, rows: list) -> list:
         """
         Write `rows` as the HN CSV, run `_update_article_urls()`, and
         return the resulting rows.
 
         Runs inside the test's scratch space (via `hsystem.cd()`) so the
-        script's fixed `./tmp.process_gsheet_links.*` paths land there
+        script's fixed `./tmp.pre_process_bookmarks.*` paths land there
         instead of polluting (or depending on) the real working directory.
 
         :param rows: rows to write to the HN CSV (must all share the same
             columns, including `Hn_url` and `Article_url`)
-        :param expected: expected `Article_url` of the first row, or
-            `None` to skip that check (e.g., when the caller checks
-            multiple rows itself)
         :return: rows read back from the URLs CSV
         """
         scratch_dir = self.get_scratch_space()
         columns = list(rows[0].keys())
         with hsystem.cd(scratch_dir):
-            hn_csv = dshdbout.get_tmp_file_path(
-                dshdpgsli.HN_CSV_FILE, "process_gsheet_links"
+            hn_csv = dshdbou.get_tmp_file_path(
+                dspprbo.HN_CSV_FILE, "pre_process_bookmarks"
             )
-            dshdbout.write_csv(hn_csv, rows, fieldnames=columns)
-            urls_csv = dshdpgsli._update_article_urls()
-            actual_rows = dshdbout.read_csv(urls_csv)
-        if expected is not None:
-            self.assert_equal(actual_rows[0]["Article_url"], expected)
+            dshdbou.write_csv(hn_csv, rows, fieldnames=columns)
+            urls_csv = dspprbo._update_article_urls(hn_csv)
+            actual_rows = dshdbou.read_csv(urls_csv)
         return actual_rows
 
-    def helper_mock_hn_api(
-        self,
-        rows: list,
-        extracted_url: str,
-        expected: Optional[str],
-    ) -> list:
+    def helper1(self, rows: list, extracted_url: str) -> list:
         """
         Same as `helper()`, but also mocks `requests.get()` (the real
         external dependency behind `_extract_article_url()`) to return
@@ -72,9 +62,6 @@ class Test_update_article_urls(hunitest.TestCase):
 
         :param rows: rows to write to the HN CSV
         :param extracted_url: article URL the mocked HN API responds with
-        :param expected: expected `Article_url` of the first row, or
-            `None` to skip that check (e.g., when the caller checks
-            multiple rows itself)
         :return: rows read back from the URLs CSV
         """
         fake_response = umock.Mock()
@@ -82,14 +69,44 @@ class Test_update_article_urls(hunitest.TestCase):
         hcacsimp.enable_caching(False)
         try:
             with umock.patch.object(
-                dshdpgsli.requests, "get", return_value=fake_response
+                dspprbo.requests, "get", return_value=fake_response
             ):
                 actual_rows = self.helper(rows)
         finally:
             hcacsimp.enable_caching(True)
-        if expected is not None:
-            self.assert_equal(actual_rows[0]["Article_url"], expected)
         return actual_rows
+
+    def helper2(self, rows: list, expected_url: str) -> None:
+        """
+        Helper to run test and check a single Article_url result.
+        """
+        actual_rows = self.helper(rows)
+        expected_row = rows[0].copy()
+        expected_row["Article_url"] = expected_url
+        self.assert_equal(str(actual_rows[0]), str(expected_row))
+
+    def helper3(self, rows: list, expected_url: str) -> None:
+        """
+        Helper to run test with mocked HN API and check a single Article_url result.
+        """
+        actual_rows = self.helper1(rows, expected_url)
+        expected_row = rows[0].copy()
+        expected_row["Article_url"] = expected_url
+        self.assert_equal(str(actual_rows[0]), str(expected_row))
+
+    def helper4(
+        self, rows: list, extracted_url: str, expected_urls: list
+    ) -> None:
+        """
+        Helper to run test with mocked HN API and check multiple Article_url results.
+        """
+        actual_rows = self.helper1(rows, extracted_url)
+        expected_rows = []
+        for i, row in enumerate(rows):
+            expected_row = row.copy()
+            expected_row["Article_url"] = expected_urls[i]
+            expected_rows.append(expected_row)
+        self.assert_equal(str(actual_rows), str(expected_rows))
 
     def test1(self) -> None:
         """
@@ -105,8 +122,8 @@ class Test_update_article_urls(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = "https://example.com/a"
-        # Run test and check outputs.
-        self.helper(rows, expected)
+        # Run test.
+        self.helper2(rows, expected)
 
     def test2(self) -> None:
         """
@@ -122,8 +139,8 @@ class Test_update_article_urls(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = "https://example.com/extracted"
-        # Run test and check outputs.
-        self.helper_mock_hn_api(rows, expected, expected)
+        # Run test.
+        self.helper3(rows, expected)
 
     def test3(self) -> None:
         """
@@ -139,13 +156,64 @@ class Test_update_article_urls(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = "https://example.com/existing"
-        # Run test and check outputs.
-        self.helper(rows, expected)
+        # Run test.
+        self.helper2(rows, expected)
 
     def test4(self) -> None:
         """
-        Test multiple non-HN URLs are each copied as-is into
-        `Article_url`.
+        Test an empty rows list raises since the CSV has no data to
+        process.
+        """
+        # Prepare inputs.
+        rows: list = []
+        columns = ["Title", "Hn_url", "Article_url"]
+        scratch_dir = self.get_scratch_space()
+        hn_csv = dshdbou.get_tmp_file_path(
+            dspprbo.HN_CSV_FILE, "pre_process_bookmarks"
+        )
+        # Run test and check outputs.
+        with hsystem.cd(scratch_dir):
+            dshdbou.write_csv(hn_csv, rows, fieldnames=columns)
+            with self.assertRaises(AssertionError):
+                dspprbo._update_article_urls(hn_csv)
+
+    def test5(self) -> None:
+        """
+        Test multiple rows are each updated independently: a non-HN URL is
+        copied as-is, an HN URL is resolved through the HN API, and an
+        already-filled URL is left untouched.
+        """
+        # Prepare inputs.
+        extracted_url = "https://example.com/extracted"
+        rows = [
+            {
+                "Title": "Article A",
+                "Hn_url": "https://example.com/a",
+                "Article_url": "",
+            },
+            {
+                "Title": "Article B",
+                "Hn_url": "https://news.ycombinator.com/item?id=123",
+                "Article_url": "",
+            },
+            {
+                "Title": "Article C",
+                "Hn_url": "https://news.ycombinator.com/item?id=456",
+                "Article_url": "https://example.com/existing",
+            },
+        ]
+        # Prepare outputs.
+        expected = [
+            "https://example.com/a",
+            extracted_url,
+            "https://example.com/existing",
+        ]
+        # Run test.
+        self.helper4(rows, extracted_url, expected)
+
+    def test6(self) -> None:
+        """
+        Test multiple non-HN URLs are each copied as-is into `Article_url`.
         """
         # Prepare inputs.
         rows = [
@@ -168,7 +236,7 @@ class Test_update_article_urls(hunitest.TestCase):
         # Check outputs.
         self.assert_equal(str(actual), str(expected))
 
-    def test5(self) -> None:
+    def test7(self) -> None:
         """
         Test multiple HN URLs are each resolved independently through the
         HN API.
@@ -190,12 +258,12 @@ class Test_update_article_urls(hunitest.TestCase):
         # Prepare outputs.
         expected = [extracted_url, extracted_url]
         # Run test.
-        actual_rows = self.helper_mock_hn_api(rows, extracted_url, None)
+        actual_rows = self.helper1(rows, extracted_url)
         actual = [row["Article_url"] for row in actual_rows]
         # Check outputs.
         self.assert_equal(str(actual), str(expected))
 
-    def test6(self) -> None:
+    def test8(self) -> None:
         """
         Test multiple rows with an already-filled `Article_url` are all
         left untouched.
@@ -226,43 +294,69 @@ class Test_update_article_urls(hunitest.TestCase):
 
 
 # #############################################################################
-# Test_update_article_clusters
+# Test__update_article_clusters
 # #############################################################################
 
 
-class Test_update_article_clusters(hunitest.TestCase):
+class Test__update_article_clusters(hunitest.TestCase):
     """
-    Test `process_gsheet_links._update_article_clusters()`.
+    Test `pre_process_bookmarks._update_article_clusters()`.
     """
 
-    def helper(self, rows: list, expected: Optional[dict]) -> list:
+    def helper(self, rows: list) -> list:
         """
         Write `rows` as the tags CSV, run `_update_article_clusters()`, and
         return the resulting clustered rows.
 
         Runs inside the test's scratch space (via `hsystem.cd()`) so the
-        script's fixed `./tmp.process_gsheet_links.*` paths land there
+        script's fixed `./tmp.pre_process_bookmarks.*` paths land there
         instead of polluting (or depending on) the real working directory.
 
         :param rows: rows to write to the tags CSV (must all share the same
             columns)
-        :param expected: expected first row of the clusters CSV, or `None`
-            to skip that check (e.g., when the caller checks multiple rows
-            itself)
         :return: rows read back from the clusters CSV
         """
         scratch_dir = self.get_scratch_space()
         columns = list(rows[0].keys())
         with hsystem.cd(scratch_dir):
-            tags_csv = dshdbout.get_tmp_file_path(
-                dshdpgsli.TAGS_CSV_FILE, "process_gsheet_links"
+            tags_csv = dshdbou.get_tmp_file_path(
+                dspprbo.TAGS_CSV_FILE, "pre_process_bookmarks"
             )
-            dshdbout.write_csv(tags_csv, rows, fieldnames=columns)
-            clusters_csv = dshdpgsli._update_article_clusters()
-            actual_rows = dshdbout.read_csv(clusters_csv)
-        if expected is not None:
-            self.assert_equal(str(actual_rows[0]), str(expected))
+            dshdbou.write_csv(tags_csv, rows, fieldnames=columns)
+            clusters_csv = dshdbou.get_tmp_file_path(
+                dspprbo.CLUSTERS_CSV_FILE, "pre_process_bookmarks"
+            )
+            dspprbo._update_article_clusters(clusters_csv)
+            actual_rows = dshdbou.read_csv(clusters_csv)
         return actual_rows
+
+    def helper1(self, rows: list, expected_row: dict) -> None:
+        """
+        Helper to run test and check entire row result.
+        """
+        actual_rows = self.helper(rows)
+        self.assert_equal(str(actual_rows[0]), str(expected_row))
+
+    def helper2(self, rows: list, expected_cluster: str) -> None:
+        """
+        Helper to run test and check a single Article_cluster result.
+        """
+        actual_rows = self.helper(rows)
+        expected_row = rows[0].copy()
+        expected_row["Article_cluster"] = expected_cluster
+        self.assert_equal(str(actual_rows[0]), str(expected_row))
+
+    def helper3(self, rows: list, expected_clusters: list) -> None:
+        """
+        Helper to run test and check multiple Article_cluster results.
+        """
+        actual_rows = self.helper(rows)
+        expected_rows = []
+        for i, row in enumerate(rows):
+            expected_row = row.copy()
+            expected_row["Article_cluster"] = expected_clusters[i]
+            expected_rows.append(expected_row)
+        self.assert_equal(str(actual_rows), str(expected_rows))
 
     def test1(self) -> None:
         """
@@ -288,8 +382,8 @@ class Test_update_article_clusters(hunitest.TestCase):
             "Article_tag": rows[0]["Article_tag"],
             "Article_cluster": "AI",
         }
-        # Run test and check outputs.
-        self.helper(rows, expected)
+        # Run test.
+        self.helper1(rows, expected)
 
     def test2(self) -> None:
         """
@@ -305,11 +399,10 @@ class Test_update_article_clusters(hunitest.TestCase):
                 "Article_cluster": "Dev tools",
             },
         ]
-        # Prepare outputs. The row is already fully filled in, so it is
-        # left unchanged.
-        expected = rows[0]
-        # Run test and check outputs.
-        self.helper(rows, expected)
+        # Prepare outputs.
+        expected = "Dev tools"
+        # Run test.
+        self.helper2(rows, expected)
 
     def test3(self) -> None:
         """
@@ -325,13 +418,67 @@ class Test_update_article_clusters(hunitest.TestCase):
                 "Article_cluster": "",
             },
         ]
-        # Prepare outputs. The tag is unrecognized, so the row is left
-        # unchanged.
-        expected = rows[0]
-        # Run test and check outputs.
-        self.helper(rows, expected)
+        # Prepare outputs.
+        expected = ""
+        # Run test.
+        self.helper2(rows, expected)
 
     def test4(self) -> None:
+        """
+        Test an empty rows list raises since the CSV has no data to
+        process.
+        """
+        # Prepare inputs.
+        rows: list = []
+        columns = ["Title", "Article_url", "Article_tag", "Article_cluster"]
+        scratch_dir = self.get_scratch_space()
+        tags_csv = dshdbou.get_tmp_file_path(
+            dspprbo.TAGS_CSV_FILE, "pre_process_bookmarks"
+        )
+        clusters_csv = dshdbou.get_tmp_file_path(
+            dspprbo.CLUSTERS_CSV_FILE, "pre_process_bookmarks"
+        )
+        # Run test and check outputs.
+        with hsystem.cd(scratch_dir):
+            dshdbou.write_csv(tags_csv, rows, fieldnames=columns)
+            with self.assertRaises(AssertionError):
+                dspprbo._update_article_clusters(clusters_csv)
+
+    def test5(self) -> None:
+        """
+        Test multiple rows are each clustered independently: a wrapped tag
+        is normalized and clustered, an already-filled cluster is left
+        untouched, and an unrecognized tag is left with an empty cluster.
+        """
+        # Prepare inputs.
+        rows = [
+            {
+                "Title": "Article A",
+                "Article_url": "https://example.com/a",
+                "Article_tag": (
+                    "The best tag for this article is **AI Agents**."
+                ),
+                "Article_cluster": "",
+            },
+            {
+                "Title": "Article B",
+                "Article_url": "https://example.com/b",
+                "Article_tag": "Open Source",
+                "Article_cluster": "Dev tools",
+            },
+            {
+                "Title": "Article C",
+                "Article_url": "https://example.com/c",
+                "Article_tag": "Programming Languages",
+                "Article_cluster": "",
+            },
+        ]
+        # Prepare outputs.
+        expected = ["AI", "Dev tools", ""]
+        # Run test and check outputs.
+        self.helper3(rows, expected)
+
+    def test6(self) -> None:
         """
         Test multiple rows with a wrapped tag are each normalized and
         clustered independently.
@@ -357,13 +504,10 @@ class Test_update_article_clusters(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = ["AI", "Dev tools"]
-        # Run test.
-        actual_rows = self.helper(rows, None)
-        actual = [row["Article_cluster"] for row in actual_rows]
-        # Check outputs.
-        self.assert_equal(str(actual), str(expected))
+        # Run test and check outputs.
+        self.helper3(rows, expected)
 
-    def test5(self) -> None:
+    def test7(self) -> None:
         """
         Test multiple rows with an already-filled `Article_cluster` are
         all left untouched.
@@ -385,13 +529,10 @@ class Test_update_article_clusters(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = ["Dev tools", "AI"]
-        # Run test.
-        actual_rows = self.helper(rows, None)
-        actual = [row["Article_cluster"] for row in actual_rows]
-        # Check outputs.
-        self.assert_equal(str(actual), str(expected))
+        # Run test and check outputs.
+        self.helper3(rows, expected)
 
-    def test6(self) -> None:
+    def test8(self) -> None:
         """
         Test multiple rows with an unrecognized tag are all left with an
         empty cluster.
@@ -413,21 +554,18 @@ class Test_update_article_clusters(hunitest.TestCase):
         ]
         # Prepare outputs.
         expected = ["", ""]
-        # Run test.
-        actual_rows = self.helper(rows, None)
-        actual = [row["Article_cluster"] for row in actual_rows]
-        # Check outputs.
-        self.assert_equal(str(actual), str(expected))
+        # Run test and check outputs.
+        self.helper3(rows, expected)
 
 
 # #############################################################################
-# Test_normalize_tag
+# Test__normalize_tag
 # #############################################################################
 
 
-class Test_normalize_tag(hunitest.TestCase):
+class Test__normalize_tag(hunitest.TestCase):
     """
-    Test `process_gsheet_links._normalize_tag()`.
+    Test `pre_process_bookmarks._normalize_tag()`.
     """
 
     def helper(self, raw_tag: str, expected: str) -> None:
@@ -438,7 +576,7 @@ class Test_normalize_tag(hunitest.TestCase):
         :param expected: expected normalized tag
         """
         # Run test.
-        actual = dshdpgsli._normalize_tag(raw_tag)
+        actual = dspprbo._normalize_tag(raw_tag)
         # Check outputs.
         self.assert_equal(actual, expected)
 
@@ -540,7 +678,7 @@ class Test_normalize_tag(hunitest.TestCase):
         expected = "AI Agents"
         # Run test. Pass a local `tag_map` through the public interface
         # instead of monkey-patching the internal `topic_to_cluster` dict.
-        actual = dshdpgsli._normalize_tag(raw_tag, tag_map=fake_tag_map)
+        actual = dspprbo._normalize_tag(raw_tag, tag_map=fake_tag_map)
         # Check outputs.
         self.assert_equal(actual, expected)
 
@@ -563,33 +701,32 @@ class Test_normalize_tag(hunitest.TestCase):
 
 class Test__parse(hunitest.TestCase):
     """
-    Test the command-line arguments of `process_gsheet_links.py`.
+    Test the command-line arguments of `pre_process_bookmarks.py`.
     """
 
     def test1(self) -> None:
         """
-        Test the default tagging model is the OpenRouter one of `hllm_cli`.
+        Test the default tagging model is `download_utils.SUMMARY_MODEL`.
         """
         # Prepare inputs.
-        parser = dshdpgsli._parse()
+        parser = dspprbo._parse()
         # Prepare outputs.
-        expected = hllmcli.DEFAULT_MODEL
+        expected = dshddut.SUMMARY_MODEL
         # Run test.
-        args = parser.parse_args([])
+        args = parser.parse_args(["--target", "gsheet"])
         # Check outputs.
         self.assert_equal(args.model, expected)
-        self.assertTrue(args.model.startswith("openrouter/"))
 
     def test2(self) -> None:
         """
         Test the tagging model can be changed with `--model`.
         """
         # Prepare inputs.
-        parser = dshdpgsli._parse()
+        parser = dspprbo._parse()
         model = "openrouter/anthropic/claude-haiku-4.5"
         # Prepare outputs.
         expected = model
         # Run test.
-        args = parser.parse_args(["--model", model])
+        args = parser.parse_args(["--target", "gsheet", "--model", model])
         # Check outputs.
         self.assert_equal(args.model, expected)

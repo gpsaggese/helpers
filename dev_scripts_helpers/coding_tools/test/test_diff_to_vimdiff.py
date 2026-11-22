@@ -1,10 +1,11 @@
 import os
 from typing import Optional
 
-import dev_scripts_helpers.coding_tools.diff_to_vimdiff as dscdtovi
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.coding_tools.diff_to_vimdiff as dscdtovi
 
 
 class Test_load_file_list(hunitest.TestCase):

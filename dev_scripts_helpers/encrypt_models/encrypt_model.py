@@ -286,7 +286,6 @@ def _main(parser: argparse.ArgumentParser) -> None:
     )
     args = parser.parse_args()
     hdbg.init_logger(verbosity=args.log_level, use_exec_path=True)
-    #
     input_dir = args.input_dir
     hdbg.dassert_dir_exists(input_dir)
     _LOG.info("input_dir=%s", input_dir)

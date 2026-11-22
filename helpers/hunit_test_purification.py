@@ -196,7 +196,6 @@ def purify_app_references(txt: str) -> str:
         # Update legacy module path forms to use amp.helpers.
         (r"app\.amp\.helpers_root\.helpers", "amp.helpers"),
         (r"app\.amp\.helpers", "amp.helpers"),
-        #
         (r"/helpers_root", ""),
         # Remove leading './' from relative paths.
         (r"(?m)^\./", ""),

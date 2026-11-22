@@ -27,7 +27,7 @@
 
 | Category               | Task                                 | Type   | Description                                               |
 | ---------------------- | ------------------------------------ | ------ | --------------------------------------------------------- |
-| Git Branch Create      | `git_create_issue_and_branch`        | Script | Create GitHub issue and corresponding branch/worktree     |
+| Git Branch Create      | `git_create_issue_and_branch`        | Script | Create GitHub issue and corresponding branch and draft PR |
 |                        | `git_branch_create`                  | Invoke | Create and push upstream branch with optional draft PR    |
 | Git Branch Copy/Rename | `git_branch_copy`                    | Invoke | Copy branch content to new auto-generated name            |
 |                        | `git_branch_rename`                  | Invoke | Rename branch locally and remotely, recreate PR if exists |
@@ -56,7 +56,12 @@
 
 #### `git_create_issue_and_branch.py`
 
-- Creates a GitHub issue and corresponding git branch/worktree in one operation
+- Creates a GitHub issue, a git branch, and a draft PR in one operation
+- Does not create a worktree or a tmux session
+  - It prints the `git_worktree_tmux.py --branch_name <BRANCH>` command to run
+    next
+  - See
+    [Issue to tmux Workflow](/docs/tools/git/all.issue_to_tmux_workflow.how_to_guide.md)
 - Create issue and its initial branch
 
   ```bash

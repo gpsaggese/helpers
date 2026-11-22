@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 
 """
-Create a GitHub issue and corresponding git worktree for a repo.
+Create a GitHub issue and corresponding git branch (and draft PR) for a repo.
 
 Workflow:
 1. Creates a GitHub issue with the provided title and body (or uses existing
    issue ID) in one repo
-2. Creates a git branch (and worktree) based on the issue ID, in the outer
-   repo only, unless `--submodules` is passed, in which case it also branches,
-   symmetrically, every submodule (e.g., `helpers_root`)
+2. Creates a git branch based on the issue ID, in the outer repo only, unless
+   `--submodules` is passed, in which case it also branches, symmetrically,
+   every submodule (e.g., `helpers_root`)
 3. Commits workflow template files to the branch
-4. Prints instructions for using the worktree
+4. Prints the `git_worktree_tmux.py` command to open a worktree and a tmux
+   session for the branch
+
+This script does not create worktrees or tmux sessions: use
+`git_worktree_tmux.py` for that.
 
 The GH issue is always created/read against the outer repo's tracker: a
 submodule (e.g., `helpers_root`) is a shared library reused by many parent
@@ -55,7 +59,7 @@ import os
 import re
 import shlex
 import tempfile
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
@@ -64,7 +68,6 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.lib_tasks.lib_tasks_gh as hltltagh
-import helpers.repo_config_utils as hrecouti
 
 _LOG = logging.getLogger(__name__)
 
@@ -501,120 +504,21 @@ def _update_issue_body_with_pr_links(
     _LOG.info("Updated issue #%s with companion PR links", issue_id)
 
 
-def _create_worktree(
-    branch_name: str,
-    issue_id: int,
-    original_branch: str,
-    submodule_paths: Optional[List[str]] = None,
-    *,
-    init_submodules: bool = False,
-) -> str:
+def _print_next_steps(issue_id: int, branch_name: str) -> None:
     """
-    Create a git worktree for the given branch.
+    Print the command to open a worktree and a tmux session for the branch.
 
-    A new worktree has all its submodule dirs empty (e.g., `helpers_root/`), so
-    nothing that lives in a submodule (`tmux.py`, `invoke`, ...) works until the
-    submodules are initialized. When `init_submodules` is True, the submodules
-    are initialized inside the new worktree, at the commit recorded by the
-    outer repo.
+    The worktree and the tmux session are handled by `git_worktree_tmux.py`,
+    not by this script.
 
-    When `submodule_paths` is passed, the submodules are also checked out on
-    `branch_name` (matching the outer repo), instead of being left on a
-    detached HEAD. This requires the branch to exist in those submodules.
-
-    :param branch_name: Name of the branch to create worktree for
-    :param issue_id: GitHub issue number (for path naming)
-    :param original_branch: Original branch to checkout before creating worktree
-    :param submodule_paths: paths of submodules (relative to the outer repo)
-        to check out on `branch_name` inside the worktree
-    :param init_submodules: if True, initialize every submodule inside the
-        worktree. It is implied when `submodule_paths` is not empty
-    :return: Path to the created worktree
-    """
-    # Checkout original branch first to free up the new branch.
-    _LOG.info(
-        "Checking out original branch '%s' before creating worktree",
-        original_branch,
-    )
-    cmd = f"git checkout {shlex.quote(original_branch)}"
-    hsystem.system(cmd, log_level=logging.INFO)
-    # Determine worktree path (parent directory of current repo).
-    current_dir = os.getcwd()
-    parent_dir = os.path.dirname(current_dir)
-    repo_name = os.path.basename(current_dir)
-    worktree_path = os.path.join(parent_dir, f"{repo_name}_worktree_{issue_id}")
-    _LOG.info("Creating worktree at: '%s'", worktree_path)
-    # Create worktree.
-    cmd = f"git worktree add {worktree_path} {branch_name}"
-    hsystem.system(cmd, log_level=logging.INFO)
-    if init_submodules or submodule_paths:
-        # Populate the submodule dirs, which `git worktree add` leaves empty.
-        cmd = f"git -C {worktree_path} submodule update --init --recursive"
-        hsystem.system(cmd, log_level=logging.INFO)
-    # Land each submodule on `branch_name` (not a detached HEAD), matching the
-    # outer repo.
-    for submodule_path in submodule_paths or []:
-        submodule_worktree_path = os.path.join(worktree_path, submodule_path)
-        cmd = (
-            f"git -C {submodule_worktree_path} checkout "
-            f"{shlex.quote(branch_name)}"
-        )
-        hsystem.system(cmd, log_level=logging.INFO)
-    return worktree_path
-
-
-def _print_usage_instructions(
-    worktree_path: str,
-    issue_id: int,
-    branch_name: str,
-    repo_targets: List[str],
-) -> None:
-    """
-    Print instructions on how to use the created worktree.
-
-    Also reports, for every repo target, whether the branch was created there and
-    whether that repo is currently clean (e.g., after the "Draft PR" empty commit
-    / push).
-
-    :param worktree_path: Path to the created worktree
     :param issue_id: GitHub issue number
-    :param branch_name: name of the branch created in every repo target
-    :param repo_targets: repo directories the branch was created in (outer repo
-        first)
+    :param branch_name: name of the branch created for the issue
     """
-    # Build the per-repo summary (branch name is identical everywhere).
-    summary_lines = []
-    for target in repo_targets:
-        is_clean = hgit.is_client_clean(
-            dir_name=target, abort_if_not_clean=False
-        )
-        status = "clean" if is_clean else "dirty"
-        repo_label = "outer repo" if target == "." else f"submodule '{target}'"
-        summary_lines.append(
-            f"    - {repo_label}: branch '{branch_name}' ({status})"
-        )
-    summary = "\n".join(summary_lines)
-    # The tmux script lives in `dev_scripts_{dir_suffix}/`, which is
-    # `dev_scripts_helpers/` in `helpers` but e.g., `dev_scripts_umd_classes/`
-    # in a repo that uses `helpers` as a submodule.
-    dir_suffix = hrecouti.get_repo_config().get_dir_suffix()
-    tmux_script = f"dev_scripts_{dir_suffix}/thin_client/tmux.py"
-    # Extract worktree suffix, which is what `tmux.py` appends to the
-    # `dir_suffix` to build the tmux session name (e.g., "1_worktree_1325" from
-    # "helpers1_worktree_1325").
-    worktree_dir = os.path.basename(worktree_path)
-    worktree_suffix = (
-        worktree_dir.replace(dir_suffix, "", 1)
-        if worktree_dir.startswith(dir_suffix)
-        else worktree_dir
-    )
     msg = f"""
-    Worktree created successfully for issue #{issue_id}!
+    Branch '{branch_name}' created for issue #{issue_id}.
 
-    {summary}
-
-    To open tmux session:
-    > cd {worktree_path}; {tmux_script} --index {worktree_suffix}
+    To open a worktree and a tmux session for the branch:
+    > git_worktree_tmux.py --branch_name {shlex.quote(branch_name)}
     """
     msg = hprint.dedent(msg)
     msg = hprint.color_highlight(msg, "green")
@@ -681,16 +585,7 @@ def _parse() -> argparse.ArgumentParser:
             "do not add the issue to any project"
         ),
     )
-    # After-branch-creation behavior: mutually exclusive since a worktree
-    # already checks out the new branch separately from the outer repo.
-    after_branch_group = parser.add_mutually_exclusive_group()
-    after_branch_group.add_argument(
-        "--create_worktree",
-        action="store_true",
-        default=False,
-        help="Create git worktree (default: False, only create branch)",
-    )
-    after_branch_group.add_argument(
+    parser.add_argument(
         "--stay_on_new_branch",
         action="store_true",
         default=False,
@@ -769,15 +664,13 @@ def _main_workflow(
     gh_issue_body = _get_issue_body(args.gh_issue_body, args.gh_issue_body_file)
     _LOG.debug(
         "gh_issue_id=%s gh_issue_title=%s gh_issue_body=%s gh_issue_body_file=%s "
-        "gh_assignee=%s gh_project=%s create_worktree=%s create_pr=%s "
-        "suffix=%s repo_targets=%s",
+        "gh_assignee=%s gh_project=%s create_pr=%s suffix=%s repo_targets=%s",
         args.gh_issue_id,
         args.gh_issue_title,
         gh_issue_body,
         args.gh_issue_body_file,
         args.gh_assignee,
         args.gh_project,
-        args.create_worktree,
         args.create_pr,
         args.suffix,
         repo_targets,
@@ -849,8 +742,7 @@ def _main_workflow(
     )
     _LOG.info("Branch name: '%s'", branch_name)
     # Symmetrically create the same branch (by name) in every submodule.
-    submodule_targets = repo_targets[1:]
-    for submodule_path in submodule_targets:
+    for submodule_path in repo_targets[1:]:
         _create_branch_in_submodule(
             submodule_path,
             branch_name,
@@ -858,25 +750,12 @@ def _main_workflow(
             no_abort_if_not_master=args.no_abort_if_not_master,
             no_abort_if_not_clean=args.no_abort_if_not_clean,
         )
-    # Create worktree, if requested.
-    if args.create_worktree:
-        # Always populate the submodules in the worktree (even without
-        # `--submodules`), otherwise `helpers_root/` is empty and nothing works.
-        worktree_path = _create_worktree(
-            branch_name,
-            issue_id,
-            original_branch,
-            submodule_targets,
-            init_submodules=hgit.has_submodules(),
-        )
-        # Print usage instructions.
-        _print_usage_instructions(
-            worktree_path, issue_id, branch_name, repo_targets
-        )
     # Keep the single issue as the source of truth for every repo's PR, once
     # a PR exists in more than one repo.
     if args.create_pr and len(repo_targets) > 1:
         _update_issue_body_with_pr_links(issue_id, repo_targets)
+    # Point to the script that creates the worktree and the tmux session.
+    _print_next_steps(issue_id, branch_name)
 
 
 def _main(parser: argparse.ArgumentParser) -> None:

@@ -29,9 +29,9 @@ import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
+import helpers.hpytest as hpytest
 import helpers.hsystem as hsystem
 import helpers.htable as htable
-import helpers.hpytest as hpytest
 
 _LOG = logging.getLogger(__name__)
 

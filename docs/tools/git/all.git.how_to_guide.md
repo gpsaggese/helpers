@@ -567,11 +567,21 @@
   - It creates the worktree as `<dir_suffix>_worktree_<issue_id>` in `~/src`
   - It then runs the `thin_client/tmux.py` of the repo on it
   - Run it outside tmux
-- When the PR is merged, remove the worktree
-  - The branch is not deleted
+- To create the worktree and open the tmux session from a different terminal, use
+  `--action create`
   ```bash
-  > git worktree remove <DIR>
+  > git_worktree_tmux.py --pr_number <PR> --action create
   ```
+  - It prints the commands to open the tmux session and to delete the worktree
+- When the PR is merged, delete the tmux session and the worktree
+  ```bash
+  > git_worktree_tmux.py --pr_number <PR> --action delete
+  ```
+  - Run it from the main repo, outside the tmux session to delete
+  - It refuses to delete a worktree with uncommitted changes, unless you pass
+    `--force`
+  - The branch is kept, unless you pass `--delete_branch`
+  - To delete a worktree created by hand, use `git worktree remove <DIR>`
 - `git_create_issue_and_branch.py` creates the issue and the branch / worktree
   in one step, see
   [`all.manual_flow.how_to_guide.md`](/docs/tools/git/all.manual_flow.how_to_guide.md)

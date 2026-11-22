@@ -144,16 +144,13 @@ def _get_moved_files(hash_: str, dir_name: str) -> Dict[str, str]:
 def _git_diff_with_branch(
     hash_: str,
     tag: str,
-    #
     dir_name: str,
     subdir: str,
-    #
     diff_type: str,
     file_types: str,
     skip_file_types: str,
     files_filter: str,
     from_file_filter: str,
-    #
     only_print_files: bool,
     dry_run: bool,
 ) -> None:
@@ -367,17 +364,14 @@ def _git_diff_with_branch(
 def _git_diff_with_branch_wrapper(
     hash_: str,
     tag: str,
-    #
     dir_name: str,
     subdir: str,
     include_submodules: bool,
-    #
     diff_type: str,
     file_types: str,
     skip_file_types: str,
     files_filter: str,
     from_file_filter: str,
-    #
     only_print_files: bool,
     dry_run: bool,
 ) -> None:
@@ -519,17 +513,14 @@ def _git_branch_diff(
     _git_diff_with_branch_wrapper(
         hash_value,
         tag,
-        #
         dir_name,
         subdir,
         include_submodules,
-        #
         diff_type,
         file_types,
         skip_file_types,
         files,
         from_file,
-        #
         only_print_files,
         dry_run,
     )

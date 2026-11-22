@@ -65,24 +65,26 @@ def _test_html_to_md_conversion(
 
 
 # #############################################################################
-# Test_download_html_to_md_py_bs
+# Test_download_html_to_md_py
 # #############################################################################
 
 
-class Test_download_html_to_md_py_bs(hunitest.TestCase):
+class Test_download_html_to_md_py(hunitest.TestCase):
     """
-    End-to-end test for script using BeautifulSoup converter.
+    Test `dev_scripts_helpers.download.download_html_to_md` script.
     """
 
-    def helper(self, html_content: str, expected_md: str) -> None:
+    def helper(
+        self, html_content: str, expected_md: str, *, converter: str = "bs"
+    ) -> None:
         """
-        Test helper for the script using the BeautifulSoup converter.
+        Test helper for the script with different converters.
 
         :param html_content: raw HTML input to convert
         :param expected_md: expected markdown output
+        :param converter: converter mode to use (defaults to "bs")
         """
         # Run test and check outputs.
-        converter = "bs"
         _test_html_to_md_conversion(
             self, html_content, expected_md, converter=converter
         )
@@ -109,7 +111,7 @@ class Test_download_html_to_md_py_bs(hunitest.TestCase):
 
         Content paragraph
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(html_content, expected)
 
     def test2(self) -> None:
@@ -137,7 +139,7 @@ class Test_download_html_to_md_py_bs(hunitest.TestCase):
 
         Nested content here
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(html_content, expected)
 
     def test3(self) -> None:
@@ -162,7 +164,7 @@ class Test_download_html_to_md_py_bs(hunitest.TestCase):
 
         Content in role main
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(html_content, expected)
 
     def test4(self) -> None:
@@ -173,34 +175,10 @@ class Test_download_html_to_md_py_bs(hunitest.TestCase):
         html_content = ""
         # Prepare outputs.
         expected = ""
-        # Run test.
+        # Run test and check outputs.
         self.helper(html_content, expected)
 
-
-# #############################################################################
-# Test_download_html_to_md_py_readability
-# #############################################################################
-
-
-class Test_download_html_to_md_py_readability(hunitest.TestCase):
-    """
-    End-to-end test for script using readability converter.
-    """
-
-    def helper(self, html_content: str, expected_md: str) -> None:
-        """
-        Test helper for the script using the readability converter.
-
-        :param html_content: raw HTML input to convert
-        :param expected_md: expected markdown output
-        """
-        # Run test and check outputs.
-        converter = "readability"
-        _test_html_to_md_conversion(
-            self, html_content, expected_md, converter=converter
-        )
-
-    def test1(self) -> None:
+    def test5(self) -> None:
         """
         Test script with readability converter on article-like content.
         """
@@ -228,10 +206,10 @@ class Test_download_html_to_md_py_readability(hunitest.TestCase):
 
         More paragraph content here
         """
-        # Run test.
-        self.helper(html_content, expected)
+        # Run test and check outputs.
+        self.helper(html_content, expected, converter="readability")
 
-    def test2(self) -> None:
+    def test6(self) -> None:
         """
         Test script with readability converter on dense text content.
         """
@@ -255,10 +233,10 @@ class Test_download_html_to_md_py_readability(hunitest.TestCase):
         Second paragraph with more information
         Third paragraph continuing the documentation
         """
-        # Run test.
-        self.helper(html_content, expected)
+        # Run test and check outputs.
+        self.helper(html_content, expected, converter="readability")
 
-    def test3(self) -> None:
+    def test7(self) -> None:
         """
         Test script with readability converter on empty HTML input.
 
@@ -271,41 +249,11 @@ class Test_download_html_to_md_py_readability(hunitest.TestCase):
         # Prepare inputs.
         html_content = ""
         expected = ""
-        # Run test.
-        with self.assertRaises(RuntimeError):
-            self.helper(html_content, expected)
-
-
-# #############################################################################
-# Test_download_html_to_md_py_auto
-# #############################################################################
-
-
-class Test_download_html_to_md_py_auto(hunitest.TestCase):
-    """
-    End-to-end test for script using auto converter mode.
-    """
-
-    def helper(
-        self,
-        html_content: str,
-        expected_md: str,
-        *,
-        converter: str = "auto",
-    ) -> None:
-        """
-        Test helper for the script using auto converter mode.
-
-        :param html_content: raw HTML input to convert
-        :param expected_md: expected markdown output
-        :param converter: converter mode to use (defaults to "auto")
-        """
         # Run test and check outputs.
-        _test_html_to_md_conversion(
-            self, html_content, expected_md, converter=converter
-        )
+        with self.assertRaises(RuntimeError):
+            self.helper(html_content, expected, converter="readability")
 
-    def test1(self) -> None:
+    def test8(self) -> None:
         """
         Test script with auto mode uses BeautifulSoup first when main exists.
         """
@@ -327,10 +275,10 @@ class Test_download_html_to_md_py_auto(hunitest.TestCase):
 
         Content found by BS selector
         """
-        # Run test.
-        self.helper(html_content, expected)
+        # Run test and check outputs.
+        self.helper(html_content, expected, converter="auto")
 
-    def test2(self) -> None:
+    def test9(self) -> None:
         """
         Test script with auto mode falls back to readability.
         """
@@ -352,10 +300,10 @@ class Test_download_html_to_md_py_auto(hunitest.TestCase):
         This should be extracted by readability fallback
         Additional paragraph content for readability to process
         """
-        # Run test.
-        self.helper(html_content, expected)
+        # Run test and check outputs.
+        self.helper(html_content, expected, converter="auto")
 
-    def test3(self) -> None:
+    def test10(self) -> None:
         """
         Test script preserves heading structure in markdown.
         """
@@ -379,10 +327,10 @@ class Test_download_html_to_md_py_auto(hunitest.TestCase):
 
         Paragraph text
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(html_content, expected, converter="bs")
 
-    def test4(self) -> None:
+    def test11(self) -> None:
         """
         Test script with auto converter mode on empty HTML input.
 
@@ -395,9 +343,9 @@ class Test_download_html_to_md_py_auto(hunitest.TestCase):
         # Prepare inputs.
         html_content = ""
         expected = ""
-        # Run test.
+        # Run test and check outputs.
         with self.assertRaises(RuntimeError):
-            self.helper(html_content, expected)
+            self.helper(html_content, expected, converter="auto")
 
 
 # #############################################################################
@@ -407,7 +355,7 @@ class Test_download_html_to_md_py_auto(hunitest.TestCase):
 
 class Test_remove_data_uri_images(hunitest.TestCase):
     """
-    Test `_remove_data_uri_images()` function for removing data URI images.
+    Test `dev_scripts_helpers.download.download_html_to_md._remove_data_uri_images()` function.
     """
 
     def helper(self, input_content: str, expected: str) -> None:
@@ -419,7 +367,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
         """
         input_content = hprint.dedent(input_content)
         expected = hprint.dedent(expected)
-        # Run test.
+        # Run test and check outputs.
         actual = dshddhtmd._remove_data_uri_images(input_content)
         # Check outputs.
         self.assert_equal(actual, expected)
@@ -436,7 +384,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
         expected = """
 
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test2(self) -> None:
@@ -451,7 +399,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
         expected = """
 
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test3(self) -> None:
@@ -474,7 +422,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
         Some content.
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test4(self) -> None:
@@ -500,7 +448,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
 
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test5(self) -> None:
@@ -511,7 +459,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
         input_content = ""
         # Prepare outputs.
         expected = ""
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test6(self) -> None:
@@ -529,7 +477,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
         """
         # Prepare outputs.
         expected = input_content
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test7(self) -> None:
@@ -547,7 +495,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
         Content.
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test8(self) -> None:
@@ -565,7 +513,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
         Text.
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test9(self) -> None:
@@ -587,7 +535,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
         Text.
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
     def test10(self) -> None:
@@ -605,7 +553,7 @@ class Test_remove_data_uri_images(hunitest.TestCase):
 
         ![alt](https://example.com/pic.png)
         """
-        # Run test.
+        # Run test and check outputs.
         self.helper(input_content, expected)
 
 

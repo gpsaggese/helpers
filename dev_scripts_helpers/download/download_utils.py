@@ -97,6 +97,13 @@ def sanitize_title_for_filename(title: str) -> str:
     return sanitized
 
 
+# Default model for LLM-based summarization, routed through OpenRouter (the
+# "openrouter/<provider>/<model>" prefix; see `llm_cli.py`). Public (no
+# leading underscore) so callers like `download_hn_article_to_md.py` can use
+# it as their own `--model` CLI default.
+SUMMARY_MODEL = "openrouter/anthropic/claude-haiku-4.5"
+
+
 # Suffixes of a person name that are not part of the family name.
 _NAME_SUFFIXES = ["jr", "sr", "ii", "iii", "iv"]
 
@@ -228,13 +235,13 @@ def detect_blocked_page(html_content: str) -> str:
     return marker
 
 
-# Shared prompt for summarizing article content into 5 bullet points; reused
-# by `download_hn_article_to_md.py`, `download_html_to_md.py`, and
+# Shared prompt for summarizing article content into 12-15 bullet points;
+# reused by `download_hn_article_to_md.py`, `download_html_to_md.py`, and
 # `download_academic_paper_to_md.py` to avoid repeating the same prompt text.
 ARTICLE_SUMMARY_PROMPT = hprint.dedent(
     """
-    - Summarize the main article in 7-10 bullet points and fewer than about 250
-      words
+    - Summarize the main article in 12-15 bullet points and fewer than about
+      400 words
     - Format the result as plain text without markdown following the
       conventions in:
       - @.claude/skills/markdown.rules.md
@@ -434,7 +441,13 @@ def _build_llm_cli_cmd(
     # Without `--model`, `llm_cli.py` uses its default model: an OpenRouter one.
     if model:
         cmd_parts.append(f"--model={model}")
-    cmd_parts += [f"--stat_file={stat_file}", "--lint"]
+    # `llm_cli_path` runs via its own `uv run` shebang, in an isolated
+    # environment that starts with no llm plugins configured (see the note at
+    # the top of `llm_cli.py`). `--install_llm_plugins` installs
+    # `llm-openrouter`/`llm-anthropic` if missing (cheap no-op once already
+    # installed in that cached uv environment), so an OpenRouter-routed model
+    # resolves correctly.
+    cmd_parts += [f"--stat_file={stat_file}", "--lint", "--install_llm_plugins"]
     cmd = " ".join(cmd_parts)
     return cmd
 

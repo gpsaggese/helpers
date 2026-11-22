@@ -7,7 +7,7 @@ import dev_scripts_helpers.git.test.test_git_create_issue_and_branch as dsggtgia
 """
 
 import json
-from typing import Any, List, Optional
+from typing import Any
 
 # TODO(ai_gp): use import unittest
 from unittest import mock
@@ -542,212 +542,29 @@ class Test__create_branch_in_submodule(hunitest.TestCase):
 
 
 # #############################################################################
-# Test_create_worktree
+# Test_print_next_steps
 # #############################################################################
 
 
-class Test_create_worktree(hunitest.TestCase):
+class Test_print_next_steps(hunitest.TestCase):
     """
-    Tests for `_create_worktree()` function.
+    Tests for `_print_next_steps()` function.
     """
-
-    def _helper(
-        self,
-        submodule_paths: Optional[List[str]],
-        expected: str,
-        *,
-        init_submodules: bool = False,
-    ) -> None:
-        """
-        Run `_create_worktree()` and check the captured system calls and the
-        returned worktree path.
-
-        :param submodule_paths: value passed to `submodule_paths` param
-        :param expected: expected system calls
-        :param init_submodules: value passed to `init_submodules` param
-        """
-        # Prepare inputs.
-        branch_name = "HelpersTask1290_Test_Branch"
-        issue_id = 1290
-        original_branch = "master"
-        # Run test and capture system calls.
-        with (
-            hunteuti.capture_sys_calls() as invocations,
-            mock.patch("os.getcwd", return_value="/home/user/helpers1"),
-        ):
-            worktree_path = dshggciab._create_worktree(
-                branch_name,
-                issue_id,
-                original_branch,
-                submodule_paths,
-                init_submodules=init_submodules,
-            )
-        # Check outputs.
-        expected = hprint.dedent(expected)
-        hunteuti.assert_sys_calls(self, invocations, expected)
-        # Verify returned worktree path.
-        expected_path = "/home/user/helpers1_worktree_1290"
-        self.assertEqual(worktree_path, expected_path)
 
     def test1(self) -> None:
         """
-        Test creating a worktree.
+        Test that the message points to `git_worktree_tmux.py` with the branch.
         """
         # Prepare inputs.
-        submodule_paths = None
-        # Prepare outputs.
-        expected = r"""[
-        {
-        'function': hsystem.system,
-        'args': ('git checkout master',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
-        },
-        ]"""
-        # Run test.
-        self._helper(submodule_paths, expected)
-
-    def test2(self) -> None:
-        """
-        Test creating a worktree with a submodule: the submodule is
-        initialized and checked out on the same branch, not left on a
-        detached HEAD.
-        """
-        # Prepare inputs.
-        submodule_paths = ["helpers_root"]
-        # Prepare outputs.
-        expected = r"""[
-        {
-        'function': hsystem.system,
-        'args': ('git checkout master',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290 submodule update --init --recursive',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290/helpers_root checkout HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
-        },
-        ]"""
-        # Run test.
-        self._helper(submodule_paths, expected)
-
-    def test3(self) -> None:
-        """
-        Test creating a worktree when the submodules are not branched (no
-        `--submodules`): the submodules are still initialized, otherwise their
-        dirs (e.g., `helpers_root/`) are left empty, but they are not checked
-        out on the branch.
-        """
-        # Prepare inputs.
-        submodule_paths = None
-        init_submodules = True
-        # Prepare outputs.
-        expected = r"""[
-        {
-        'function': hsystem.system,
-        'args': ('git checkout master',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test_Branch',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290 submodule update --init --recursive',),
-        'kwargs': {'log_level': 20},
-        },
-        ]"""
-        # Run test.
-        self._helper(submodule_paths, expected, init_submodules=init_submodules)
-
-
-# #############################################################################
-# Test_print_usage_instructions
-# #############################################################################
-
-
-class Test_print_usage_instructions(hunitest.TestCase):
-    """
-    Tests for `_print_usage_instructions()` function.
-    """
-
-    def _helper(
-        self,
-        dir_suffix: str,
-        worktree_path: str,
-        expected_cmd: str,
-    ) -> None:
-        """
-        Run `_print_usage_instructions()` and check the printed tmux command.
-
-        :param dir_suffix: `dir_suffix` of the repo config (e.g., `helpers`)
-        :param worktree_path: path of the worktree
-        :param expected_cmd: expected tmux command in the printed message
-        """
+        issue_id = 969
+        branch_name = "Task969_Test"
         # Run test and capture the printed message.
-        with (
-            mock.patch("helpers.hgit.is_client_clean", return_value=True),
-            mock.patch(
-                "helpers.repo_config_utils.get_repo_config",
-                return_value=_get_mock_repo_config(dir_suffix),
-            ),
-            mock.patch("builtins.print") as mock_print,
-        ):
-            dshggciab._print_usage_instructions(
-                worktree_path, 969, "Task969_Test", ["."]
-            )
+        with mock.patch("builtins.print") as mock_print:
+            dshggciab._print_next_steps(issue_id, branch_name)
         # Check outputs.
         msg = mock_print.call_args[0][0]
-        self.assertIn(expected_cmd, msg)
-
-    def test1(self) -> None:
-        """
-        Test the tmux command in the `helpers` repo, where `tmux.py` is in
-        `dev_scripts_helpers/` at the root of the repo.
-        """
-        # Prepare inputs.
-        dir_suffix = "helpers"
-        worktree_path = "/home/user/helpers1_worktree_969"
-        # Prepare outputs.
-        expected_cmd = (
-            "cd /home/user/helpers1_worktree_969; "
-            "dev_scripts_helpers/thin_client/tmux.py --index 1_worktree_969"
-        )
-        # Run test.
-        self._helper(dir_suffix, worktree_path, expected_cmd)
-
-    def test2(self) -> None:
-        """
-        Test the tmux command in a repo that uses `helpers` as a submodule,
-        where `tmux.py` is in `dev_scripts_<dir_suffix>/`, not in
-        `dev_scripts_helpers/`, which is not at the root of the repo.
-        """
-        # Prepare inputs.
-        dir_suffix = "umd_classes"
-        worktree_path = "/home/user/umd_classes1_worktree_969"
-        # Prepare outputs.
-        expected_cmd = (
-            "cd /home/user/umd_classes1_worktree_969; "
-            "dev_scripts_umd_classes/thin_client/tmux.py --index 1_worktree_969"
-        )
-        # Run test.
-        self._helper(dir_suffix, worktree_path, expected_cmd)
+        self.assertIn("issue #969", msg)
+        self.assertIn("git_worktree_tmux.py --branch_name Task969_Test", msg)
 
 
 # #############################################################################
@@ -831,7 +648,7 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
 
     def test3(self) -> None:
         """
-        Test using existing issue without creating worktree.
+        Test using existing issue.
         """
         # Prepare inputs.
         argv = [
@@ -878,14 +695,14 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
 
     def test4(self) -> None:
         """
-        Test with --create_worktree flag.
+        Test that the script creates no worktree and prints the
+        `git_worktree_tmux.py` command for the branch.
         """
         # Prepare inputs.
         argv = [
             "git_create_issue_and_branch.py",
             "--gh_issue_id",
             "1290",
-            "--create_worktree",
         ]
         # Run test with mocked system calls.
         with (
@@ -908,18 +725,11 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
                 ),
             ),
             mock.patch("helpers.hgit.does_branch_exist", return_value=False),
-            mock.patch("os.getcwd", return_value="/home/user/helpers1"),
-            # `os.getcwd()` is mocked, so the real `repo_config.yaml` can't be
-            # found.
-            mock.patch(
-                "helpers.repo_config_utils.get_repo_config",
-                return_value=_get_mock_repo_config("helpers"),
-            ),
             mock.patch(
                 "dev_scripts_helpers.git.git_create_issue_and_branch._commit_issue_files"
             ),
             mock.patch("shutil.copy"),
-            mock.patch("builtins.print"),
+            mock.patch("builtins.print") as mock_print,
         ):
             self._run_main(argv)
         # Check outputs.
@@ -932,37 +742,29 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
         {
         'function': hsystem.system,
         'args': ('git checkout master',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git checkout master',),
         'kwargs': {},
         },
         ]"""
         expected = hprint.dedent(expected)
         hunteuti.assert_sys_calls(self, invocations, expected)
+        msg = mock_print.call_args[0][0]
+        self.assertIn(
+            "git_worktree_tmux.py --branch_name HelpersTask1290_Test", msg
+        )
 
     def test5(self) -> None:
         """
-        Test symmetric branch and worktree creation with one submodule
-        present and `--submodules` passed: the branch is created in both
-        the outer repo and the submodule, the submodule's worktree is
-        checked out on that branch, and the issue is updated with the
-        companion PR links (since `--create_pr` defaults to True and there
-        is more than one repo target).
+        Test symmetric branch creation with one submodule present and
+        `--submodules` passed: the branch is created in both the outer repo
+        and the submodule, and the issue is updated with the companion PR
+        links (since `--create_pr` defaults to True and there is more than
+        one repo target).
         """
         # Prepare inputs.
         argv = [
             "git_create_issue_and_branch.py",
             "--gh_issue_id",
             "1290",
-            "--create_worktree",
             "--submodules",
         ]
         # Run test with mocked system calls.
@@ -991,13 +793,6 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
                 ),
             ),
             mock.patch("helpers.hgit.does_branch_exist", return_value=False),
-            mock.patch("os.getcwd", return_value="/home/user/helpers1"),
-            # `os.getcwd()` is mocked, so the real `repo_config.yaml` can't be
-            # found.
-            mock.patch(
-                "helpers.repo_config_utils.get_repo_config",
-                return_value=_get_mock_repo_config("helpers"),
-            ),
             mock.patch(
                 "dev_scripts_helpers.git.git_create_issue_and_branch._commit_issue_files"
             ),
@@ -1016,26 +811,6 @@ class Test_git_create_issue_and_branch_py(hunitest.TestCase):
         {
         'function': hsystem.system,
         'args': ('cd helpers_root && invoke git_branch_create --branch-name HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git checkout master',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git worktree add /home/user/helpers1_worktree_1290 HelpersTask1290_Test',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290 submodule update --init --recursive',),
-        'kwargs': {'log_level': 20},
-        },
-        {
-        'function': hsystem.system,
-        'args': ('git -C /home/user/helpers1_worktree_1290/helpers_root checkout HelpersTask1290_Test',),
         'kwargs': {'log_level': 20},
         },
         {

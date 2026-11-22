@@ -13,10 +13,11 @@ pytest.importorskip("networkx")
 pytest.importorskip("jinja2")
 pytest.importorskip("pygments")
 
-import dev_scripts_helpers.coding_tools.call_graph.test.call_graph_fixture as dsccgtcgf
-import dev_scripts_helpers.coding_tools.call_graph_viewer as dsccacavi
 import helpers.hunit_test as hunitest
 from helpers import hdbg, hio
+
+import dev_scripts_helpers.coding_tools.call_graph.test.call_graph_fixture as dsccgtcgf
+import dev_scripts_helpers.coding_tools.call_graph_viewer as dsccacavi
 
 _LOG = logging.getLogger(__name__)
 

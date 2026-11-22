@@ -55,9 +55,9 @@ class Table:
 
     def __repr__(self) -> str:
         res = ""
-        res += f"cols={str(self._column_names)}"
+        res += f"cols={self._column_names!s}"
         res += "\ntable=\n" + "\n".join(map(str, self._table))
-        res += "\n" + f"size={str(self.size())}"
+        res += "\n" + f"size={self.size()!s}"
         return res
 
     def __init__(self, table: TableType, column_names: List[str]) -> None:

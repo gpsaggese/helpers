@@ -2,8 +2,9 @@ import argparse
 import logging
 from typing import List, Tuple
 
-import dev_scripts_helpers.system_tools.search_utils as dshstseut
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.system_tools.search_utils as dshstseut
 
 _LOG = logging.getLogger(__name__)
 

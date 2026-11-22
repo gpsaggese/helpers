@@ -317,9 +317,7 @@ def listdir(
                     path_objects.pop(path_object["Key"])
         paths = list(path_objects.keys())
         if exclude_git_dirs:
-            paths = [
-                path for path in paths if ".git" not in path.split("/")
-            ]
+            paths = [path for path in paths if ".git" not in path.split("/")]
         bucket, absolute_path = split_path(dir_name)
         # Basically the goal is to remove `s3://` from the full S3 path.
         root_path = f"{bucket}{absolute_path}"
@@ -557,7 +555,7 @@ def _get_aws_config(file_name: str) -> configparser.RawConfigParser:
 #     `CSFY_AWS_ACCESS_KEY_ID`
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_aws_credentials(
     aws_profile: str,
 ) -> Dict[str, Optional[str]]:
@@ -637,19 +635,15 @@ def get_aws_credentials(
         # aws_session_token = Fwo...
         file_name = "credentials"
         config = _get_aws_config(file_name)
-        #
         key = "aws_access_key_id"
         result[key] = config.get(aws_profile, key)
-        #
         key = "aws_secret_access_key"
         result[key] = config.get(aws_profile, key)
-        #
         key = "aws_session_token"
         if config.has_option(aws_profile, key):
             result[key] = config.get(aws_profile, key)
         else:
             result[key] = None
-        #
         key = "aws_s3_bucket"
         if config.has_option(aws_profile, key):
             result[key] = config.get(aws_profile, key)
@@ -663,7 +657,6 @@ def get_aws_credentials(
         key = "aws_region"
         # For ~/.aws/config the tag is `profile am` instead of `am`.
         result[key] = config.get(f"profile {aws_profile}", "region")
-    #
     hdbg.dassert_is_subset(key_to_env_var.keys(), result.keys())
     return result
 
@@ -905,7 +898,6 @@ def generate_aws_files(
     hio.to_file(config_file_name, config_file_text)
     _LOG.debug("Saved AWS config to %s", config_file_name)
 
-    #
     credentials_file_text = "\n\n".join(credentials_file_text)
     hio.to_file(credentials_file_name, credentials_file_text)
     _LOG.debug("Saved AWS credentials to %s", credentials_file_name)

@@ -203,8 +203,7 @@ def _parse() -> argparse.ArgumentParser:
         "--backup_dir",
         type=str,
         default=None,
-        help="Directory where to save the zip file (default: "
-        "$HOME/src/backups)",
+        help="Directory where to save the zip file (default: $HOME/src/backups)",
     )
     parser.add_argument(
         "--no_include_subrepos",

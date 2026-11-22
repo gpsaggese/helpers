@@ -72,6 +72,12 @@ submission URL.
     --input "https://news.ycombinator.com/item?id=12345" \
     --no_incremental
 
+- Use a specific LLM model for summarization (default is routed through
+  OpenRouter; see `download_utils.SUMMARY_MODEL`):
+> download_hn_article_to_md.py \
+    --input "https://news.ycombinator.com/item?id=12345" \
+    --model openrouter/anthropic/claude-haiku-4.5
+
 Import as:
 
 import dev_scripts_helpers.download.download_hn_article_to_md as dsdhatm
@@ -87,14 +93,15 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+import helpers.hcache_simple as hcacsimp
 import helpers.hdbg as hdbg
 import helpers.hio as hio
 import helpers.hparser as hparser
 import helpers.hprint as hprint
-import helpers.hcache_simple as hcacsimp
 import helpers.hselect_action as hselacti
-import dev_scripts_helpers.download.download_utils as dshddut
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
+import dev_scripts_helpers.download.download_utils as dshddut
 
 _LOG = logging.getLogger(__name__)
 
@@ -439,7 +446,7 @@ def _download_article_url(
 
 _HN_COMMENTS_PROMPT = hprint.dedent("""
     - Analyze the Hacker News comment section.
-    - From all comments, summarize the 5-10 most interesting comments based on:
+    - From all comments, summarize the 10-15 most interesting comments based on:
       1. Thought-provoking or insightful content
       2. Unique perspective or uncommon knowledge
       3. Sparks discussion or debate
@@ -461,9 +468,9 @@ def _summarize_hn_url(
     comments_file: str,
     summary_file: str,
     *,
+    model: str,
     article_url: str = "",
     hn_url: str = "",
-    model: str = "",
     dry_run: bool = False,
     no_incremental: bool = False,
 ) -> None:
@@ -472,11 +479,9 @@ def _summarize_hn_url(
 
     :param comments_file: Path to the raw HN comments file
     :param summary_file: Path to save the summary to
+    :param model: LLM model to use for summarization
     :param article_url: URL of the linked article, for the backlink header
     :param hn_url: URL of the HN submission, for the backlink header
-    :param model: LLM model name
-        - Default: `""`, which uses the default model of `llm_cli.py`, an
-          OpenRouter one
     :param dry_run: If True, show what would be done without executing
     :param no_incremental: If True, overwrite `summary_file` even if it
         already exists
@@ -506,9 +511,9 @@ def _summarize_article_url(
     article_file: str,
     summary_file: str,
     *,
+    model: str,
     article_url: str = "",
     hn_url: str = "",
-    model: str = "",
     dry_run: bool = False,
     no_incremental: bool = False,
 ) -> None:
@@ -517,11 +522,9 @@ def _summarize_article_url(
 
     :param article_file: Path to the raw article content file
     :param summary_file: Path to save the summary to
+    :param model: LLM model to use for summarization
     :param article_url: URL of the linked article, for the backlink header
     :param hn_url: URL of the HN submission, for the backlink header
-    :param model: LLM model name
-        - Default: `""`, which uses the default model of `llm_cli.py`, an
-          OpenRouter one
     :param dry_run: If True, show what would be done without executing
     :param no_incremental: If True, overwrite `summary_file` even if it
         already exists
@@ -600,12 +603,13 @@ def _parse() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="",
+        type=str,
+        default=dshddut.SUMMARY_MODEL,
         help=(
-            "LLM model for the summarize actions, e.g., "
-            "`openrouter/anthropic/claude-haiku-4.5`. If not specified, the "
-            "default model of `llm_cli.py` is used, an OpenRouter one (it "
-            "needs the `OPENROUTER_KEY` env var)"
+            "LLM model to use for both summarization phases (article + "
+            "HN comments), e.g., `openrouter/anthropic/claude-haiku-4.5`. "
+            "The default is an OpenRouter model, which needs the "
+            "`OPENROUTER_KEY` env var"
         ),
     )
     # Add action selection arguments (download_hn_url, download_article_url, etc).
@@ -664,7 +668,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
     # specified, otherwise the sanitized submission title.
     if time_:
         date_str = datetime.datetime.fromtimestamp(
-            time_, tz=datetime.timezone.utc
+            time_, tz=datetime.UTC
         ).strftime("%Y-%m-%d")
     else:
         date_str = "unknown_date"
@@ -723,9 +727,9 @@ def _main(parser: argparse.ArgumentParser) -> None:
             _summarize_article_url(
                 article_file,
                 article_summary_file,
+                model=args.model,
                 article_url=article_url,
                 hn_url=hn_url,
-                model=args.model,
                 dry_run=args.dry_run,
                 no_incremental=args.no_incremental,
             )
@@ -733,9 +737,9 @@ def _main(parser: argparse.ArgumentParser) -> None:
             _summarize_hn_url(
                 hn_file,
                 hn_summary_file,
+                model=args.model,
                 article_url=article_url,
                 hn_url=hn_url,
-                model=args.model,
                 dry_run=args.dry_run,
                 no_incremental=args.no_incremental,
             )

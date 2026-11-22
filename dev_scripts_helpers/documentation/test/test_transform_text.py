@@ -4,12 +4,13 @@ from unittest import mock
 
 import pytest
 
-import dev_scripts_helpers.documentation.transform_text as dshdotrte
 import helpers.hio as hio
 import helpers.hlatex as hlatex
 import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.documentation.transform_text as dshdotrte
 
 _LOG = logging.getLogger(__name__)
 

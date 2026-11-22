@@ -7,12 +7,13 @@ from unittest import mock
 
 import pytest
 
-import dev_scripts_helpers.documentation.md_to_speech as dshdmtosp
 import helpers.hgit as hgit
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.documentation.md_to_speech as dshdmtosp
 
 _LOG = logging.getLogger(__name__)
 
@@ -1011,7 +1012,11 @@ class Test__process_chunk_audio(hunitest.TestCase):
         normal_speed = 1.0
         # Prepare outputs.
         expected = dshdmtosp._get_chunk_filename(
-            chunk, chunk_idx=chunk_idx, engine=engine, voice=voice, speed=normal_speed
+            chunk,
+            chunk_idx=chunk_idx,
+            engine=engine,
+            voice=voice,
+            speed=normal_speed,
         )
         # Run test.
         try:

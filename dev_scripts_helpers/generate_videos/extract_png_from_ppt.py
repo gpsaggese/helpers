@@ -262,7 +262,6 @@ def _main(args: argparse.Namespace) -> None:
     # Create output directory.
     incremental = not args.from_scratch
     hio.create_dir(output_dir, incremental=incremental)
-    #
     _LOG.info("Extracting presentation: %s", ppt_path)
     _LOG.info("Output directory: %s", output_dir)
     # Extract slides as PNG images if requested.

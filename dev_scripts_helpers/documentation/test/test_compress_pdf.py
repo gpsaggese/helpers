@@ -3,11 +3,12 @@ import os
 from typing import Any, List, Tuple
 from unittest import mock
 
-import dev_scripts_helpers.documentation.compress_pdf as dshdcpd
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hunit_test as hunitest
 import helpers.hunit_test_utils as hunteuti
+
+import dev_scripts_helpers.documentation.compress_pdf as dshdcpd
 
 _LOG = logging.getLogger(__name__)
 

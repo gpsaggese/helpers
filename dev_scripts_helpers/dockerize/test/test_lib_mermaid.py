@@ -4,13 +4,14 @@ from typing import Tuple
 
 import pytest
 
-import dev_scripts_helpers.dockerize.dockerized_utils as dshddou
-import dev_scripts_helpers.dockerize.lib_mermaid as dshdlime
 import helpers.hdocker as hdocker
 import helpers.hio as hio
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.dockerize.dockerized_utils as dshddou
+import dev_scripts_helpers.dockerize.lib_mermaid as dshdlime
 
 # #############################################################################
 # Test_build_mermaid_container1

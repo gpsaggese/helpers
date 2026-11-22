@@ -83,7 +83,6 @@ def _copy_branch_subset(
             )
             return
         hsystem.system("git checkout master", suppress_output=False)
-        #
         cmd = f"invoke git_branch_create --branch-name '{branch_name}'"
         if not check_branch_name:
             cmd += " --no-check-branch-name"

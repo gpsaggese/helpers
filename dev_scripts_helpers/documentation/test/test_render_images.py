@@ -3,13 +3,14 @@ import os
 
 import pytest
 
-import dev_scripts_helpers.documentation.render_images as dshdreim
 import helpers.hgit as hgit
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.documentation.render_images as dshdreim
 
 _LOG = logging.getLogger(__name__)
 

@@ -5,14 +5,15 @@ from typing import List
 
 import pytest
 
-import dev_scripts_helpers.dockerize.dockerized_utils as dshddut
-import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 import helpers.hdocker as hdocker
 import helpers.hio as hio
 import helpers.hprint as hprint
 import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
+
+import dev_scripts_helpers.dockerize.dockerized_utils as dshddut
+import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
 

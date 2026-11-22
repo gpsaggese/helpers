@@ -74,8 +74,8 @@ model: sonnet
   - Do not initialize submodules in the worktree
 - No script of the repo builds a worktree from a PR, so use the raw `git` commands
   above
-  - `git_create_issue_and_branch.py --create_worktree` creates a new branch for a
-    new issue
+  - `git_worktree_tmux.py` creates a worktree and a tmux session for a branch on
+    `origin`, not a detached worktree on a PR head commit
   - `open_notebook_from_branch.py` needs a branch on `origin`, while a PR from a
     fork is available only as `pull/<PR_NUM>/head`
 

@@ -13,6 +13,7 @@ import helpers.hserver as hserver
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
 import helpers.hunit_test_utils as hunteuti
+
 import linters2.lint as lilint
 
 _LOG = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def _run_actions_and_check(
 # #############################################################################
 # Test_filter_files_by_type
 # #############################################################################
+
 
 class Test_filter_files_by_type(hunitest.TestCase):
     """
@@ -117,16 +119,12 @@ class Test_filter_files_by_type(hunitest.TestCase):
         file_paths, file_types)
         """
         scratch_dir = self.get_scratch_space()
-        #
         standalone_py = os.path.join(scratch_dir, "standalone.py")
         hio.to_file(standalone_py, "")
-        #
         paired_py = os.path.join(scratch_dir, "paired.py")
         hio.to_file(paired_py, "")
-        #
         paired_ipynb = os.path.join(scratch_dir, "paired.ipynb")
         hio.to_file(paired_ipynb, "")
-        #
         notebook_ipynb = os.path.join(scratch_dir, "notebook.ipynb")
         hio.to_file(notebook_ipynb, "")
         file_paths = [standalone_py, paired_py, notebook_ipynb]
@@ -355,6 +353,7 @@ class Test_filter_files_by_type(hunitest.TestCase):
 # Test_run_common_linting_actions
 # #############################################################################
 
+
 class Test_run_common_linting_actions(hunitest.TestCase):
     def test1(self) -> None:
         """
@@ -440,6 +439,7 @@ class Test_run_common_linting_actions(hunitest.TestCase):
 # Test_run_python_linting_actions
 # #############################################################################
 
+
 class Test_run_python_linting_actions(hunitest.TestCase):
     """
     Test _run_python_linting_actions action runner for Python files.
@@ -517,9 +517,7 @@ class Test_run_python_linting_actions(hunitest.TestCase):
         # Prepare outputs.
         expected_return_code = 1
         # Run test.
-        with umock.patch(
-            "helpers.hsystem.system", side_effect=[0, 1, 0, 0]
-        ):
+        with umock.patch("helpers.hsystem.system", side_effect=[0, 1, 0, 0]):
             ret = lilint._run_python_linting_actions(
                 file_paths,
                 actions,
@@ -583,6 +581,7 @@ class Test_run_python_linting_actions(hunitest.TestCase):
 # #############################################################################
 # Test_lint_python_files
 # #############################################################################
+
 
 class Test_lint_python_files(hunitest.TestCase):
     """
@@ -692,6 +691,7 @@ class Test_lint_python_files(hunitest.TestCase):
 # #############################################################################
 # Test_lint_jupyter_files
 # #############################################################################
+
 
 class Test_lint_jupyter_files(hunitest.TestCase):
     """
@@ -814,6 +814,7 @@ class Test_lint_jupyter_files(hunitest.TestCase):
 # #############################################################################
 # Test_lint_markdown_files
 # #############################################################################
+
 
 class Test_lint_markdown_files(hunitest.TestCase):
     """

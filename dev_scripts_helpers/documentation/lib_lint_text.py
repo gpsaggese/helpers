@@ -18,8 +18,6 @@ import shutil
 import tempfile
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
-import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 import helpers.hdbg as hdbg
 import helpers.hgit as hgit
 import helpers.hio as hio
@@ -31,6 +29,9 @@ import helpers.hprint as hprint
 import helpers.hselect_input_output as hseinout
 import helpers.hsystem as hsystem
 import helpers.htext_protect as htexprot
+
+import dev_scripts_helpers.dockerize.lib_pandoc as dshdlipa
+import dev_scripts_helpers.dockerize.lib_prettier as dshdlipr
 
 _LOG = logging.getLogger(__name__)
 
