@@ -137,3 +137,30 @@ Propose a plan on how to use the current scripts to achieve this
 - The raw download cache is relative to the current dir
   (`--output_dir` of `process_bookmarks.py`). Run from the same dir or pass
   `--output_dir`
+
+## Follow-up: `--dry_run`
+
+### Plan
+- [x] `sync_bookmarks.py --dry_run` prints the command of every selected phase and
+  runs none
+  - Each phase has an `hprint.frame()` header: `<action>: <description>`
+  - `process_bookmarks.py` is no longer run with `--dry_run`. Use the `report`
+    action to see the CSV vs iCloud situation
+- [x] Add `--dry_run` to the scripts missing it that `sync_bookmarks.py` calls
+  - `update_bookmarks_from_raindrop.py`
+  - `pre_process_bookmarks.py`
+  - Each logs what every selected action would do, with its input and output files
+- [x] Tests, README, and commit gates
+
+### Result
+
+#### Done
+- The two scripts log `[DRY_RUN] Would ...` per action and run nothing. No Raindrop.io
+  call, no HN API call, no LLM call, no file or gsheet change, no token needed
+- Tests: 113 pass in the four bookmark test files
+
+#### Not done
+- `podcast_dl.py` and `process_one_off_gsheet_links.py` also have no `--dry_run`.
+  I left them, since they are not part of the bookmark flow
+- `sync_bookmarks.py` does not forward `--dry_run` to the scripts: in a dry run it
+  prints their commands only

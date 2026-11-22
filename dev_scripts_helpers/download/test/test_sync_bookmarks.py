@@ -250,7 +250,6 @@ class Test_build_cmd(hunitest.TestCase):
             "dest_dir": "",
             "output_dir": "",
             "model": "",
-            "dry_run": False,
             "log_level": "INFO",
         }
         params.update(kwargs)
@@ -337,24 +336,7 @@ class Test_build_cmd(hunitest.TestCase):
 
     def test5(self) -> None:
         """
-        Test that `process` passes `--dry_run` in a dry run.
-        """
-        # Prepare inputs.
-        action = "process"
-        script = hgit.find_file_in_git_tree("process_bookmarks.py")
-        # Prepare outputs.
-        expected = (
-            f"{script} --input bookmarks.csv --limit 10 --dest_type obsidian "
-            "--dry_run -v INFO"
-        )
-        # Run test.
-        actual = self.helper(action, dry_run=True)
-        # Check outputs.
-        self.assert_equal(actual, expected)
-
-    def test6(self) -> None:
-        """
-        Test that `report` always passes `--dry_run`, even without a dry run.
+        Test that `report` always passes `--dry_run`, to change nothing.
         """
         # Prepare inputs.
         action = "report"
@@ -365,11 +347,11 @@ class Test_build_cmd(hunitest.TestCase):
             "--dry_run -v INFO"
         )
         # Run test.
-        actual = self.helper(action, dry_run=False)
+        actual = self.helper(action)
         # Check outputs.
         self.assert_equal(actual, expected)
 
-    def test7(self) -> None:
+    def test6(self) -> None:
         """
         Test that an invalid action is rejected.
         """
@@ -444,17 +426,17 @@ class Test_sync_bookmarks_py(hunitest.TestCase):
         {{
         'function': hsystem.system,
         'args': ('{raindrop} --target local_csv --local_csv {csv_path} --action download_raindrop_data --action combine_data -v INFO',),
-        'kwargs': {{'suppress_output': False, 'print_command': True}},
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': False}},
         }},
         {{
         'function': hsystem.system,
         'args': ('{pre_process} --target local_csv --local_csv {csv_path} --all_actions -v INFO',),
-        'kwargs': {{'suppress_output': False, 'print_command': True}},
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': False}},
         }},
         {{
         'function': hsystem.system,
         'args': ('{process} --input {csv_path} --limit 10 --dest_type obsidian -v INFO',),
-        'kwargs': {{'suppress_output': False, 'print_command': True}},
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': False}},
         }},
         ]"""
         # Run test.
@@ -466,19 +448,33 @@ class Test_sync_bookmarks_py(hunitest.TestCase):
 
     def test2(self) -> None:
         """
-        Test that a dry run does not run `update_raindrop` and `tag`, and runs
-        `process` with `--dry_run`.
+        Test that a dry run passes `dry_run=True` to every phase, so that no
+        command is run, and the commands have no `--dry_run`.
         """
         # Prepare inputs.
         csv_path = self._create_csv()
         argv = ["sync_bookmarks.py", "--csv", csv_path, "--dry_run"]
+        raindrop = hgit.find_file_in_git_tree(
+            "update_bookmarks_from_raindrop.py"
+        )
+        pre_process = hgit.find_file_in_git_tree("pre_process_bookmarks.py")
         process = hgit.find_file_in_git_tree("process_bookmarks.py")
         # Prepare outputs.
         expected = f"""[
         {{
         'function': hsystem.system,
-        'args': ('{process} --input {csv_path} --limit 10 --dest_type obsidian --dry_run -v INFO',),
-        'kwargs': {{'suppress_output': False, 'print_command': True}},
+        'args': ('{raindrop} --target local_csv --local_csv {csv_path} --action download_raindrop_data --action combine_data -v INFO',),
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': True}},
+        }},
+        {{
+        'function': hsystem.system,
+        'args': ('{pre_process} --target local_csv --local_csv {csv_path} --all_actions -v INFO',),
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': True}},
+        }},
+        {{
+        'function': hsystem.system,
+        'args': ('{process} --input {csv_path} --limit 10 --dest_type obsidian -v INFO',),
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': True}},
         }},
         ]"""
         # Run test. A dry run needs no token.
@@ -509,7 +505,7 @@ class Test_sync_bookmarks_py(hunitest.TestCase):
         {{
         'function': hsystem.system,
         'args': ('{process} --input {csv_path} --limit 5 --dest_type obsidian --dry_run -v INFO',),
-        'kwargs': {{'suppress_output': False, 'print_command': True}},
+        'kwargs': {{'suppress_output': False, 'print_command': True, 'dry_run': False}},
         }},
         ]"""
         # Run test.

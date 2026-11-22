@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
 import logging
+import os
 import unittest.mock as umock
+from typing import List
 
 import pytest
 
 pytest.importorskip("pandas")
 
 import helpers.hcache_simple as hcacsimp
+import helpers.hio as hio
 import helpers.hsystem as hsystem
 import helpers.hunit_test as hunitest
 
@@ -730,3 +733,190 @@ class Test__parse(hunitest.TestCase):
         args = parser.parse_args(["--target", "gsheet", "--model", model])
         # Check outputs.
         self.assert_equal(args.model, expected)
+
+
+# #############################################################################
+# Test__describe_action
+# #############################################################################
+
+
+class Test__describe_action(hunitest.TestCase):
+    """
+    Test the description of each action shown by `--dry_run`.
+    """
+
+    def helper(self, action: str, target: str, expected: str) -> None:
+        """
+        Check the description of an action.
+
+        :param action: action to describe
+        :param target: `--target` value
+        :param expected: expected description
+        """
+        # Run test.
+        actual = dspprbo._describe_action(
+            action,
+            target=target,
+            local_csv="local.csv",
+            url="https://docs.google.com/sheet",
+            model="my_model",
+        )
+        # Check outputs.
+        self.assert_equal(actual, expected)
+
+    def test1(self) -> None:
+        """
+        Test `download_link_gsheet`.
+        """
+        # Prepare outputs.
+        expected = (
+            "download the Google Sheet 'https://docs.google.com/sheet' to "
+            "'./tmp.pre_process_bookmarks.hn_gsheet.csv'"
+        )
+        # Run test and check output.
+        self.helper("download_link_gsheet", "gsheet", expected)
+
+    def test2(self) -> None:
+        """
+        Test `update_article_url` for `--target local_csv`, which reads the
+        local CSV.
+        """
+        # Prepare outputs.
+        expected = (
+            "extract with the HN API the `Article_url` of the rows of "
+            "'local.csv' where it is empty, and save the rows to "
+            "'./tmp.pre_process_bookmarks.processed_data.urls.csv'"
+        )
+        # Run test and check output.
+        self.helper("update_article_url", "local_csv", expected)
+
+    def test3(self) -> None:
+        """
+        Test `update_article_url` for `--target gsheet`, which reads the
+        downloaded tmp CSV.
+        """
+        # Prepare outputs.
+        expected = (
+            "extract with the HN API the `Article_url` of the rows of "
+            "'./tmp.pre_process_bookmarks.hn_gsheet.csv' where it is empty, "
+            "and save the rows to "
+            "'./tmp.pre_process_bookmarks.processed_data.urls.csv'"
+        )
+        # Run test and check output.
+        self.helper("update_article_url", "gsheet", expected)
+
+    def test4(self) -> None:
+        """
+        Test `update_article_tag`, which shows the model.
+        """
+        # Prepare outputs.
+        expected = (
+            "tag with the LLM 'my_model' the rows of "
+            "'./tmp.pre_process_bookmarks.processed_data.urls.csv' where "
+            "`Article_tag` is empty, and save the rows to "
+            "'./tmp.pre_process_bookmarks.processed_data.tags.csv'"
+        )
+        # Run test and check output.
+        self.helper("update_article_tag", "local_csv", expected)
+
+    def test5(self) -> None:
+        """
+        Test `update_article_cluster` for `--target local_csv`, which writes
+        the local CSV in place.
+        """
+        # Prepare outputs.
+        expected = (
+            "map the `Article_tag` of the rows of "
+            "'./tmp.pre_process_bookmarks.processed_data.tags.csv' to "
+            "`Article_cluster` where it is empty, and save the rows to "
+            "'local.csv'"
+        )
+        # Run test and check output.
+        self.helper("update_article_cluster", "local_csv", expected)
+
+    def test6(self) -> None:
+        """
+        Test `upload_link_gsheet`.
+        """
+        # Prepare outputs.
+        expected = (
+            "upload './tmp.pre_process_bookmarks.processed_data.clusters.csv' "
+            "to a new tab of the Google Sheet 'https://docs.google.com/sheet'"
+        )
+        # Run test and check output.
+        self.helper("upload_link_gsheet", "gsheet", expected)
+
+    def test7(self) -> None:
+        """
+        Test that an invalid action is rejected.
+        """
+        # Run test and check output.
+        with self.assertRaises(ValueError):
+            self.helper("invalid_action", "gsheet", "")
+
+
+# #############################################################################
+# Test_pre_process_bookmarks_py
+# #############################################################################
+
+
+class Test_pre_process_bookmarks_py(hunitest.TestCase):
+    def helper(self, argv: List[str]) -> None:
+        """
+        Run `pre_process_bookmarks._main()` with a mocked `sys.argv`.
+
+        :param argv: command-line argument list to inject
+        """
+        parser = dspprbo._parse()
+        with umock.patch("sys.argv", argv):
+            dspprbo._main(parser)
+
+    def test1(self) -> None:
+        """
+        Test `--dry_run` calls neither the HN API nor an LLM, and changes
+        neither `--local_csv` nor the tmp files.
+        """
+        scratch_dir = self.get_scratch_space()
+        cwd = os.getcwd()
+        os.chdir(scratch_dir)
+        try:
+            # Prepare inputs.
+            local_csv = os.path.join(scratch_dir, "local.csv")
+            columns = ["Title", "Hn_url", "Article_url", "Article_tag", "Done"]
+            rows = [
+                {
+                    "Title": "Existing",
+                    "Hn_url": "https://news.ycombinator.com/item?id=0",
+                    "Article_url": "",
+                    "Article_tag": "",
+                    "Done": "",
+                },
+            ]
+            dshdbou.write_csv(local_csv, rows, fieldnames=columns)
+            expected = hio.from_file(local_csv)
+            argv = [
+                "pre_process_bookmarks.py",
+                "--target",
+                "local_csv",
+                "--local_csv",
+                local_csv,
+                "--all_actions",
+                "--dry_run",
+            ]
+            # Run test.
+            with (
+                umock.patch.object(dspprbo.requests, "get") as mock_get,
+                umock.patch.object(dspprbo.hllmcli, "apply_llm") as mock_llm,
+            ):
+                self.helper(argv)
+            actual = hio.from_file(local_csv)
+            tmp_files = [
+                f for f in os.listdir(scratch_dir) if f.startswith("tmp.")
+            ]
+            # Check outputs.
+            mock_get.assert_not_called()
+            mock_llm.assert_not_called()
+            self.assert_equal(str(tmp_files), str([]))
+        finally:
+            os.chdir(cwd)
+        self.assert_equal(actual, expected)

@@ -10,6 +10,7 @@ import pytest
 # Skip this test suite if requests is not installed (skip for tutorials).
 pytest.importorskip("requests")
 
+import helpers.hio as hio
 import helpers.hunit_test as hunitest
 
 import dev_scripts_helpers.download.bookmark_utils as dshdbou
@@ -190,6 +191,56 @@ class Test_update_bookmarks_from_raindrop_py(hunitest.TestCase):
                 self.helper(combine_only_argv)
         finally:
             os.chdir(cwd)
+
+    def test3(self) -> None:
+        """
+        Test `--dry_run` neither calls `Raindrop.io` nor changes `--local_csv`,
+        nor leaves a tmp file.
+        """
+        scratch_dir = self.get_scratch_space()
+        cwd = os.getcwd()
+        os.chdir(scratch_dir)
+        try:
+            # Prepare inputs.
+            local_csv = os.path.join(scratch_dir, "local.csv")
+            columns = ["Title", "Hn_url", "Article_url", "Timestamp", "Done"]
+            rows = [
+                {
+                    "Title": "Existing",
+                    "Hn_url": "https://news.ycombinator.com/item?id=0",
+                    "Article_url": "",
+                    "Timestamp": "2024-01-01 00:00:00",
+                    "Done": "yes",
+                },
+            ]
+            dshdbou.write_csv(local_csv, rows, fieldnames=columns)
+            expected = hio.from_file(local_csv)
+            argv = [
+                "update_bookmarks_from_raindrop.py",
+                "--target",
+                "local_csv",
+                "--local_csv",
+                local_csv,
+                "--clear_actions",
+                "--action",
+                "download_raindrop_data",
+                "--action",
+                "combine_data",
+                "--dry_run",
+            ]
+            # Run test.
+            with umock.patch.object(dsbfr.requests, "get") as mock_get:
+                self.helper(argv)
+            actual = hio.from_file(local_csv)
+            raindrop_csv = dshdbou.get_tmp_file_path(
+                dsbfr.RAINDROP_CSV_FILE, "update_bookmarks_from_raindrop"
+            )
+            # Check outputs.
+            mock_get.assert_not_called()
+            self.assertFalse(os.path.exists(raindrop_csv))
+        finally:
+            os.chdir(cwd)
+        self.assert_equal(actual, expected)
 
 
 # #############################################################################
@@ -1005,3 +1056,103 @@ class Test__parse_timestamp(hunitest.TestCase):
         expected = "2024-06-01 00:00:00"
         # Run test.
         self.helper(ts_str, expected)
+
+
+# #############################################################################
+# Test__describe_action
+# #############################################################################
+
+
+class Test__describe_action(hunitest.TestCase):
+    """
+    Test the description of each action shown by `--dry_run`.
+    """
+
+    def helper(self, action: str, target: str, expected: str) -> None:
+        """
+        Check the description of an action.
+
+        :param action: action to describe
+        :param target: `--target` value
+        :param expected: expected description
+        """
+        # Run test.
+        actual = dsbfr._describe_action(
+            action,
+            target=target,
+            base_csv="base.csv",
+            url="https://docs.google.com/sheet",
+        )
+        # Check outputs.
+        self.assert_equal(actual, expected)
+
+    def test1(self) -> None:
+        """
+        Test `download_gsheet_links`.
+        """
+        # Prepare outputs.
+        expected = (
+            "download the Google Sheet 'https://docs.google.com/sheet' to "
+            "'base.csv'"
+        )
+        # Run test and check output.
+        self.helper("download_gsheet_links", "gsheet", expected)
+
+    def test2(self) -> None:
+        """
+        Test `download_raindrop_data`.
+        """
+        # Prepare outputs.
+        expected = (
+            "fetch from Raindrop.io the bookmarks created after the latest "
+            "`Timestamp` in 'base.csv' and save them to "
+            "'./tmp.update_bookmarks_from_raindrop.raindrop_data.csv'"
+        )
+        # Run test and check output.
+        self.helper("download_raindrop_data", "local_csv", expected)
+
+    def test3(self) -> None:
+        """
+        Test `combine_data` for `--target local_csv`, which merges in place.
+        """
+        # Prepare outputs.
+        expected = (
+            "prepend the new Raindrop.io bookmarks to the rows of 'base.csv', "
+            "in place"
+        )
+        # Run test and check output.
+        self.helper("combine_data", "local_csv", expected)
+
+    def test4(self) -> None:
+        """
+        Test `combine_data` for `--target gsheet`, which writes a tmp CSV.
+        """
+        # Prepare outputs.
+        expected = (
+            "combine the new Raindrop.io bookmarks with the rows of "
+            "'base.csv' into "
+            "'./tmp.update_bookmarks_from_raindrop.combined_data.csv'"
+        )
+        # Run test and check output.
+        self.helper("combine_data", "gsheet", expected)
+
+    def test5(self) -> None:
+        """
+        Test `upload_gsheet_links`.
+        """
+        # Prepare outputs.
+        expected = (
+            "upload './tmp.update_bookmarks_from_raindrop.combined_data.csv' "
+            "to a new tab of the Google Sheet "
+            "'https://docs.google.com/sheet'"
+        )
+        # Run test and check output.
+        self.helper("upload_gsheet_links", "gsheet", expected)
+
+    def test6(self) -> None:
+        """
+        Test that an invalid action is rejected.
+        """
+        # Run test and check output.
+        with self.assertRaises(ValueError):
+            self.helper("invalid_action", "gsheet", "")

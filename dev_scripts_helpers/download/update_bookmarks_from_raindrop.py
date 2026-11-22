@@ -77,6 +77,7 @@ import helpers.hparser as hparser
 import helpers.hprint as hprint
 import helpers.hselect_action as hselacti
 import helpers.htable as htable
+
 import dev_scripts_helpers.download.bookmark_utils as dshdbout
 
 _LOG = logging.getLogger(__name__)
@@ -384,9 +385,7 @@ def _combine_raindrop_with_gsheet_links(base_csv: str, output_csv: str) -> str:
     _LOG.info("Writing combined data to CSV file: '%s'", output_csv)
     # Write combined data preserving the base CSV's column order.
     if rows_combined:
-        dshdbout.write_csv(
-            output_csv, rows_combined, fieldnames=gsheet_columns
-        )
+        dshdbout.write_csv(output_csv, rows_combined, fieldnames=gsheet_columns)
     else:
         dshdbout.write_csv(output_csv, [], fieldnames=gsheet_columns)
     if rows_combined:
@@ -447,9 +446,7 @@ def _get_action_output_file(action: str, target: str) -> Optional[str]:
     filename = action_to_filename.get(action)
     if filename is None:
         return None
-    return dshdbout.get_tmp_file_path(
-        filename, "update_bookmarks_from_raindrop"
-    )
+    return dshdbout.get_tmp_file_path(filename, "update_bookmarks_from_raindrop")
 
 
 def _describe_action(

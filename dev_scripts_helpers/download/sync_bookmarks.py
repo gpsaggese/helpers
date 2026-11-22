@@ -32,9 +32,10 @@ incremental, so the command can be re-run at any time.
 The destination is iCloud (the Obsidian vault) by default. A different one is
 selected with `--dest_type`.
 
-With `--dry_run`, the script prints the commands of `update_raindrop` and `tag`
-without running them, since they have no dry run. It runs `process_bookmarks.py`
-with `--dry_run`, which changes nothing.
+With `--dry_run`, the script prints the command of every selected phase without
+running any of them, so it needs no token and makes no Raindrop.io or LLM call.
+To see the situation of the CSV vs the destination, use the `report` action
+instead.
 
 # Usage Example
 
@@ -44,7 +45,7 @@ with `--dry_run`, which changes nothing.
 - Show the situation of the CSV vs iCloud, without changing anything:
 > sync_bookmarks.py --clear_actions --action report
 
-- Show what the whole flow would do:
+- Print the commands of the whole flow, without running them:
 > sync_bookmarks.py --dry_run
 
 - Process the next 50 rows:
@@ -99,9 +100,13 @@ _DEFAULT_DEST_TYPE = "obsidian"
 # The actions are executed in this order.
 _VALID_ACTIONS = ["update_raindrop", "tag", "report", "process"]
 _DEFAULT_ACTIONS = ["update_raindrop", "tag", "process"]
-# The scripts of these actions have no `--dry_run`: in a dry run, their
-# command is only printed.
-_ACTIONS_WITHOUT_DRY_RUN = ["update_raindrop", "tag"]
+# Description of each action, shown in the frame of its phase.
+_ACTION_TO_DESCRIPTION = {
+    "update_raindrop": "Add the new Raindrop.io bookmarks to the CSV",
+    "tag": "Fill the article URL, tag, and cluster of the rows missing them",
+    "report": "Show the situation of the CSV vs the destination",
+    "process": "Download, summarize, and copy the summaries to the destination",
+}
 # Env vars needed by the scripts of each action.
 _ACTION_TO_ENV_VARS = {
     "update_raindrop": ["RAINDROP_API_TOKEN"],
@@ -205,7 +210,6 @@ def _build_cmd(
     dest_dir: str,
     output_dir: str,
     model: str,
-    dry_run: bool,
     log_level: str,
 ) -> str:
     """
@@ -221,11 +225,10 @@ def _build_cmd(
     :param output_dir: local dir caching the downloaded files, or `""` to use
         the default one of `process_bookmarks.py`
     :param model: LLM model, or `""` to use the default one of each script
-    :param dry_run: pass `--dry_run` to `process_bookmarks.py`
     :param log_level: verbosity forwarded to the called script
     :return: command line
     """
-    _LOG.debug(hprint.to_str("action csv_path limit dest_type dry_run"))
+    _LOG.debug(hprint.to_str("action csv_path limit dest_type"))
     if action == "update_raindrop":
         script = hgit.find_file_in_git_tree("update_bookmarks_from_raindrop.py")
         cmd = [
@@ -259,7 +262,8 @@ def _build_cmd(
             cmd.append(f"--output_dir {output_dir}")
         if model:
             cmd.append(f"--model {model}")
-        if action == "report" or dry_run:
+        if action == "report":
+            # Only show the situation, change nothing.
             cmd.append("--dry_run")
     else:
         raise ValueError(f"Invalid action='{action}'")
@@ -326,8 +330,7 @@ def _parse() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry_run",
         action="store_true",
-        help="Print the commands of `update_raindrop` and `tag` without "
-        "running them, and run `process_bookmarks.py` with `--dry_run`",
+        help="Print the command of every selected phase without running it",
     )
     hselacti.add_action_arg(parser, _VALID_ACTIONS, _DEFAULT_ACTIONS)
     hparser.add_verbosity_arg(parser)
@@ -351,9 +354,11 @@ def _main(parser: argparse.ArgumentParser) -> None:
     stats_before = _get_csv_stats(args.csv)
     # Run the actions in order, stopping at the first one that fails.
     for action in _VALID_ACTIONS:
-        to_execute, actions = hselacti.mark_action(action, actions)
-        if not to_execute:
+        if action not in actions:
             continue
+        _LOG.info(
+            "\n%s", hprint.frame(f"{action}: {_ACTION_TO_DESCRIPTION[action]}")
+        )
         cmd = _build_cmd(
             action,
             csv_path=args.csv,
@@ -362,23 +367,23 @@ def _main(parser: argparse.ArgumentParser) -> None:
             dest_dir=args.dest_dir,
             output_dir=args.output_dir,
             model=args.model,
-            dry_run=args.dry_run,
             log_level=args.log_level,
         )
-        if args.dry_run and action in _ACTIONS_WITHOUT_DRY_RUN:
-            _LOG.warning("[DRY_RUN] Would run '%s'", cmd)
-        else:
-            hsystem.system(cmd, suppress_output=False, print_command=True)
-    hdbg.dassert_eq(
-        actions, [], "There are unprocessed actions: %s", str(actions)
-    )
-    # Report what changed in the CSV.
-    stats_after = _get_csv_stats(args.csv)
-    _LOG.info(
-        "%s\n%s",
-        hprint.frame("# Changes in the CSV"),
-        _stats_to_str(stats_before, stats_after),
-    )
+        # In a dry run, `hsystem.system()` only prints the command.
+        hsystem.system(
+            cmd,
+            suppress_output=False,
+            print_command=True,
+            dry_run=args.dry_run,
+        )
+    # Report what changed in the CSV. A dry run changes nothing.
+    if not args.dry_run:
+        stats_after = _get_csv_stats(args.csv)
+        _LOG.info(
+            "\n%s\n%s",
+            hprint.frame("Changes in the CSV"),
+            _stats_to_str(stats_before, stats_after),
+        )
 
 
 if __name__ == "__main__":

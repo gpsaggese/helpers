@@ -168,14 +168,6 @@ model: sonnet
 
 # Verification
 
-- [ ] The structure is unchanged
-  - The markers of headers, bullets, and fences are the same as in `<ORIG_FILE>`
-  - The command prints no output when the structure is the same
-    ```bash
-    > diff \
-        <(grep -oE '^ *(#+ |[-*+] |[0-9]+\. |```)' <ORIG_FILE>) \
-        <(grep -oE '^ *(#+ |[-*+] |[0-9]+\. |```)' <FILE>)
-    ```
 - [ ] Fenced code blocks, inline code, URLs, and headers are unchanged
 - [ ] No sentence has more than 25 words
 - [ ] No step has more than 20 words

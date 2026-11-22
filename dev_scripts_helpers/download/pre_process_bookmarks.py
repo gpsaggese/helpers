@@ -7,6 +7,7 @@
 #   "googleapi",
 #   "gspread",
 #   "llm",
+#   "llm-openrouter",
 #   "lxml",
 #   "pandas",
 #   "pyyaml",
@@ -60,8 +61,8 @@ For detailed documentation on the link workflow, see:
 
 - Tag the articles with a specific LLM model (by default the OpenRouter model
   of `hllm_cli`, which needs the `OPENROUTER_KEY` env var):
-> process_gsheet_links.py \
-    --url "https://docs.google.com/spreadsheets/d/1i6Z7v2..." \
+> pre_process_bookmarks.py \
+    --target gsheet --url "https://docs.google.com/spreadsheets/d/1i6Z7v2..." \
     --clear_actions --action update_article_tag \
     --model openrouter/anthropic/claude-haiku-4.5
 
