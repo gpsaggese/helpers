@@ -9,6 +9,9 @@ model: haiku
   details, and original intent
 - Make the writing clear, concise, and easy to read
 - Avoid unnecessary words and repetition
+- Aggressively remove bullet points that are repetitive or superfluous
+  - Delete a bullet if another bullet already says the same thing
+  - Merge bullets that make the same point into one
 - Maintain the exact structure in terms of markdown headers
 - When rewriting a bullet point maintain all the text under 85 characters per line
 - Write the output in the same file
@@ -17,4 +20,5 @@ model: haiku
 
 - [ ] Markdown header structure is unchanged
 - [ ] Main ideas and important details are preserved
+- [ ] No repetitive or superfluous bullet points remain
 - [ ] Output is written back to the same file

@@ -7,6 +7,7 @@
 #   "googleapi",
 #   "gspread",
 #   "llm",
+#   "llm-openrouter",
 #   "lxml",
 #   "pandas",
 #   "pyyaml",
@@ -52,10 +53,16 @@ For detailed documentation on the link workflow, see:
     --target local_csv --local_csv bookmarks/combined_data.csv \
     --all_actions
 
+- Show what each action would do, without running anything (no HN API call, no
+  LLM call, and no file or gsheet change):
+> pre_process_bookmarks.py \
+    --target local_csv --local_csv bookmarks/combined_data.csv \
+    --all_actions --dry_run
+
 - Tag the articles with a specific LLM model (by default the OpenRouter model
   of `hllm_cli`, which needs the `OPENROUTER_KEY` env var):
-> process_gsheet_links.py \
-    --url "https://docs.google.com/spreadsheets/d/1i6Z7v2..." \
+> pre_process_bookmarks.py \
+    --target gsheet --url "https://docs.google.com/spreadsheets/d/1i6Z7v2..." \
     --clear_actions --action update_article_tag \
     --model openrouter/anthropic/claude-haiku-4.5
 
@@ -507,6 +514,57 @@ def _upload_to_gsheet(url: str) -> None:
     _LOG.debug("Upload to gsheet tab '%s' complete", tabname)
 
 
+def _describe_action(
+    action: str, *, target: str, local_csv: str, url: str, model: str
+) -> str:
+    """
+    Describe what an action does, for `--dry_run`.
+
+    :param action: name of the action
+    :param target: `--target` value (`gsheet` or `local_csv`)
+    :param local_csv: `--local_csv` path, only used for `--target local_csv`
+    :param url: URL of the Google Sheets document, only used by the actions
+        that read or write it
+    :param model: LLM model used for tagging
+    :return: description, e.g., `tag with the LLM '...' the rows ...`
+    """
+    _LOG.debug(hprint.to_str("action target local_csv url model"))
+    hn_csv = dshdbout.get_tmp_file_path(HN_CSV_FILE, "pre_process_bookmarks")
+    urls_csv = dshdbout.get_tmp_file_path(URLS_CSV_FILE, "pre_process_bookmarks")
+    tags_csv = dshdbout.get_tmp_file_path(TAGS_CSV_FILE, "pre_process_bookmarks")
+    clusters_csv = dshdbout.get_tmp_file_path(
+        CLUSTERS_CSV_FILE, "pre_process_bookmarks"
+    )
+    if action == "download_link_gsheet":
+        description = f"download the Google Sheet '{url}' to '{hn_csv}'"
+    elif action == "update_article_url":
+        source_csv = local_csv if target == "local_csv" else hn_csv
+        description = (
+            "extract with the HN API the `Article_url` of the rows of "
+            f"'{source_csv}' where it is empty, and save the rows to "
+            f"'{urls_csv}'"
+        )
+    elif action == "update_article_tag":
+        description = (
+            f"tag with the LLM '{model}' the rows of '{urls_csv}' where "
+            f"`Article_tag` is empty, and save the rows to '{tags_csv}'"
+        )
+    elif action == "update_article_cluster":
+        output_csv = local_csv if target == "local_csv" else clusters_csv
+        description = (
+            "map the `Article_tag` of the rows of "
+            f"'{tags_csv}' to `Article_cluster` where it is empty, and save "
+            f"the rows to '{output_csv}'"
+        )
+    elif action == "upload_link_gsheet":
+        description = (
+            f"upload '{clusters_csv}' to a new tab of the Google Sheet '{url}'"
+        )
+    else:
+        raise ValueError(f"Invalid action='{action}'")
+    return description
+
+
 # #############################################################################
 # CLI
 # #############################################################################
@@ -571,6 +629,11 @@ def _parse() -> argparse.ArgumentParser:
             "OpenRouter model, which needs the `OPENROUTER_KEY` env var"
         ),
     )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Show what each selected action would do, without running it",
+    )
     hselacti.add_action_arg(parser, _VALID_ACTIONS, _DEFAULT_ACTIONS)
     hcacsimp.add_cache_control_arg(parser)
     hparser.add_verbosity_arg(parser)
@@ -621,6 +684,22 @@ def _main(parser: argparse.ArgumentParser) -> None:
         action = actions[0]
         to_execute, actions = hselacti.mark_action(action, actions)
         if not to_execute:
+            continue
+        # In a dry run, only say what the action would do.
+        if args.dry_run:
+            url = ""
+            if action in ("download_link_gsheet", "upload_link_gsheet"):
+                url = dshdbout.resolve_gsheet_url(args.url)
+            _LOG.warning(
+                "[DRY_RUN] Would %s",
+                _describe_action(
+                    action,
+                    target=args.target,
+                    local_csv=args.local_csv,
+                    url=url,
+                    model=args.model,
+                ),
+            )
             continue
         _LOG.debug("Executing action: '%s'", action)
         # Dispatch to the appropriate handler based on the current action.

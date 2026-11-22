@@ -1,10 +1,11 @@
-# IN PROGRESS
-
 ## Bookmarks flow (IN PROGRESS)
 
 ### [.] Improve Bookmark flow
 
 - PR: `HelpersTask1354_Improve_bookmarking_flow`
+- Done: `sync_bookmarks.py` runs the whole CSV flow with a single command
+  (Raindrop update, tagging, summaries, copy to iCloud), replacing the draft
+  `update_bookmarks.sh`
 
 dev_scripts_helpers/download/update_bookmarks.sh
 
@@ -65,6 +66,8 @@ export LINKS_GSHEET=https://docs.google.com/spreadsheets/d/1i6Z7v2TzPdftR9BQ5Ia6
 
 ## Bookmarks flow (BACKLOG)
 
+### [ ] Rename the phase scripts with better names?
+
 ### [ ] Update the CSV instead of the gsheet
 
 ### [ ] Add score to the template
@@ -77,8 +80,10 @@ export LINKS_GSHEET=https://docs.google.com/spreadsheets/d/1i6Z7v2TzPdftR9BQ5Ia6
 
 ### [ ] Check that the gsheet has all the expected columns in the expected order
 
-### [ ] Save the results on Apple Cloud
+### [x] Save the results on Apple Cloud
 - So that Obsidian can pick it up instead of Google Drive
+- Done: `sync_bookmarks.py` copies to the iCloud vault (`--dest_type obsidian`) by
+  default
 ```
 cd '/Users/saggese/Library/CloudStorage/GoogleDrive-saggese@gmail.com/My Drive/HN'
 ```
@@ -86,3 +91,9 @@ cd '/Users/saggese/Library/CloudStorage/GoogleDrive-saggese@gmail.com/My Drive/H
 ### [ ] Increase number of bullet points
 
 ### [ ] Process also non HN articles
+- Not in `sync_bookmarks.py` for now
+- Today `process_bookmarks.py` marks the rows without an HN URL as `Done=skipped`
+  - On 2026-11-22: 399 of the 1778 unprocessed rows of the CSV (1379 have an HN URL)
+- Idea: route them with `download_to_md.py`, which already handles html and papers,
+  and use a summary template without the HN comments section
+- Once done, add a phase to `sync_bookmarks.py`
