@@ -33,6 +33,10 @@
 
 - [`helpers_root/dev_scripts_helpers/coding_tools/call_graph/`](/helpers_root/dev_scripts_helpers/coding_tools/call_graph/)
   - Has the plan, the progress log, the decisions log, and the `README.md`
+- [`helpers_root/dev_scripts_helpers/repo_checks/`](/helpers_root/dev_scripts_helpers/repo_checks/)
+  - Has the architecture design, the checks design, the decisions log, the tasks
+    queue, and the `README.md` of `docs/`
+  - Missing the PRD, the plan, and the progress log
 - [`research/Estimate_academic_paper_quality/`](/research/Estimate_academic_paper_quality/)
   - Has the PRD, the architecture design, the decisions log, and one design doc
     per component
@@ -53,6 +57,7 @@
   | :------------------------------------------------------------------------------------------------------------------ | :---------- | :---------------- | :---------------- | :----------- | :--------------- | :------------------ | :---------- |
   | `research/Noesis/`                                                                                                  |             | x                 | x                 | x            | x                | x                   | x           |
   | `helpers_root/dev_scripts_helpers/coding_tools/call_graph/`                                                         |             |                   | x                 | x            | x                |                     | x           |
+  | `helpers_root/dev_scripts_helpers/repo_checks/`                                                                     |             | x                 | x                 |              |                  |                     | x           |
   | `research/Estimate_academic_paper_quality/`                                                                         | x           | x                 | x                 |              |                  |                     |             |
   | `class_project/msml610/Fall2026/projects/UmdTask733_MSML610_Fall2026_Causal_Analysis_of_Financial_Tradability/`     |             |                   | x                 |              | x                |                     |             |
   | `class_project/msml610/Fall2026/projects/UmdTask677_MSML610_Fall2026_Counterfactual_Attribution_of_Agent_Failures/` |             |                   |                   | x            |                  |                     |             |
