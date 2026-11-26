@@ -56,7 +56,7 @@
 
 - [ ] **IT**: @Shayawnn Add the intern to the mailing group
       `<contributors_email>` so that they can send
-      [morning TODO emails](/docs/work_organization/all.team_collaboration.how_to_guide.md#morning-todo-email)
+      [morning TODO emails](/docs/work_organization/all.todo_email.how_to_guide.md)
   - The intern's personal e-mail address can be found in the corresponding Asana
     task in the
     [Hiring](https://app.asana.com/0/1208280136292379/1208280159230261) project

@@ -272,7 +272,7 @@ stateDiagram
   - Post a comment on the Issue with:
     - A realistic ETA
       - See "Morning TODO email" in
-        [`all.team_collaboration.how_to_guide.md`](/docs/work_organization/all.team_collaboration.how_to_guide.md#morning-todo-email)
+        [`all.todo_email.how_to_guide.md`](/docs/work_organization/all.todo_email.how_to_guide.md)
         for how to estimate and update an ETA
     - A short plan of 3-4 bullet points
       - The plan shows that you understood the goal
