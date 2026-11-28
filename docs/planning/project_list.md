@@ -28,6 +28,14 @@
   - Is the example used in the guide
   - Index of the docs:
     [`research/Noesis/docs/README.md`](/research/Noesis/docs/README.md)
+- [`helpers_root/docs/projects/cleanup/`](/helpers_root/docs/projects/cleanup/)
+  - The cleanup of the `helpers` repo
+  - Has the PRD, the architecture design, the decisions log, the plan, the progress
+    log, the meta-doc, the onboarding doc, and the glossary
+  - The dir is the `docs/` dir of the project, since the project changes the whole
+    repo
+  - Index of the docs:
+    [`helpers_root/docs/projects/cleanup/README.md`](/helpers_root/docs/projects/cleanup/README.md)
 
 ### Partial Doc Set
 
@@ -48,10 +56,13 @@
 
 - Every path in the first column is relative to the repo root
 - Every project keeps its docs in its `docs/` dir
+  - Except `helpers_root/docs/projects/cleanup/`, which is the docs dir of its
+    project
 
   | Project                                                                                                             | `01-prd.md` | `02*-design.*.md` | `03-decisions.md` | `04-plan.md` | `07-progress.md` | `08-how_we_work.md` | `README.md` |
   | :------------------------------------------------------------------------------------------------------------------ | :---------- | :---------------- | :---------------- | :----------- | :--------------- | :------------------ | :---------- |
   | `research/Noesis/`                                                                                                  |             | x                 | x                 | x            | x                | x                   | x           |
+  | `helpers_root/docs/projects/cleanup/`                                                                               | x           | x                 | x                 | x            | x                | x                   | x           |
   | `helpers_root/dev_scripts_helpers/coding_tools/call_graph/`                                                         |             |                   | x                 | x            | x                |                     | x           |
   | `research/Estimate_academic_paper_quality/`                                                                         | x           | x                 | x                 |              |                  |                     |             |
   | `class_project/msml610/Fall2026/projects/UmdTask733_MSML610_Fall2026_Causal_Analysis_of_Financial_Tradability/`     |             |                   | x                 |              | x                |                     |             |

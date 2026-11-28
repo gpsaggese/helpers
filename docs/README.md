@@ -112,6 +112,9 @@ with active review tracking and executable documentation validation.
 - `docs/planning/`
   - How to plan work: end-to-end plan of a project, PR loop, progress log, and PR
     description template.
+- `docs/projects/`
+  - The docs of the projects that change the whole repo, one dir per project, e.g.,
+    `docs/projects/cleanup/` for the cleanup of #1465.
 - `docs/tools/`
   - Guides for general-purpose development and infrastructure tools, grouped by
     topic. Holds the guide on evaluating external tools.
