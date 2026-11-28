@@ -163,4 +163,5 @@
 | 2026-11-02 | The repo moved from the `causify-ai` org to `gpsaggese`; CI is red since    |
 | 2026-11-26 | Filed #1465 from a walkthrough of the repo                                  |
 | 2026-11-27 | Review comment on #1465: group the PRs by theme, keep the plan in a PR      |
-| 2026-11-28 | Wrote the plan docs; accepted `D1`-`D4`, `D6`-`D8`, `D11`, `D12`, `D17`     |
+| 2026-11-28 | Wrote the plan docs; accepted `D1`-`D4`, `D6`-`D8`, `D11`, `D12`, `D17`,    |
+|            | `D20`                                                                       |

@@ -246,3 +246,23 @@
 - **Why**: the workflow fails every day since 2026-05-01 and makes the build look red
 - **Alternatives**: leave it failing until the docs theme replaces it
 - **Status**: proposed
+
+### `D20` (Draw the architecture diagrams as Mermaid flowcharts)
+
+- **Decision**: draw the C1 and C2 diagrams of
+  [`02-design.architecture.md`](/docs/projects/cleanup/02-design.architecture.md) as
+  Mermaid `flowchart` diagrams with the C4 colors, not with PlantUML
+- **Why**:
+  - GitHub renders a `mermaid` fence in the PR and in the file view, so a reviewer
+    sees the diagrams without a render step
+  - GitHub shows a `plantuml` fence as code
+  - Departs from `.claude/skills/C4.rules.md` "Always Draw C4 Diagrams with
+    PlantUML"
+    - The reason of the rule is the fixed grid of the Mermaid C4 syntax
+      (`C4Context`, `C4Container`)
+    - A `flowchart` lays out the boxes from the arrows, like PlantUML
+- **Alternatives**:
+  - PlantUML, per the rule, rendered with `render_images.py`
+  - The Mermaid C4 syntax, which the rule rejects for its layout
+- **Status**: accepted (2026-11-28), asked by the user; the reviewer confirms the
+  departure from the rule

@@ -33,32 +33,40 @@
     Question: how is one container organized?
   - **C4 (Code)**: the classes and functions inside one component. Not drawn: the
     code is the diagram
-- The element kinds:
-  - `Person`, `System`, `Container`, `Component`
-  - `_Ext` marks what the team does not build
-  - `Rel` is a labeled arrow: a call, an import, or a data flow
-  - `Boundary` groups elements
+- The diagrams are Mermaid flowcharts with the C4 colors, so that GitHub renders
+  them in the PR, see
+  [`D20`](/docs/projects/cleanup/03-decisions.md#d20-draw-the-architecture-diagrams-as-mermaid-flowcharts)
+  - **Dark blue box**: a person
+  - **Blue box**: the system or a container that the team builds
+  - **Gray box**: an external system that the team does not build
+  - **Cylinder**: a store of data
+  - **Frame**: a group of elements, e.g., the boundary of the system
+  - **Arrow**: a call, an import, or a data flow, with its label
+    - A dashed arrow is optional: it happens only when a user asks for it
 - This doc draws C1 and C2 of the target dev system
   - C3 and C4 are not drawn: the cleanup does not change the inside of a container
 
 ### Context (Target)
 
-```plantuml[width=90%]
-!pragma layout smetana
-!include <C4/C4_Context>
-LAYOUT_LEFT_RIGHT()
-title Helpers Dev System: Context (target)
-Person(dev, "Developer", "Writes code, runs invoke tasks and tests")
-Person(agent, "AI agent", "Executes one PR of the plan")
-System(helpers, "helpers dev system", "Library, dev image, invoke tasks, linters, CI")
-System_Ext(github, "GitHub", "Repo, Actions, GHCR, Pages")
-System_Ext(downstream, "Downstream repos", "Include helpers as helpers_root")
-System_Ext(aws, "AWS", "Called only by the optional AWS library")
-Rel(dev, helpers, "invoke, pytest, lint")
-Rel(agent, helpers, "Same commands as a developer")
-Rel(helpers, github, "Images, CI runs, docs site")
-Rel(downstream, helpers, "Links files, reads repo_config.yaml")
-Rel(helpers, aws, "hs3, haws, when a user calls them")
+```mermaid
+flowchart LR
+  dev["Developer<br/>Writes code, runs invoke tasks and tests"]
+  agent["AI agent<br/>Executes one PR of the plan"]
+  helpers["helpers dev system<br/>Library, dev image, invoke tasks, linters, CI"]
+  github["GitHub<br/>Repo, Actions, GHCR, Pages"]
+  downstream["Downstream repos<br/>Include helpers as helpers_root"]
+  aws["AWS<br/>Called only by the optional AWS library"]
+  dev -->|"invoke, pytest, lint"| helpers
+  agent -->|"Same commands as a developer"| helpers
+  helpers -->|"Images, CI runs, docs site"| github
+  downstream -->|"Links files, reads repo_config.yaml"| helpers
+  helpers -.->|"hs3, haws, when a user calls them"| aws
+  classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+  classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+  classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
+  class dev,agent person
+  class helpers system
+  class github,downstream,aws external
 ```
 
 - Today the dev system also depends on external systems that the cleanup removes:
@@ -75,32 +83,39 @@ Rel(helpers, aws, "hs3, haws, when a user calls them")
 
 ### Containers (Target)
 
-```plantuml[width=90%]
-!pragma layout smetana
-!include <C4/C4_Container>
-LAYOUT_TOP_DOWN()
-title Helpers Dev System: Containers (target)
-Person(dev, "Developer")
-System_Boundary(sys, "helpers dev system") {
-  Container(thin, "Thin environment", "bash, Python venv", "setenv.sh, invoke, tasks.py")
-  ContainerDb(cfg, "repo_config.yaml", "YAML", "Image name and registry")
-  Container(devc, "Dev container", "Docker", "helpers library, linters2, pytest, pyright")
-  Container(engine, "Docker engine in the dev container", "Docker-in-Docker", "Runs the dockerized tools")
-  Container(build, "Image build", "Dockerfile, uv", "devops/docker_build, uv.lock")
-  Container(ci, "CI workflows", "GitHub Actions", "Tests, image release, docs")
-}
-System_Ext(ghcr, "GHCR", "ghcr.io/<repo owner>/helpers")
-System_Ext(pages, "GitHub Pages", "Docs site")
-Rel(dev, thin, "invoke <task>")
-Rel(thin, cfg, "Reads")
-Rel(thin, devc, "docker compose run")
-Rel(devc, engine, "docker run")
-Rel(build, ghcr, "Pushes the dev and prod images")
-Rel(thin, ghcr, "Pulls the dev image")
-Rel(ci, ghcr, "Pulls the dev image")
-Rel(ci, devc, "invoke run_*_tests")
-Rel(ci, pages, "Publishes the docs")
+```mermaid
+flowchart TB
+  dev["Developer"]
+  subgraph sys["helpers dev system"]
+    thin["Thin environment<br/>[bash, Python venv]<br/>setenv.sh, invoke, tasks.py"]
+    cfg[("repo_config.yaml<br/>[YAML]<br/>Image name and registry")]
+    devc["Dev container<br/>[Docker]<br/>helpers library, linters2, pytest, pyright"]
+    engine["Docker engine in the dev container<br/>[Docker-in-Docker]<br/>Runs the dockerized tools"]
+    build["Image build<br/>[Dockerfile, uv]<br/>devops/docker_build, uv.lock"]
+    ci["CI workflows<br/>[GitHub Actions]<br/>Tests, image release, docs"]
+  end
+  ghcr["GHCR<br/>ghcr.io/gpsaggese/helpers"]
+  pages["GitHub Pages<br/>Docs site"]
+  dev -->|"invoke TASK"| thin
+  thin -->|"Reads"| cfg
+  thin -->|"docker compose run"| devc
+  devc -->|"docker run"| engine
+  build -->|"Pushes the dev and prod images"| ghcr
+  thin -->|"Pulls the dev image"| ghcr
+  ci -->|"Pulls the dev image"| ghcr
+  ci -->|"invoke run_*_tests"| devc
+  ci -->|"Publishes the docs"| pages
+  classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+  classDef container fill:#438dd5,stroke:#2e6295,color:#ffffff
+  classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
+  class dev person
+  class thin,cfg,devc,engine,build,ci container
+  class ghcr,pages external
+  style sys fill:none,stroke:#444444,stroke-dasharray:5 5
 ```
+
+- The GHCR path is the repo owner: `ghcr.io/gpsaggese/` today, per
+  [`D11`](/docs/projects/cleanup/03-decisions.md#d11-publish-the-images-to-the-ghcr-of-the-repo-owner)
 
 ## Containers: Today and Target
 
