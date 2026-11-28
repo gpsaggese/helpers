@@ -7,7 +7,7 @@ model: opus
 
 - Come up with the top 5 suggestions on how to improve the paper and make it
   more impactful
-- Write down the suggestions as bullet points
+- Follow the section `## Suggesting Improvements` of `.claude/skills/paper.rules.md`
 
 # Verification
 

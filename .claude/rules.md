@@ -209,7 +209,7 @@ Based on the files that you need to operate, read and follow the corresponding r
 ## Paper Rating
 
 - For rating an academic paper from 1 to 5 you MUST follow:
-  - The rules `.claude/skills/paper.rules.md`
+  - The rules `.claude/skills/paper_rating.rules.md`
   - The template `.claude/templates/paper_rating.template.md`
 
 # Books and Lectures

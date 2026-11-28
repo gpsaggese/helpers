@@ -544,7 +544,7 @@ Paths use current file names (two files were renamed, see 0.2).
 ### 2.1 DELETE
 - [ ] docs/onboarding/all.reading_list.reference.md (5 generic links)
 - [ ] docs/onboarding/all.literature_review.reference.md (2015-19 trading papers;
-  the format is in .claude/skills/paper.rules.md and
+  the format is in .claude/skills/paper_rating.rules.md and
   .claude/templates/paper_rating.template.md)
 - [ ] docs/onboarding/all.organize_email.how_to_guide.md (personal Gmail setup)
 - [ ] docs/onboarding/all.track_time_with_hubstaff.how_to_guide.md (GUI
