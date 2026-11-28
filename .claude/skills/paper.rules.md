@@ -67,7 +67,84 @@ A strong CS academic tone reflects the conventional structure:
 - Avoid absolute claims such as "solves," "proves," or "always"
 - Use hedged language such as "suggests," "indicates," or "in most cases"
 
+# Lists
+
+## Use a Bullet List for Parallel Items
+
+- Convert an enumeration inside a sentence into a bullet list when the sentence
+  - Compares or positions something against several items (e.g.,
+    `positions XYZ against A, B, and C`)
+  - Announces a number of items, also a number of two (e.g., `twofold`,
+    `two components`, `three phases`)
+  - Enumerates three or more alternatives, components, or cases
+- Use one bullet for each item
+- Keep the text that introduces or follows the enumeration outside the list
+
+- **Bad** (items buried in a sentence)
+  ```latex
+  We compare against three alternatives: calling a provider's API directly,
+  using a multi-provider gateway, and buying raw compute on a spot market.
+  ```
+- **Good** (one bullet per item)
+  ```latex
+  We compare against three alternatives:
+
+  \begin{itemize}
+    \item \textbf{Direct API}: calling a provider's API directly.
+    \item \textbf{Gateway}: using a multi-provider gateway.
+    \item \textbf{Spot compute}: buying raw compute on a spot market.
+  \end{itemize}
+  ```
+
+## Make the Item Names Bold
+
+- In each bullet, use `\textbf{...}` for the name of the item that the bullet
+  describes
+  - This applies to a label followed by `:` and to a name that is the subject of
+    the sentence
+  - This applies also to a name defined by a macro (e.g., `\Noesis{}`)
+- If an item has no name, add a short label before it
+  - E.g., `How much they value low latency` becomes
+    `\textbf{Latency sensitivity}: how much they value low latency`
+- When the list explains a table or a figure, use the names that it shows
+
+- **Bad** (plain name)
+  ```latex
+  \item Cloud spot markets already apply auction-based price discovery.
+  ```
+- **Good** (bold name)
+  ```latex
+  \item \textbf{Cloud spot markets} already apply auction-based price discovery.
+  ```
+
+# Links
+
+## Make Every URL and Domain Name Clickable
+
+- Every URL and domain name that the reader sees must be a link
+  - This applies to the text, tables, captions, and footnotes
+  - This applies also to a product name that is a domain name (e.g., `Vast.ai`),
+    even if its URL is next to it
+- Use `\url{...}` to show a URL
+- Use `\href{<url>}{<text>}` to show a domain name or another text as a link
+- Include `https://` in the target of the link
+
+- **Bad** (plain text)
+  ```latex
+  a hosted evaluation provider, e.g., artificialanalysis.ai
+  ```
+- **Good** (clickable)
+  ```latex
+  a hosted evaluation provider, e.g.,
+  \href{https://artificialanalysis.ai}{artificialanalysis.ai}
+  ```
+
 # Figures and Tables
+
+## Legends
+
+- Put the legend on top of the diagram
+- Lay out all the legend entries in a single horizontal row
 
 ## Labels, Captions, and References
 

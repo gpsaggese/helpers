@@ -27,11 +27,20 @@ The script:
   fit in a page
 - marks up the changes with `latexdiff --graphics-markup=both`
 - compiles the result with `latexmk`
-- if the compilation fails, retries with `--math-markup=off`, which doesn't mark
-  the changes in the equations
+- if the compilation fails, retries with less detailed markup:
+  - `--math-markup=off`, which doesn't mark the changes in the equations
+  - `--exclude-textcmd=textbf`, which doesn't mark the changes in the bold text,
+    and can hide the deleted bold text
+  - both options together
 - deletes `tmp.diff_latex/` after a successful compilation, since its copies of
   the files of the repo break the tools that search files by name. A run that
   fails or skips `compile` keeps it, so it needs to be deleted by hand
+
+With `--fast` the script trades accuracy for speed:
+- it skips `render_images.py`, so an image that is not committed is replaced by
+  an "Image not rendered" box
+- it runs a single `pdflatex` pass instead of `latexmk`, so cross-references,
+  citations, and the bibliography are not resolved
 
 Only images included with `\includegraphics` are compared (e.g., not inline
 TikZ drawings).
@@ -41,6 +50,8 @@ TikZ drawings).
 
 Paths in `\input` are resolved from the root of the repo, as `run_latex.py`
 does. Untracked files and uncommitted changes in submodules are never compared.
+
+For a description of this file, see the file diff_latex.README.md
 
 # Usage Example
 
@@ -59,6 +70,9 @@ does. Untracked files and uncommitted changes in submodules are never compared.
 - Compare two commits and choose the output file:
 > diff_latex.py --input papers/Noesis/paper.tex --from_ref 54845e3a \
     --to_ref d9d993ea --output Noesis.diff.pdf
+
+- Generate a quick draft of the diff:
+> diff_latex.py --input papers/Noesis/paper.tex -m --fast
 
 - Generate only the `.tex` diff, without Docker:
 > diff_latex.py --input papers/Noesis/paper.tex --from_ref HEAD~5 \
@@ -279,7 +293,11 @@ def _flatten(snapshot_dir: str, input_file: str, out_file: str) -> None:
 
 
 def _hash_images(
-    flat_file: str, search_dirs: List[str], dst_dir: str
+    flat_file: str,
+    search_dirs: List[str],
+    dst_dir: str,
+    *,
+    use_placeholder: bool = False,
 ) -> Set[str]:
     r"""
     Name each image of a merged LaTeX file after its content.
@@ -291,6 +309,8 @@ def _hash_images(
     :param flat_file: merged LaTeX file, modified in place
     :param search_dirs: dirs where to look for the images, in order
     :param dst_dir: root dir where to copy the images, under `diff_figs/`
+    :param use_placeholder: replace a missing image with a box of text, so that
+        the file can still be compiled
     :return: new paths of the images, relative to `dst_dir`
     """
     _LOG.debug(hprint.func_signature_to_str())
@@ -311,6 +331,8 @@ def _hash_images(
         src_files = [file_ for file_ in candidates if os.path.isfile(file_)]
         if not src_files:
             _LOG.warning("Can't find image '%s'", path)
+            if use_placeholder:
+                return r"\fbox{Image not rendered}"
             return match.group(0)
         with open(src_files[0], "rb") as f:
             digest = hashlib.sha256(f.read()).hexdigest()[:16]
@@ -417,13 +439,16 @@ def _mark_up(
     _add_old_macros(old_flat_file, diff_file)
 
 
-def _compile(snapshot_dir: str, paper_dir: str, tex_file: str) -> bool:
+def _compile(
+    snapshot_dir: str, paper_dir: str, tex_file: str, *, fast: bool = False
+) -> bool:
     """
-    Compile a `.tex` file with as many passes as needed.
+    Compile a `.tex` file with as many passes as needed, or one if `fast`.
 
     :param snapshot_dir: root of the exported commit
     :param paper_dir: dir of the paper, relative to `snapshot_dir`
     :param tex_file: `.tex` file to compile, in `snapshot_dir`
+    :param fast: run a single `pdflatex` pass instead of `latexmk`
     :return: whether the compilation succeeded
     """
     # Search files both relative to the paper dir (e.g., figures) and to the
@@ -436,10 +461,20 @@ def _compile(snapshot_dir: str, paper_dir: str, tex_file: str) -> bool:
         f"{name}={search_path}"
         for name in ["TEXINPUTS", "BIBINPUTS", "BSTINPUTS"]
     )
-    # `-gg` removes the files of a previous failed compilation.
+    if fast:
+        # Remove the files of a previous failed compilation, since `pdflatex`
+        # reads them back and they can be broken.
+        stem = os.path.join(snapshot_dir, os.path.splitext(tex_file)[0])
+        for ext in [".aux", ".out", ".toc", ".nav", ".snm"]:
+            if os.path.exists(stem + ext):
+                os.remove(stem + ext)
+        compiler = "pdflatex"
+    else:
+        # `-gg` removes the files of a previous failed compilation.
+        compiler = "latexmk -gg -pdf"
     cmd = (
         f"cd {shlex.quote(snapshot_dir)} && "
-        f"{env_vars} latexmk -gg -pdf -interaction=nonstopmode -halt-on-error "
+        f"{env_vars} {compiler} -interaction=nonstopmode -halt-on-error "
         f"{shlex.quote(tex_file)}"
     )
     rc = hsystem.system(cmd, abort_on_error=False)
@@ -461,6 +496,7 @@ def _diff_latex(
     *,
     alias: str = "",
     latexdiff_opts: str = "",
+    fast: bool = False,
     dry_run: bool = False,
 ) -> None:
     """
@@ -476,6 +512,7 @@ def _diff_latex(
     :param log_level: verbosity to forward to the called scripts
     :param latexdiff_opts: extra options for `latexdiff`, which override the
         ones used by default
+    :param fast: skip `render_images` and compile with a single pass
     :param dry_run: only report what would be done
     """
     hdbg.dassert_file_exists(input_file)
@@ -504,7 +541,8 @@ def _diff_latex(
             out_file,
         )
         return
-    for tool in ["latexpand", "latexdiff", "latexmk"]:
+    compiler = "pdflatex" if fast else "latexmk"
+    for tool in ["latexpand", "latexdiff", compiler]:
         hdbg.dassert_is_not(
             shutil.which(tool), None, "Missing '%s': install MacTeX", tool
         )
@@ -533,7 +571,7 @@ def _diff_latex(
             "The input file doesn't exist in commit '%s'",
             ref,
         )
-        if "render_images" in actions:
+        if "render_images" in actions and not fast:
             _render_images(snapshot_dir, paper_dir, log_level)
         flat_file = os.path.join(work_dir, f"{name}.tex")
         _flatten(snapshot_dir, rel_input, flat_file)
@@ -548,6 +586,7 @@ def _diff_latex(
             flat_file,
             [os.path.join(snapshot_dir, paper_dir), snapshot_dir],
             new_dir,
+            use_placeholder=fast,
         )
         for flat_file, snapshot_dir in zip(flat_files, snapshot_dirs)
     ]
@@ -563,19 +602,37 @@ def _diff_latex(
     result_file = diff_file
     if "compile" in actions:
         tex_file = os.path.basename(diff_file)
-        success = _compile(new_dir, paper_dir, tex_file)
-        if not success and "--math-markup" not in latexdiff_opts:
-            # The markup inside an equation can generate invalid LaTeX.
+        success = _compile(new_dir, paper_dir, tex_file, fast=fast)
+        # The markup can generate invalid LaTeX, e.g., inside an equation, or
+        # unbalanced braces when a `\textbf{...}` is moved. Retry with less
+        # detailed markup.
+        math_opts = [""]
+        if "--math-markup" not in latexdiff_opts:
+            math_opts.append("--math-markup=off")
+        fallback_opts = [
+            f"{text_opt} {math_opt}".strip()
+            for text_opt in ["", "--exclude-textcmd=textbf"]
+            for math_opt in math_opts
+        ]
+        # Skip the first combination, which has already been tried.
+        for fallback_opt in fallback_opts[1:]:
+            if success:
+                break
             _LOG.warning(
-                "Compilation failed: retrying with '--math-markup=off', so the "
-                "changes in the equations are not marked"
+                "Compilation failed: retrying with '%s', so some changes are "
+                "not marked",
+                fallback_opt,
             )
-            opts += " --math-markup=off"
-            _mark_up(flat_files[0], flat_files[1], diff_file, opts)
-            success = _compile(new_dir, paper_dir, tex_file)
+            _mark_up(
+                flat_files[0],
+                flat_files[1],
+                diff_file,
+                f"{opts} {fallback_opt}",
+            )
+            success = _compile(new_dir, paper_dir, tex_file, fast=fast)
         hdbg.dassert(
             success,
-            "`latexmk` failed: see '%s'",
+            "LaTeX compilation failed: see '%s'",
             os.path.splitext(diff_file)[0] + ".log",
         )
         result_file = os.path.splitext(diff_file)[0] + ".pdf"
@@ -634,6 +691,11 @@ def _parse() -> argparse.ArgumentParser:
         "(e.g., --latexdiff_opts='--math-markup=whole')",
     )
     parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Skip rendering the images and run a single `pdflatex` pass",
+    )
+    parser.add_argument(
         "--dry_run",
         action="store_true",
         help="Show what would be done without actually doing it",
@@ -660,6 +722,7 @@ def _main(parser: argparse.ArgumentParser) -> None:
         args.log_level,
         alias=args.alias,
         latexdiff_opts=args.latexdiff_opts,
+        fast=args.fast,
         dry_run=args.dry_run,
     )
 
