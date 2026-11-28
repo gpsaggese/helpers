@@ -26,6 +26,10 @@ Development utilities for code analysis, profiling, synchronization, and refacto
     in a container (Docker or Apple's `container` CLI)
 - `diff_to_vimdiff.py`
   - Transforms diff output into vimdiff script for interactive directory comparison
+- `diff_csv.py`
+  - Diffs two CSV files with vimdiff after rendering the cells in the same
+    way, aligning rows and columns, and optionally removing the rows and
+    columns that are the same
 - `find_unused_golden_files.py`
   - Identifies unused golden test files and mismatched test method definitions
 - `grsync.py`

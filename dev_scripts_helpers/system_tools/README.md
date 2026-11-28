@@ -48,6 +48,8 @@ This directory has no subdirectories.
   - Save an image from an interactive macOS screenshot, the clipboard, or a URL
 - `search_utils.py`
   - Argument parsing shared by `rig` and `ffind` (`<pattern> [<dir>] [<ext>]`)
+- `set_rectangle_shortcuts.sh`
+  - Set the Rectangle (macOS window manager) shortcuts to `cmd+ctrl+<digit>`
 - `tg.py`
   - Send notifications via Telegram
 - `tree.sh`
@@ -203,6 +205,38 @@ This directory has no subdirectories.
 - Create symbolic links:
   ```bash
   > create_links.py --source /path/to/source --destination /path/to/links
+  ```
+
+## `set_rectangle_shortcuts.sh`
+
+### What It Does
+
+- Sets the Rectangle shortcuts to `cmd+ctrl+<digit>`, which do not clash with
+  Chrome, text editing, or macOS shortcuts
+  - `cmd+ctrl+1`: left half
+  - `cmd+ctrl+2`: right half
+  - `cmd+ctrl+0`: center half
+  - `cmd+ctrl+3`: first third
+  - `cmd+ctrl+4`: first fourth
+  - Add `opt` for the mirrored window (last third, last fourth)
+  - Do not add `shift`, since `cmd+ctrl+shift+3` and `cmd+ctrl+shift+4` are the
+    macOS screenshot-to-clipboard shortcuts
+- Clears the old `firstTwoThirds`, `centerTwoThirds`, and `centerThird` shortcuts
+  that clash with text selection and Chrome tab switching
+- Clears `centerThreeFourths`, to free the keys
+- Backs up the preferences to `~/rectangle_prefs_backup.<timestamp>.plist`, quits
+  Rectangle before writing, and restarts it after
+
+### Examples
+
+- Set the shortcuts:
+  ```bash
+  > set_rectangle_shortcuts.sh
+  ```
+
+- Restore the old preferences from a backup:
+  ```bash
+  > defaults import com.knollsoft.Rectangle ~/rectangle_prefs_backup.20261123_090400.plist
   ```
 
 ## `mdm` — Markdown Manager
