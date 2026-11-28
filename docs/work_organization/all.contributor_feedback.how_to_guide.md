@@ -55,7 +55,7 @@
 - Sends good TODO emails
   - Doesn't forget to send one
   - Follows our
-    [formatting requirements](/docs/work_organization/all.team_collaboration.how_to_guide.md#morning-todo-email)
+    [formatting requirements](/docs/work_organization/all.todo_email.how_to_guide.md)
   - Sets realistic ETAs
 - Reads docs with attention
   - Internalizes our conventions described in the docs

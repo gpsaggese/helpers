@@ -133,7 +133,7 @@
 - At the next meeting, start by reviewing the open action items
 - Read the morning TODO emails of the team
   - See "Morning TODO email" in
-    [`all.team_collaboration.how_to_guide.md`](/docs/work_organization/all.team_collaboration.how_to_guide.md#morning-todo-email)
+    [`all.todo_email.how_to_guide.md`](/docs/work_organization/all.todo_email.how_to_guide.md)
   - Check that the issues, the hours, and the blockers match the plan
 
 ## Be GP's Right Hand
@@ -216,8 +216,10 @@
   [`all.use_github.how_to_guide.md`](/docs/work_organization/all.use_github.how_to_guide.md)
 - Board, statuses, sprints, and carryover:
   [`all.github_projects_process.reference.md`](/docs/work_organization/all.github_projects_process.reference.md)
-- Sync-ups, morning TODO email, and communication:
+- Sync-ups and communication:
   [`all.team_collaboration.how_to_guide.md`](/docs/work_organization/all.team_collaboration.how_to_guide.md)
+- Morning TODO email:
+  [`all.todo_email.how_to_guide.md`](/docs/work_organization/all.todo_email.how_to_guide.md)
 - Roles (tech lead, issue owner, reviewer) and blockers:
   [`all.organize_your_work.how_to_guide.md`](/docs/work_organization/all.organize_your_work.how_to_guide.md)
 - Weekly blocker meeting:

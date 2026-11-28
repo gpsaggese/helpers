@@ -40,7 +40,7 @@ Rules for writing structured text using bullet lists
 - Convert abstract principles into short, direct statements:
   - **Bad**:
     ```
-    Eunset OPENROUTER_API_KEY CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_KEY OPENROUTER_KEYveryone takes responsibility, owns their projects, and blames no one if
+    Everyone takes responsibility, owns their projects, and blames no one if
     something doesn't get finished
     ```
   - **Good**:
@@ -65,7 +65,7 @@ Rules for writing structured text using bullet lists
   - **Good**: A -> B
 - Do not use the em-dash `—` for asides; rephrase with a colon, parentheses, or a new
   sub-bullet
-  - **Bad**: `generation is sequential: each token needs a forward pass`
+  - **Bad**: `generation is sequential — each token needs a forward pass`
   - **Good**: `generation is sequential: each token needs a forward pass`
 
 ## Use `:` Instead of `-`
@@ -233,8 +233,7 @@ Rules for writing structured text using bullet lists
     ```markdown
     - They appear everywhere:
       - Husbands with controlling wives
-      - Overly helpful
-      - Friends with chaotic lives
+      - Overly helpful friends with chaotic lives
       - Seemingly stable men who suddenly fall apart
     ```
 - Example: a component description packs several responsibilities into one bullet
