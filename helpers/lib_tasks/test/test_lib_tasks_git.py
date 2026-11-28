@@ -411,6 +411,23 @@ class Test_git_branch_create(hunitest.TestCase):
         # Run test.
         self.helper(kwargs, expected)
 
+    def test3(self) -> None:
+        """
+        Test that `skip_branch_exists_check` and `no_fetch` append their flags.
+        """
+        # Prepare inputs.
+        kwargs = {
+            "branch_name": "HelpersTask999_Foo",
+            "skip_branch_exists_check": True,
+            "no_fetch": True,
+        }
+        # Prepare outputs.
+        expected = """
+        call('/repo/git_branch_create.py --branch_name HelpersTask999_Foo --skip_branch_exists_check --no_fetch', echo=False)
+        """
+        # Run test.
+        self.helper(kwargs, expected)
+
 
 # #############################################################################
 # TestLibTasksGitCreatePatch1
@@ -1216,10 +1233,10 @@ class Test_git_branch_copy(hunitest.TestCase):
         new_branch_name = "HelpersTask1_Foo_2"
         # Prepare outputs.
         expected = f"""
-        call('invoke git_add_all_untracked', echo=False)
-        call('git clean -fd', echo=False)
         call('invoke git_merge_master --abort-if-not-ff --no-auto-merge', echo=False)
-        call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}'", echo=False)
+        call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}' --skip-branch-exists-check --no-fetch", echo=False)
+        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
+        call('git clean -fd', echo=False)
         call('git merge --squash --ff {curr_branch_name} && git reset HEAD', echo=False)
         """
         # Run test.
@@ -1349,10 +1366,10 @@ class Test_git_branch_copy(hunitest.TestCase):
         submodules = True
         # Prepare outputs.
         expected = f"""
-        call('invoke git_add_all_untracked', echo=False)
-        call('git clean -fd', echo=False)
         call('invoke git_merge_master --abort-if-not-ff --no-auto-merge --submodules', echo=False)
-        call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}'", echo=False)
+        call("git checkout master && invoke git_branch_create --branch-name '{new_branch_name}' --skip-branch-exists-check --no-fetch", echo=False)
+        call("git ls-files -o --exclude-standard -z | grep -zvE '(^|/)(tmp\\\\.[^/]*|[^/]*\\\\.log)$' | xargs -0 git add", echo=False)
+        call('git clean -fd', echo=False)
         call('git merge --squash --ff {curr_branch_name} && git reset HEAD', echo=False)
         """
         # Run test.
@@ -1371,6 +1388,123 @@ class Test_git_branch_copy(hunitest.TestCase):
         # Check outputs.
         actual = _get_ctx_run_calls(ctx)
         self.assert_equal(actual, expected, fuzzy_match=True, dedent=True)
+
+    def helper_lookup(
+        self,
+        new_branch_name: str,
+        skip_git_merge_master: bool,
+        expected_lookups: str,
+        expected_create_cmd: str,
+    ) -> None:
+        """
+        Run `git_branch_copy()` creating a new branch and check the outputs.
+
+        :param new_branch_name: name passed by the user (empty to
+            auto-generate it)
+        :param skip_git_merge_master: value forwarded to `git_branch_copy()`
+        :param expected_lookups: expected `does_branch_exist()` calls
+        :param expected_create_cmd: expected `ctx.run()` command creating
+            the branch
+        """
+        # Prepare inputs.
+        ctx = httestlib._build_mock_context_returning_ok()
+        curr_branch_name = "HelpersTask1_Foo"
+        # Run test.
+        with (
+            umock.patch.object(
+                hgit, "get_branch_name", return_value=curr_branch_name
+            ),
+            umock.patch.object(
+                hgit,
+                "get_branch_next_name",
+                return_value="HelpersTask1_Foo_2",
+            ),
+            umock.patch.object(
+                hgit, "does_branch_exist", return_value=False
+            ) as mock_does_branch_exist,
+        ):
+            hltltagi.git_branch_copy(
+                ctx,
+                new_branch_name=new_branch_name,
+                skip_git_merge_master=skip_git_merge_master,
+            )
+        # Check outputs.
+        actual_lookups = "\n".join(map(str, mock_does_branch_exist.mock_calls))
+        self.assert_equal(
+            actual_lookups, expected_lookups, fuzzy_match=True, dedent=True
+        )
+        actual_calls = _get_ctx_run_calls(ctx).split("\n")
+        actual_create_cmd = [c for c in actual_calls if "git_branch_create" in c]
+        self.assert_equal(
+            "\n".join(actual_create_cmd),
+            expected_create_cmd,
+            fuzzy_match=True,
+            dedent=True,
+        )
+
+    def test8(self) -> None:
+        """
+        Test that an auto-generated name is not looked up, since it is free.
+        """
+        # Prepare inputs.
+        new_branch_name = ""
+        skip_git_merge_master = False
+        # Prepare outputs.
+        expected_lookups = ""
+        expected_create_cmd = """
+        call("git checkout master && invoke git_branch_create --branch-name 'HelpersTask1_Foo_2' --skip-branch-exists-check --no-fetch", echo=False)
+        """
+        # Run test.
+        self.helper_lookup(
+            new_branch_name,
+            skip_git_merge_master,
+            expected_lookups,
+            expected_create_cmd,
+        )
+
+    def test9(self) -> None:
+        """
+        Test that a user-provided name is looked up exactly once.
+        """
+        # Prepare inputs.
+        new_branch_name = "HelpersTask1_Bar"
+        skip_git_merge_master = False
+        # Prepare outputs.
+        expected_lookups = """
+        call('HelpersTask1_Bar', 'all')
+        """
+        expected_create_cmd = """
+        call("git checkout master && invoke git_branch_create --branch-name 'HelpersTask1_Bar' --skip-branch-exists-check --no-fetch", echo=False)
+        """
+        # Run test.
+        self.helper_lookup(
+            new_branch_name,
+            skip_git_merge_master,
+            expected_lookups,
+            expected_create_cmd,
+        )
+
+    def test10(self) -> None:
+        """
+        Test that `--no-fetch` is not passed when master was not merged.
+        """
+        # Prepare inputs.
+        new_branch_name = "HelpersTask1_Bar"
+        skip_git_merge_master = True
+        # Prepare outputs.
+        expected_lookups = """
+        call('HelpersTask1_Bar', 'all')
+        """
+        expected_create_cmd = """
+        call("git checkout master && invoke git_branch_create --branch-name 'HelpersTask1_Bar' --skip-branch-exists-check", echo=False)
+        """
+        # Run test.
+        self.helper_lookup(
+            new_branch_name,
+            skip_git_merge_master,
+            expected_lookups,
+            expected_create_cmd,
+        )
 
 
 # #############################################################################

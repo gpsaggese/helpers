@@ -234,7 +234,12 @@ and Drive-URL-to-local-path conversion.
   `zip`)
 - Auto-generates the output filename from the document title when
   `--to_dir` is used instead of `--to_file`
+- With `--extract_images`, saves the images embedded in a Markdown export in a
+  `<name>.figs` dir next to `<name>.md` and updates the links
+  - Images from a previous download are not deleted
 - Requires `gws` to be installed and authenticated (`gws auth login`)
+  - On an authorization error, e.g., an expired session, it asks to run
+    `gws auth login`
 
 ### Examples
 
@@ -250,6 +255,14 @@ and Drive-URL-to-local-path conversion.
   > gws_download_doc.py \
       --from_url https://docs.google.com/document/d/ABC123/edit \
       --to_file document.md
+  ```
+
+- Download a Google Doc as Markdown and save its images in `document.figs/`:
+  ```bash
+  > gws_download_doc.py \
+      --from_url https://docs.google.com/document/d/ABC123/edit \
+      --to_file document.md \
+      --extract_images
   ```
 
 - Download to a directory, auto-generating the filename from the doc title:

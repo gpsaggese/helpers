@@ -12,6 +12,7 @@ import logging
 import os
 import random
 import re
+import shlex
 import string
 from typing import List, Optional, Tuple, Union, cast
 
@@ -161,22 +162,72 @@ def _get_branch_next_name_via_github_api(
     return new_branch_name
 
 
-@functools.lru_cache
-def _get_gh_pr_list(dir_name: str = ".") -> str:
+def _does_branch_exist_git(
+    branch_name: str, *, dir_name: str = ".", remote: bool = False
+) -> bool:
     """
-    Get a cached list of all pull requests from GitHub (merged and open).
+    Check if a branch exists in the local git repo or in its remote.
 
-    Results are cached via functools.lru_cache (keyed on `dir_name`) to avoid
-    repeated GitHub API calls.
+    A remote check runs `git fetch --prune` once to refresh the
+    remote-tracking refs, while a local check needs no network call.
 
-    :param dir_name: directory containing the git repository to query (e.g.,
-        a submodule has its own, disjoint GitHub repo and PR list)
-    :return: raw output from `gh pr list` command
+    :param branch_name: the name of the branch to check
+    :param dir_name: directory containing the git repository
+    :param remote: check `origin/<branch_name>` instead of the local branch
+    :return: True if the branch exists
     """
-    cmd = f"cd {dir_name} && gh pr list -s all --limit 1000"
-    rc, txt = hsystem.system_to_string(cmd)
-    _ = rc
-    return txt
+    git_branch_name = branch_name
+    if remote:
+        # Refresh the remote-tracking refs so deleted branches are pruned.
+        # From https://stackoverflow.com/questions/35941566
+        cmd = f"cd {dir_name} && git fetch --prune"
+        hsystem.system(cmd, abort_on_error=False)
+        git_branch_name = f"origin/{git_branch_name}"
+    # From https://stackoverflow.com/questions/5167957
+    # > git rev-parse --verify LimeTask197_Get_familiar_with_CF2
+    # f03bfa0b4577c2524afd6a1f24d06013f8aa9f1a
+    # > git rev-parse --verify I_dont_exist
+    # fatal: Needed a single revision
+    cmd = f"cd {dir_name} && git rev-parse --verify {git_branch_name}"
+    rc = hsystem.system(cmd, abort_on_error=False)
+    exists = rc == 0
+    _LOG.debug("branch_name='%s' on git: exists=%s", branch_name, exists)
+    return exists
+
+
+def _does_branch_exist_github(branch_name: str, *, dir_name: str = ".") -> bool:
+    """
+    Check if a PR (open, closed, or merged) exists for the given head branch.
+
+    Ask GitHub only for the PRs with that head branch, instead of listing all
+    the PRs of the repo.
+
+    :param branch_name: the name of the branch to check
+    :param dir_name: directory containing the git repository (e.g., a submodule
+        has its own, disjoint GitHub repo and PR list)
+    :return: True if at least one PR has `branch_name` as head branch
+    """
+    # The `--jq` filter prints one PR number per line, so the output is empty
+    # when there is no PR, e.g.,
+    # ```
+    # > gh pr list --head AmpTask2163_Foo --state all --json number --limit 1 \
+    #     --jq '.[].number'
+    # 347
+    # ```
+    cmd = [
+        f"cd {dir_name} &&",
+        "gh pr list",
+        f"--head {shlex.quote(branch_name)}",
+        "--state all",
+        "--json number",
+        "--limit 1",
+        "--jq '.[].number'",
+    ]
+    cmd = " ".join(cmd)
+    _, txt = hsystem.system_to_string(cmd, suppress_output=True)
+    exists = txt.strip() != ""
+    _LOG.debug("branch_name='%s' on github: exists=%s", branch_name, exists)
+    return exists
 
 
 def does_branch_exist(
@@ -191,69 +242,28 @@ def does_branch_exist(
     Supports checking in local git repository or on GitHub via the `gh` CLI.
 
     :param branch_name: the name of the branch to check
-    :param mode: where to check ("all" checks all, "git_local", "git_remote", "github")
+    :param mode: where to check:
+        - "git_local": local branches only (no network call)
+        - "git_remote": `origin/<branch_name>` after one `git fetch --prune`
+        - "github": PRs (open, closed, merged) with that head branch
+        - "all": the three checks above, in this order, stopping at the first
+          hit
     :param dir_name: directory containing the git repository
     :return: True if the branch exists in the specified location
     """
     _LOG.debug(hprint.to_str("branch_name mode dir_name"))
-    # Handle the "all" case by recursion on all the possible modes.
-    if mode == "all":
-        exists = False
-        for mode_tmp in ("git_local", "git_remote", "github"):
-            exists_tmp = does_branch_exist(
-                branch_name, mode_tmp, dir_name=dir_name
-            )
-            exists = exists or exists_tmp
-        return exists
-    hdbg.dassert_in(mode, ("git_local", "git_remote", "github"))
+    hdbg.dassert_in(mode, ("all", "git_local", "git_remote", "github"))
+    # Check the cheapest location first and stop at the first hit, so that the
+    # expensive network calls run only when needed.
     exists = False
-    if mode in ("git_local", "git_remote"):
-        # From https://stackoverflow.com/questions/35941566
-        cmd = f"cd {dir_name} && git fetch --prune"
-        hsystem.system(cmd, abort_on_error=False)
-        # From https://stackoverflow.com/questions/5167957
-        # > git rev-parse --verify LimeTask197_Get_familiar_with_CF2
-        # f03bfa0b4577c2524afd6a1f24d06013f8aa9f1a
-        # > git rev-parse --verify I_dont_exist
-        # fatal: Needed a single revision
-        git_branch_name = branch_name
-        if mode == "git_remote":
-            git_branch_name = f"origin/{git_branch_name}"
-        cmd = f"cd {dir_name} && git rev-parse --verify {git_branch_name}"
-        rc = hsystem.system(cmd, abort_on_error=False)
-        exists = rc == 0
-        _LOG.debug("branch_name='%s' on git: exists=%s", branch_name, exists)
-    # Check on GitHub.
-    if mode == "github":
-        txt = _get_gh_pr_list(dir_name)
-        # ```
-        # > gh pr list -s all --limit 10000 | grep AmpTask2163
-        # 347     AmpTask2163_Implement_tiled_backtesting_1  AmpTask2163 ... MERGED
-        # ```
-        # The text is separated by tabs.
-        #
-        # If there are no issues on the GitHub repo, just return.
-        # ```
-        # > gh pr list -s all --limit 1000
-        # no pull requests match your search in causify-ai/sports_analytics
-        # ```
-        if txt == "":
-            return False
-        for line in txt.split("\n"):
-            # number, GH branch name, Git branch name, status.
-            fields = line.split("\t")
-            # fields=['179',
-            #   'CmTask2914: Add end-to-end unit test for prod reconcile',
-            #   'CmTask2914_Add_end_to_end_unit_test_around_the_prod_reconciliation',
-            #   'DRAFT', '2022-09-27 19:56:50 +0000 UTC']
-            hdbg.dassert_lte(4, len(fields), "fields=%s", fields)
-            number, gh_branch_name, git_branch_name = fields[:3]
-            _ = number, gh_branch_name
-            if branch_name == git_branch_name:
-                exists = True
-                _LOG.debug(
-                    "branch_name='%s' on github: exists=%s", branch_name, exists
-                )
+    if mode in ("all", "git_local"):
+        exists = _does_branch_exist_git(branch_name, dir_name=dir_name)
+    if not exists and mode in ("all", "git_remote"):
+        exists = _does_branch_exist_git(
+            branch_name, dir_name=dir_name, remote=True
+        )
+    if not exists and mode in ("all", "github"):
+        exists = _does_branch_exist_github(branch_name, dir_name=dir_name)
     return exists
 
 

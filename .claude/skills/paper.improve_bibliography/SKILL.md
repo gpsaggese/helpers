@@ -13,10 +13,7 @@ model: haiku
 # Workflow
 
 - Read the given LaTeX paper
-- Add relevant bibliography entries to the paper or to `references.bib` if
-  used
-- Add references to the new entries in the text of the paper
-- Make sure every added bibliography entry is relevant to the paper's topic
+- Follow the section `# Bibliography` of `.claude/skills/paper.rules.md`
 
 # Verification
 
